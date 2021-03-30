@@ -53,7 +53,14 @@
 			 x-group-name
 			 (if (eq x-group-name current-group-name)
 			     (cons (cons x (first groups)) (rest groups))
-			     (cons (list x) groups)))))))))))
+			     (cons (list x) groups))))))))))
+
+  (defun flatten (v)
+    (cond
+      ((consp v) (append (flatten (car v))
+			 (flatten (cdr v))))
+      ((null v) ())
+      (t (list v)))))
 
 (assert (equal
 	 (group #'listp '((1 2 3)
@@ -487,11 +494,7 @@
 (define (splitf-at list predicate)
   (list (takef list predicate) (dropf list predicate)))
 
-(define (flatten v)
-  (cond
-    ((pair? v) (append (flatten (car v)) (flatten (cdr v))))
-    ((null? v) ())
-    (t (list v))))
+
 
 (assert (equal (flatten '((a) b (c (d) . e) ()))
 	       '(a b c d e)))
