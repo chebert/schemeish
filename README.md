@@ -34,6 +34,19 @@ Three things in particular, named let, define and [] syntax:
     
     ;; [] Brackets evaluate the function argument (as if funcalling it)
     [(left-curry 5) 4] ;; => 1
+    
+The following adjustments to emacs init.el enhance the experience:
+
+    (defun enable-squares-as-parens-in-syntax-table (syntax-table)
+       (modify-syntax-entry ?\[ "(]" syntax-table)
+       (modify-syntax-entry ?\] ")[" syntax-table))
+
+     (enable-squares-as-parens-in-syntax-table lisp-mode-syntax-table)
+
+     (define-key paredit-mode-map (kbd "M-{")
+        'paredit-wrap-square)
+        
+     (global-set-key (kbd "C-\\") "λ")
 
 ## License
 
