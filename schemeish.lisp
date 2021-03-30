@@ -35,6 +35,9 @@
     (set-macro-character #\] #'read-right-bracket)))
 
 (for-macros
+  (install-syntax!))
+
+(for-macros
   (defun ensure-bool (datum) (not (not datum)))
   (defun group (predicate xs)
     (cond ((empty? xs) '())
@@ -63,7 +66,7 @@
 
 (for-macros
   (defun define-form-name (form)
-    (first form))
+    (first (flatten form)))
   (defun arg-list->lambda-list (args)
     (cond
       ((consp args)
@@ -83,19 +86,38 @@
     (and (define? form) (consp (second form))))
   (defun define-name (form)
     (let ((name-form (second form)))
-      (if (consp name-form)
-	  (car name-form)
-	  name-form)))
+      (first (flatten name-form))))
 
   (defun append* (lists)
     (apply #'append lists))
+
+  (defun nested-define-name-and-arglists (form)
+    (let rec ((form form)
+	      (result '()))
+      (if (not (listp form))
+	  (cons form result)
+	  (rec (car form)
+	       (cons (cdr form) result)))))
+  (defun expand-nested-define (form body)
+    (let ((name-and-arglists (nested-define-name-and-arglists form)))
+      `(,(first name-and-arglists)
+	,(arg-list->lambda-list (second name-and-arglists))
+	,@(let rec ((arglists (reverse (cddr name-and-arglists)))
+		    (result body))
+	    (if (null arglists)
+		result
+		(rec (rest arglists)
+		     `((λ ,(first arglists)
+			 ,@result))))))))
   
   (defun expand-local-defines (defines body)
     (let ((names (map #'define-name defines))
 	  (function-definitions (map (λ (define)
-				       `(,(define-name define)
-					 ,(define-form->lambda-list (second define))
-					 ,@(define-body->body (cddr define))))
+				       (if (nested-define? (second define))
+					   (expand-nested-define (second define) (cddr define))
+					   `(,(define-name define)
+					     ,(define-form->lambda-list (second define))
+					     ,@(define-body->body (cddr define)))))
 				     (remove-if-not #'define-procedure? defines))))
       `(let ,names
 	 (labels ,function-definitions
@@ -108,8 +130,13 @@
 			     names defines)))
 	   ,@body))))
 
+  (defun nested-define? (name-or-form)
+    (and (listp name-or-form) (listp (first name-or-form))))
+  
   (defun expand-define (name-or-form body)
     (cond
+      ((nested-define? name-or-form)
+       (cons 'defun (expand-nested-define name-or-form body)))
       ((listp name-or-form)
        `(defun ,(define-form-name name-or-form)
 	    ,(define-form->lambda-list name-or-form)
@@ -151,6 +178,20 @@
 
 (defmacro define (name-or-form &body body)
   (expand-define name-or-form body))
+
+(define (((test-nested-defines x) y . yargs) . zargs)
+  `(,x ,y ,@yargs ,@zargs))
+
+(assert (equal [[(test-nested-defines :x) :y :z] :a :b :c]
+	       '(:x :y :z :a :b :c)))
+
+(define (test-inner-nested-defines)
+  (define ((inner-nested x) y)
+    (list x y))
+  inner-nested)
+
+(assert (equal [[(test-inner-nested-defines) :x] :y]
+	       '(:x :y)))
 
 (assert (equal
 	 (macroexpand-1 '(define *hello* 'algebra))
@@ -200,14 +241,14 @@
 		       (eq self [data *get-bundle-type-predicate*]))))))))
 
 (define *name?* (make-bundle-predicate :bundle))
-[*name?* (λ (arg)
-	   (cond
-	     ((eq *get-bundle-type-predicate* arg)
-	      *name?*)))]
+(assert [*name?* (λ (arg)
+		   (cond
+		     ((eq *get-bundle-type-predicate* arg) *name?*)))])
 
 (define *get-bundle-list* (gensym))
-(define (make-keyword symbol)
-  (intern (symbol-name symbol) :keyword))
+(for-macros
+  (define (make-keyword symbol)
+    (intern (symbol-name symbol) :keyword)))
 
 (define *get-bundle-permissions* (gensym))
 
@@ -238,9 +279,10 @@
   (bundle *point?* (make-point x y) get-x get-y set-x! set-y!))
 
 (let ((point (make-point 3 4)))
-  (print [[point :get-x]])
+  (assert (= 3 [[point :get-x]]))
   [[point :set-x!] 32]
-  (print [[point :get-x]]))
+  (assert (= 32 [[point :get-x]]))
+  (assert [*point?* point]))
 
 (define (filter predicate list)
   (remove-if-not predicate list))
@@ -285,6 +327,7 @@
 	       '(2 3 4 5)))
 
 
+(define (negative? num) (minusp num))
 (define (positive? num) (plusp num))
 
 (define (andmap proc . lists)
@@ -299,7 +342,6 @@
 ;; (andmap 'positive? '(1 2 a))
 (assert (not (andmap 'positive? '(1 -2 a))))
 (assert (= 9 (andmap '+ '(1 2 3) '(4 5 6))))
-
 
 (define (ormap proc . lists)
   (let rec ((result ())
@@ -427,8 +469,6 @@
 	 (rest list)
 	 (cons (first list) result)))))
 
-
-
 (define (dropf list predicate)
   (let rec ((list list))
     (if (or (empty? list) (not [predicate (first list)]))
@@ -436,6 +476,7 @@
 	(rec (rest list)))))
 
 (define (even? x) (evenp x))
+(define (odd? x) (oddp x))
 
 (assert (equal (takef '(2 4 5 8) 'even?)
 	       '(2 4)))
@@ -456,21 +497,27 @@
 	       '(a b c d e)))
 
 (define (compose . procs)
-  (foldl (λ (proc result)
-	   (λ (x)
-	     [result [proc x]]))
-	 (λ (x) x)
+  (foldr (λ (proc result)
+	   (λ args
+	     (multiple-value-call proc (apply result args))))
+	 (λ args (values-list args))
 	 procs))
+
+(assert (equal (multiple-value-list [(compose) :x :y :z])
+	       '(:x :y :z)))
+
+(assert (equal [(compose (λ (x y z) (list 'f x y z))) 'x 'y 'z]
+	       '(f x y z)))
+
+(assert (equal
+	 [(compose (λ (a b c) (list 'f a b c))
+		   (λ (x y) (values (list 'g x) (list 'g y) (list 'g 'c))))
+	  'x 'y]
+
+	 '(f (g x) (g y) (g c))))
 
 (define (filter-map proc . lists)
   (remove nil (apply 'map proc lists)))
-
-(define (partition pred list)
-  (list (filter pred list)
-	(filter (compose 'not pred) list)))
-
-(assert (equal (partition 'even? '(1 2 3 4 5 6))
-	       '((2 4 6) (1 3 5))))
 
 (defun range (end &optional (start 0) (step 1))
   (if (<= start end)
@@ -482,3 +529,163 @@
 
 (define (filter-not pred list)
   (filter (compose 'not pred) list))
+
+(define (partition pred list)
+  (list (filter pred list)
+	(filter-not pred list)))
+
+(assert (equal (partition 'even? '(1 2 3 4 5 6))
+	       '((2 4 6) (1 3 5))))
+
+(define (procedure? datum) (functionp datum))
+
+(define (lcurry proc . left-args)
+  (λ right-args
+    (apply proc (append left-args right-args))))
+
+(assert (= [(lcurry '- 5 4) 3]
+	   (- 5 4 3)))
+
+(define (rcurry proc . right-args)
+  (λ left-args
+    (apply proc (append left-args right-args))))
+
+(assert (= [(rcurry '- 4 3) 5]
+	   (- 5 4 3)))
+
+(define (swap-args proc)
+  (λ (x y) [proc y x]))
+
+(assert (equal [(swap-args 'cons) 1 2]
+	       (cons 2 1)))
+
+(define (memo-proc proc)
+  (let ((run? ())
+	(result-values))
+    (λ args
+      (unless run?
+	(setq result-values (multiple-value-list (apply proc args))
+	      run? t)
+	result-values)
+      (values-list result-values))))
+
+(defmacro delay (&body body)
+  `(memo-proc (λ () ,@body)))
+(defun force (promise) [promise])
+
+(define *the-empty-stream* ())
+(defmacro stream-cons (first rest)
+  `(cons ,first (delay ,rest)))
+(define (stream-car stream) (car stream))
+(define (stream-cdr stream) (force (cdr stream)))
+
+(define (stream-empty? stream) (eq *the-empty-stream* stream))
+
+(define (stream-for-each stream proc)
+  (let rec ((stream stream))
+    (unless (stream-empty? stream)
+      [proc (stream-car stream)]
+      (rec (stream-cdr stream)))))
+
+(define (stream->list stream)
+  (let ((xs ()))
+    (stream-for-each stream (λ (x) (push x xs)))
+    (nreverse xs)))
+
+(define (stream-first stream) (stream-car stream))
+(define (stream-rest stream) (stream-cdr stream))
+
+(define (stream? datum)
+  (or (eq? datum *the-empty-stream*)
+      (and (pair? datum)
+	   (procedure? (cdr datum)))))
+
+(define (list->stream* list)
+  (if (empty? list)
+      *the-empty-stream*
+      (stream-cons (first list) (list->stream* (rest list)))))
+
+(define (list->stream . list)
+  (list->stream* list))
+
+(define *test-stream* (list->stream 1 2 3))
+
+(assert (equal (stream->list *test-stream*)
+	       '(1 2 3)))
+
+(assert (equal (let* ((one 0) (two 1) (three 2)
+		      (stream (stream-cons (incf one) (stream-cons (incf two) (stream-cons (incf three) *the-empty-stream*)))))
+		 (stream->list stream)
+		 (stream->list stream))
+	       '(1 2 3)))
+
+(define (stream-map proc stream)
+  (if (stream-empty? stream)
+      *the-empty-stream*
+      (stream-cons [proc (stream-first stream)] (stream-map proc (stream-rest stream)))))
+
+(assert (equal (stream->list (stream-map (lcurry '* 5) *test-stream*))
+	       '(5 10 15)))
+
+(define (stream-fold proc init stream)
+  (cond
+    ((stream-empty? stream) init)
+    (t
+     (let ((first (stream-first stream))
+	   (rest (stream-rest stream)))
+       (cond
+	 ((stream-empty? rest) [proc init first])
+	 (t (stream-fold proc [proc init (stream-first stream)] rest)))))))
+
+(assert (eq :init (stream-fold t :init *the-empty-stream*)))
+(assert (equal (stream-fold (swap-args 'cons) () *test-stream*)
+	       '(3 2 1)))
+
+(define (stream-filter predicate stream)
+  (cond
+    ((stream-empty? stream) stream)
+    (t
+     (let ((x (stream-first stream)))
+       (if [predicate x]
+	   (stream-cons x (stream-rest stream))
+	   (stream-rest stream))))))
+
+
+(defun alist-ref (alist key &optional failure-result)
+  (let ((pair (assoc key alist :test #'equal?)))
+    (if (pair? pair)
+	(cdr pair)
+	failure-result)))
+(define (alist-remove alist key)
+  (remove key alist :test #'equal? :key #'car))
+(define (alist-set alist key value)
+  (acons key value (alist-remove alist key)))
+
+(defun alist-update (alist key updater &optional failure-result)
+  (alist-set alist key [updater (alist-ref alist key failure-result)]))
+(define (alist-map alist proc)
+  (map (λ (binding) [proc (car binding) (cdr binding)]) alist))
+
+(define (alist-keys alist)
+  (alist-map alist (λ (key value) (declare (ignore value)) key)))
+(define (alist-values alist)
+  (alist-map alist (λ (key value) (declare (ignore key)) value)))
+
+(define (alist-has-key? alist key)
+  (let ((no-key (gensym)))
+    (eq? no-key (alist-ref alist key no-key))))
+
+(define (alist-set* alist . keys-and-values)
+  (let rec ((keys-and-values keys-and-values)
+	    (alist alist))
+    (cond
+      ((empty? keys-and-values) alist)
+      ((empty? (rest keys-and-values)) (error "badly formed arguments."))
+      (t (let ((key (first keys-and-values))
+	       (value (second keys-and-values)))
+	   (rec
+	    (drop keys-and-values 2)
+	    (alist-set alist key value)))))))
+
+(define (alist . keys-and-values)
+  (apply #'alist-set* () keys-and-values))

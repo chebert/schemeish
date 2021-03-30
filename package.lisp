@@ -54,4 +54,38 @@
    #:filter-map
    #:partition
    #:range
-   #:append-map))
+   #:append-map
+   #:filter-not
+   #:procedure?
+   #:compose
+   #:swap-args
+   #:rcurry
+   #:lcurry
+   #:memo-proc
+   #:delay
+   #:force
+   #:stream-cons
+   #:stream-car
+   #:stream-cdr
+   #:stream-for-each
+   #:*the-empty-stream*
+   #:stream-empty?
+   #:stream-first
+   #:stream-rest
+   #:list->stream
+   #:stream?
+   #:list->stream*
+   #:stream-map
+   #:stream-fold
+   #:stream-filter
+   #:alist-set
+   #:alist-remove
+   #:alist-ref
+   #:alist-update
+   #:alist-map
+   #:alist-keys
+   #:alist
+   #:alist-set*
+   #:alist-has-key?
+   #:alist-values
+   #:negative?))
