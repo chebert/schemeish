@@ -3,7 +3,15 @@
 
 Provide Scheme/Racket style naming conventions and objects in Common Lisp.
 
-Two things in particular, define and [] syntax:
+Three things in particular, named let, define and [] syntax:
+
+    ;; Named let allows for local recursion.
+    (let rec ((n 10)
+              (result '()))
+      (if (= n 0)
+          result
+          (rec (1- n) (cons n result))))
+    ;; => '(1 2 3 4 5 6 7 8 9 10)
 
     (define *variable-name* value) ;; Expands to (defparameter *variable-name* value)
     (define (function-name arg1 arg2 . args) 
