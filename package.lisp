@@ -4,7 +4,8 @@
   (:use #:cl)
   (:shadow #:map
 	   #:let
-	   #:sort)
+	   #:sort
+	   #:stream)
   (:export
    #:for-macros
    #:map
@@ -74,7 +75,6 @@
    #:stream-rest
    #:list->stream
    #:stream?
-   #:list->stream*
    #:stream-map
    #:stream-fold
    #:stream-filter
@@ -88,4 +88,14 @@
    #:alist-set*
    #:alist-has-key?
    #:alist-values
-   #:negative?))
+   #:negative?
+   #:stream
+   #:stream-length
+   #:stream-drop
+   #:stream-take
+   #:stream-ref
+   #:stream-append
+   #:stream-flatten
+   #:stream-flatmap
+   #:stream-range
+   #:stream-collect))

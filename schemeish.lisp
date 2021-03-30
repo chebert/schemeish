@@ -285,6 +285,11 @@
 
   (bundle *point?* (make-point x y) get-x get-y set-x! set-y!))
 
+#+nil
+(sb-introspect:function-lambda-list [(make-point 3 4) :set-x!])
+;; => (NEW-X)
+
+
 (let ((point (make-point 3 4)))
   (assert (= 3 [[point :get-x]]))
   [[point :set-x!] 32]
@@ -293,9 +298,12 @@
 
 (define (filter predicate list)
   (remove-if-not predicate list))
-(define (pair? datum) (consp datum))
-(define (null? datum) (null datum))
-(define (list? datum) (listp datum))
+
+(for-macros
+  (define (pair? datum) (consp datum))
+  (define (null? datum) (null datum))
+  (define (list? datum) (listp datum)))
+
 (define (list-ref list pos)
   (nth pos list))
 
@@ -574,7 +582,7 @@
 
 (defmacro delay (&body body)
   `(memo-proc (λ () ,@body)))
-(defun force (promise) [promise])
+(define  (force promise) [promise])
 
 (define *the-empty-stream* ())
 (defmacro stream-cons (first rest)
@@ -590,6 +598,11 @@
       [proc (stream-car stream)]
       (rec (stream-cdr stream)))))
 
+(define (stream-length stream)
+  (let ((count 0))
+    (stream-for-each stream (λ (x) (declare (ignore x)) (incf count)))
+    count))
+
 (define (stream->list stream)
   (let ((xs ()))
     (stream-for-each stream (λ (x) (push x xs)))
@@ -603,15 +616,15 @@
       (and (pair? datum)
 	   (procedure? (cdr datum)))))
 
-(define (list->stream* list)
+(define (list->stream list)
   (if (empty? list)
       *the-empty-stream*
-      (stream-cons (first list) (list->stream* (rest list)))))
+      (stream-cons (first list) (list->stream (rest list)))))
 
-(define (list->stream . list)
-  (list->stream* list))
+(define (stream . list)
+  (list->stream list))
 
-(define *test-stream* (list->stream 1 2 3))
+(define *test-stream* (stream 1 2 3))
 
 (assert (equal (stream->list *test-stream*)
 	       '(1 2 3)))
@@ -650,9 +663,180 @@
     (t
      (let ((x (stream-first stream)))
        (if [predicate x]
-	   (stream-cons x (stream-rest stream))
-	   (stream-rest stream))))))
+	   (stream-cons x (stream-filter predicate (stream-rest stream)))
+	   (stream-filter predicate (stream-rest stream)))))))
 
+(assert (equal (stream->list (stream-filter 'odd? (stream 1 2 3)))
+	       '(1 3)))
+
+(define (stream-drop stream n)
+  (let rec ((stream stream)
+	    (n n))
+    (if (or (stream-empty? stream) (<= n 0))
+	stream
+	(rec (stream-rest stream) (1- n)))))
+
+(assert (equal (stream->list (stream-drop (stream 1 2 3) 2))
+	       '(3)))
+
+(define (stream-take stream n)
+  (if (or (stream-empty? stream) (<= n 0))
+      *the-empty-stream*
+      (stream-cons (stream-first stream)
+		   (stream-take (stream-rest stream) (1- n)))))
+
+(assert (equal (stream->list (stream-take (stream 1 2 3) 2))
+	       '(1 2)))
+
+(define (stream-ref stream i)
+  (stream-first (stream-drop stream i)))
+
+(assert (= (stream-ref (stream 0 1 2 3) 1)
+	   1))
+
+(define (stream-append . streams)
+  (cond
+    ((null? streams) *the-empty-stream*)
+    (t
+     (let ((stream (first streams)))
+       (cond
+	 ((stream-empty? stream)
+	  (apply 'stream-append (rest streams)))
+	 (t
+	  (stream-cons (stream-first stream)
+		       (apply 'stream-append
+			      (stream-rest stream)
+			      (rest streams)))))))))
+
+(assert (equal
+	 (stream->list (stream-append (stream 1 2 3) (stream 4 5 6) (stream 7 8 9)))
+	 '(1 2 3 4 5 6 7 8 9)))
+
+(define (stream-flatten stream-of-streams)
+  (stream-fold 'stream-append
+	       *the-empty-stream*
+	       stream-of-streams))
+
+(assert (equal
+	 (stream->list (stream-flatten (stream (stream 1 2 3)
+					       (stream 4 5 6)
+					       (stream 7 8 9))))
+	 '(1 2 3 4 5 6 7 8 9)))
+
+
+(define (stream-range start end)
+  (cond
+    ((> start end) *the-empty-stream*)
+    (t
+     (stream-cons start
+		  (stream-range (1+ start) end)))))
+
+(assert (equal (stream->list (stream-range 4 8))
+	       '(4 5 6 7 8)))
+
+(define (stream-flatmap proc s)
+  (stream-flatten (stream-map proc s)))
+
+(assert (equal (stream->list (stream-flatmap
+			      (λ (i)
+				(stream-map
+				 (λ (j) (list i j))
+				 (stream 4 5)))
+			      (stream 1 2)))
+	       '((1 4) (1 5) (2 4) (2 5))))
+
+
+(for-macros
+  (define (stream-collect-bindings-fn binding-names body)
+    (let ((arg-name (gensym)))
+      `(λ (,arg-name)
+	 (destructuring-bind ,binding-names ,arg-name
+	   (declare (ignorable ,@binding-names))
+	   ,@body)))))
+
+(for-macros
+  (define (stream-collect-filter-form binding-names test-form stream-form)
+    `(stream-filter
+      ,(stream-collect-bindings-fn binding-names (list test-form))
+      ,stream-form)))
+
+(stream-collect-filter-form '(i j) '(even? (+ i j)) :stream)
+
+(for-macros
+  (define (stream-collect-inner-map-form binding binding-names)
+    `(stream-map (λ (,(first binding))
+		   (list ,@binding-names))
+		 ,(second binding))))
+
+(stream-collect-inner-map-form '(j (stream-range 1 (1- i)))
+			       '(i j))
+(for-macros
+  (define (stream-collect-flatmap-form binding body)
+    `(stream-flatmap (λ (,(first binding))
+		       ,@body)
+		     ,(second binding))))
+
+(stream-collect-flatmap-form '(i (stream-range 1 n)) '(:body))
+
+(for-macros
+  (define (stream-collect-outer-map binding-names form stream)
+    `(stream-map
+      ,(stream-collect-bindings-fn binding-names (list form))
+      ,stream)))
+
+(stream-collect-outer-map '(i j) '(list i j (+ i j)) :stream)
+
+(for-macros
+  (define (stream-collect-inner-flatmaps bindings)
+    (when (null? bindings)
+      (error "stream-collect: requires at least one binding."))
+    (let ((binding-names (map 'car bindings))
+	  (bindings (reverse bindings)))
+      (let rec ((result (stream-collect-inner-map-form (first bindings)
+						       binding-names))
+		(bindings (rest bindings)))
+	(if (null? bindings)
+	    result
+	    (rec
+	     (stream-collect-flatmap-form (first bindings) (list result))
+	     (rest bindings)))))))
+
+(stream-collect-inner-flatmaps '((i (stream-range 1 n))
+				 (j (stream-range 1 (1- i)))))
+
+(for-macros
+  (define (stream-collect-form map-form bindings filter-form)
+    (let ((binding-names (map 'car bindings)))
+      (stream-collect-outer-map
+       binding-names
+       map-form
+       (stream-collect-filter-form
+	binding-names
+	filter-form
+	(stream-collect-inner-flatmaps bindings))))))
+
+
+(stream-collect-form '(list i j (+ i j))
+		     '((i (stream-range 1 n))
+		       (j (stream-range 1 (1- i))))
+		     '(even? (+ i j)))
+
+(defmacro stream-collect (map-form bindings filter-form)
+  (stream-collect-form map-form bindings filter-form))
+
+(define (prime? num)
+  (let ((root (floor (sqrt num))))
+    (not (find-if (λ (div) (zerop (rem num div))) (range (1+ root) 2)))))
+
+(define (prime-sum-pairs n)
+  (stream-collect
+   (list i j (+ i j))
+   ((i (stream-range 1 n))
+    (j (stream-range 1 (1- i))))
+   (prime? (+ i j))))
+
+(assert (equal (stream->list (prime-sum-pairs 6))
+	       '((2 1 3) (3 2 5) (4 1 5) (4 3 7) (5 2 7) (6 1 7) (6 5 11))))
 
 (defun alist-ref (alist key &optional failure-result)
   (let ((pair (assoc key alist :test #'equal?)))
