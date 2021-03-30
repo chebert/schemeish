@@ -164,6 +164,28 @@ Used to annotate functions that are used in macros."
   (defun body-header? (form)
     (or (declaration? form)
 	(docstring? form)))
+
+  (defun takef (list predicate)
+    "Takes initial elements of list that satisfy pred."
+    (let rec ((list list)
+	      (result '()))
+      (if (or (empty? list) (not [predicate (first list)]))
+	  (nreverse result)
+	  (rec
+	   (rest list)
+	   (cons (first list) result)))))
+  (defun dropf (list predicate)
+    "Drops initial elements of list that don't satisfy pred."
+    (let rec ((list list))
+      (if (or (empty? list) (not [predicate (first list)]))
+	  list
+	  (rec (rest list)))))
+
+  (assert (equal (takef '(2 4 5 8) 'even?)
+		 '(2 4)))
+
+  (assert (equal (dropf '(2 4 5 8) 'even?)
+		 '(5 8)))
   
   (defun expand-define (name-or-form body)
     (let ((headers (takef body 'body-header?))
@@ -569,31 +591,9 @@ Example:
   "Returns (list (take list pos) (drop list pos))"
   (list (take list pos) (drop list pos)))
 
-(define (takef list predicate)
-  "Takes initial elements of list that satisfy pred."
-  (let rec ((list list)
-	    (result '()))
-    (if (or (empty? list) (not [predicate (first list)]))
-	(nreverse result)
-	(rec
-	 (rest list)
-	 (cons (first list) result)))))
-
-(define (dropf list predicate)
-  "Drops initial elements of list that don't satisfy pred."
-  (let rec ((list list))
-    (if (or (empty? list) (not [predicate (first list)]))
-	list
-	(rec (rest list)))))
-
 (define (even? x) (evenp x))
 (define (odd? x) (oddp x))
 
-(assert (equal (takef '(2 4 5 8) 'even?)
-	       '(2 4)))
-
-(assert (equal (dropf '(2 4 5 8) 'even?)
-	       '(5 8)))
 
 (define (splitf-at list predicate)
   "Returns (list (takef list predicate) (dropf list predicate))"
