@@ -23,13 +23,13 @@
   (defun read-left-bracket (stream char)
     (declare (ignore char))
     (let ((form (read-delimited-list #\] stream t)))
-      (when (null form)
-	(error "Empty [], expected function combination."))
-      `(funcall ,@form)))
+      (if (null form)
+	  '()
+	  `(funcall ,@form))))
   (defun read-right-bracket (stream char)
     (declare (ignore stream char))
     (error "read: unmatched ]"))
-  
+
   (defun install-syntax! ()
     (set-macro-character #\[ #'read-left-bracket)
     (set-macro-character #\] #'read-right-bracket)))
