@@ -35,6 +35,12 @@ Three things in particular, named let, define and [] syntax:
     ;; [] Brackets evaluate the function argument (as if funcalling it)
     [(left-curry 5) 4] ;; => 1
     
+    ;; λ is like a lambda but it uses scheme-style argument lists
+    (λ (arg1 arg2 arg3) (list arg1 arg2 arg3)) ;; Arity: 3
+    (λ (arg1 . args) (list* arg1 args)) ;; Arity: at least 1
+    (λ args args) ;; Arity: at least 0
+
+    
 The following adjustments to emacs init.el enhance the experience:
 
     (defun enable-squares-as-parens-in-syntax-table (syntax-table)
