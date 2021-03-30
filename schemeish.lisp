@@ -95,7 +95,6 @@ Used to annotate functions that are used in macros."
       ((symbolp args) `(&rest ,args))
       (t (error "bad thing to be in an arglist: ~S" args))))
 
-
   (defmacro λ (arg-list &body body)
     "A lambda with scheme style arugment lists. Some examples:
   (λ (arg1 arg2 arg3) (list arg1 arg2 arg3)) ;; Arity: 3
@@ -186,13 +185,17 @@ Used to annotate functions that are used in macros."
 
   (assert (equal (dropf '(2 4 5 8) 'even?)
 		 '(5 8)))
-  
+
   (defun expand-define (name-or-form body)
     (let ((headers (takef body 'body-header?))
 	  (body (dropf body 'body-header?)))
       (cond
 	((nested-define? name-or-form)
-	 (cons 'defun (expand-nested-define name-or-form body)))
+	 (let ((name-arglist-and-body (expand-nested-define name-or-form body)))
+	   (cons 'defun
+		 (append (take name-arglist-and-body 2)
+			 headers
+			 (drop name-arglist-and-body 2)))))
 	((listp name-or-form)
 	 `(defun ,(define-form-name name-or-form)
 	      ,(define-form->lambda-list name-or-form)
@@ -259,12 +262,14 @@ Used to annotate functions that are used in macros."
   (expand-define name-or-form body))
 
 (define (((test-nested-defines x) y . yargs) . zargs)
+  "Returns a thing"
   `(,x ,y ,@yargs ,@zargs))
 
 (assert (equal [[(test-nested-defines :x) :y :z] :a :b :c]
 	       '(:x :y :z :a :b :c)))
 
 (define (test-inner-nested-defines)
+  "Also returns a thing"
   (define ((inner-nested x) y)
     (list x y))
   inner-nested)
