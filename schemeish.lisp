@@ -1169,6 +1169,10 @@ Example:
 	       '((2 1 3) (3 2 5) (4 1 5) (4 3 7) (5 2 7) (6 1 7) (6 5 11))))
 
 (define (random-stream limit)
+  "Return a stream of random numbers below limit.
+If limit is an integer, returns integers.
+If limit is a float returns floats.
+Does not affect the random-state."
   (define (%random-stream rs)
     (stream-cons (random limit rs)
 		 (%random-stream rs)))
@@ -1232,6 +1236,7 @@ Applies updater to failure-result if key is not present."
   (apply #'alist-set* () keys-and-values))
 
 (define (disjoin* predicates)
+  "Return a predicate equivalent to predicates joined together with or."
   (λ (x)
     (let rec ((result nil)
 	      (predicates predicates))
@@ -1240,6 +1245,7 @@ Applies updater to failure-result if key is not present."
 	  (rec [(first predicates) x]
 	       (rest predicates))))))
 (define (disjoin . predicates)
+  "Return a predicate equivalent to predicates joined together with or."
   (disjoin* predicates))
 
 (assert (equal (map (disjoin 'negative? 'even?)
@@ -1248,6 +1254,7 @@ Applies updater to failure-result if key is not present."
 
 
 (define (conjoin* predicates)
+  "Return a predicate equivalent to predicates joined together with and."
   (λ (x)
     (let rec ((result t)
 	      (predicates predicates))
@@ -1256,6 +1263,7 @@ Applies updater to failure-result if key is not present."
 	  (rec [(first predicates) x]
 	       (rest predicates))))))
 (define (conjoin . predicates)
+  "Return a predicate equivalent to predicates joined together with and."
   (conjoin* predicates))
 
 (assert (equal (map (conjoin 'negative? 'even?)
@@ -1263,8 +1271,98 @@ Applies updater to failure-result if key is not present."
 	       '(nil t nil nil)))
 
 (define (const v)
+  "Return a procedure of 0+ args that always returns v"
   (λ args
     (declare (ignore args))
     v))
 
 (assert (= [(const 3) 1 2 3] 3))
+
+(defmacro nand (&rest expressions)
+  "The same as (not (and expressions...))"
+  `(not (and ,@expressions)))
+
+(defmacro nor (&rest expressions)
+  "The same as (not (or expressions...))"
+  `(not (or ,@expressions)))
+
+(define (xor b1 b2)
+  "Logical xor of booleans b1 and b2."
+  (or (and b1 (not b2))
+      (and b2 (not b1))))
+
+(define (quotient n m)
+  "Trunacate n/m"
+  (truncate n m))
+
+(define (number->string number (radix 10))
+  "Convert number to string using radix as the base."
+  (let ((*print-base* radix))
+    (format nil "~S" number)))
+
+(define (degrees->radians deg)
+  "convert degrees to radians"
+  (/ (* pi deg) 180))
+(define (radians->degrees rads)
+  "convert radians to degrees."
+  (/ (* 180 rads) pi))
+
+(define (sqr n)
+  "n*n"
+  (* n n))
+
+(define (sgn x)
+  "Return the sign of x: 1,-1, or 0"
+  (cond
+    ((positive? x) 1)
+    ((negative? x) -1)
+    ((zero? x) 0)))
+
+
+(define (set-member? set value)
+  "True if value is a member of set."
+  (member value set :test #'equal?))
+(define (set-add set value)
+  "Adds value to set."
+  (if (set-member? set value)
+      set
+      (cons value set)))
+(define (set-remove set value)
+  "Removes value from set."
+  (remove set value :test #'equal?))
+(define (set-empty? set)
+  "True if set is empty."
+  (empty? set))
+(define (set-count set)
+  "Number of elements in set."
+  (length set))
+(define (set->stream set)
+  "Returns the elements of set as a stream."
+  (list->stream set))
+(define (set-union . sets)
+  "Returns the union of all sets."
+  (foldl (λ (set result)
+	   (union set result :test #'equal?))
+	 ()
+	 sets))
+(define (set-intersect set . sets)
+  "Return a set with all elements in set that are also in all sets."
+  (foldl (λ (set result)
+	   (intersection result set :test #'equal?))
+	 set
+	 sets))
+(define (set-subtract set . sets)
+  "Return a set with all elements in set that are not in any of sets."
+  (foldl (λ (set result)
+	   (set-difference result set :test #'equal?))
+	 set
+	 sets))
+(define (subset? set1 set2)
+  "True if set1 is a subset of set2"
+  (set-empty? (set-subtract set1 set2)))
+(define (set=? set1 set2)
+  "True if set1 = set2"
+  (and (subset? set1 set2)
+       (subset? set2 set1)))
+
+;; TODO: generators?

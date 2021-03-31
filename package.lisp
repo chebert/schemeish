@@ -70,6 +70,11 @@
    #:even?
    #:odd?
    #:zero?
+   #:quotient
+   #:number->string
+   #:radians->degrees
+   #:degrees->radians
+   #:sqr
    
    ;; Procedures
    #:procedure?
@@ -122,6 +127,21 @@
    #:alist-has-key?
    #:alist-values
    
-   ;; Equality
+   ;; Booleans
    #:eq?
-   #:equal?))
+   #:equal?
+   #:nand
+   #:nor
+   #:xor
+
+   ;; Lists as sets
+   #:set-member?
+   #:set-add
+   #:set-empty?
+   #:set-count
+   #:set->stream
+   #:set-union
+   #:set-intersect
+   #:set-subtract
+   #:subset?
+   #:set=?))
