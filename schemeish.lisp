@@ -780,7 +780,7 @@ Example:
 
 (define (even? x) (evenp x))
 (define (odd? x) (oddp x))
-
+(define (zero? x) (zerop x))
 
 
 (define (compose . procs)

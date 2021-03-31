@@ -2,26 +2,37 @@
 
 (defpackage #:schemeish
   (:use #:cl)
-  (:shadow #:map
-	   #:let
+  (:shadow #:let
 	   #:lambda
+	   #:map
 	   #:sort
 	   #:stream)
   (:export
-   #:for-macros
-   #:map
-   #:let
+   ;; Reader macros
    #:install-syntax!
+   #:uninstall-syntax!
+
+   ;; Definition macros
+   #:for-macros
+   #:let
+   #:lambda
    #:λ
-   #:append*
-   #:empty?
    #:define
-   #:make-bundle-predicate
-   #:*get-bundle-list*
+
+   ;; Symbols
    #:make-keyword
+   #:symbol->string
+   
+   ;; Bundles
+   #:make-bundle-predicate
    #:bundle
    #:bundle-permissions
    #:bundle-list
+
+   ;; Lists
+   #:append*
+   #:map
+   #:empty?
    #:filter
    #:pair?
    #:null?
@@ -30,9 +41,6 @@
    #:list-tail
    #:foldr
    #:foldl
-   #:positive?
-   #:eq?
-   #:equal?
    #:andmap
    #:ormap
    #:for-each
@@ -43,11 +51,9 @@
    #:memf
    #:findf
    #:list-update
-   #:symbol->string
    #:take
    #:drop
    #:split-at
-   #:even?
    #:dropf
    #:takef
    #:splitf-at
@@ -57,12 +63,27 @@
    #:range
    #:append-map
    #:filter-not
+
+   ;; Numbers
+   #:positive?
+   #:negative?
+   #:even?
+   #:odd?
+   #:zero?
+   
+   ;; Procedures
    #:procedure?
    #:compose
    #:swap-args
    #:rcurry
    #:lcurry
+   #:disjoin*
+   #:conjoin*
+   #:conjoin
+   #:const
    #:memo-proc
+
+   ;; Streams
    #:delay
    #:force
    #:stream-cons
@@ -78,17 +99,6 @@
    #:stream-map
    #:stream-fold
    #:stream-filter
-   #:alist-set
-   #:alist-remove
-   #:alist-ref
-   #:alist-update
-   #:alist-map
-   #:alist-keys
-   #:alist
-   #:alist-set*
-   #:alist-has-key?
-   #:alist-values
-   #:negative?
    #:stream
    #:stream-length
    #:stream-drop
@@ -99,9 +109,19 @@
    #:stream-flatmap
    #:stream-range
    #:stream-collect
-   #:disjoin*
-   #:conjoin*
-   #:conjoin
-   #:const
-   #:lambda
-   #:uninstall-syntax!))
+
+   ;; Association lists
+   #:alist-set
+   #:alist-remove
+   #:alist-ref
+   #:alist-update
+   #:alist-map
+   #:alist-keys
+   #:alist
+   #:alist-set*
+   #:alist-has-key?
+   #:alist-values
+   
+   ;; Equality
+   #:eq?
+   #:equal?))
