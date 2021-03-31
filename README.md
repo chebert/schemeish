@@ -24,7 +24,7 @@ Three things in particular, named let, define and [] syntax:
       ;; Binds both function/lexical variable
       (define (inner-function-name a1 a2) (list a1 a2))
       (define (mutually-recursive-function1 a) (mutually-recursive-function2 a))
-      (defien (mutually-recursive-function2 a) (mutually-recursive-function1 a))
+      (define (mutually-recursive-function2 a) (mutually-recursive-function1 a))
       (inner-function-name oarg1 oarg2)
       inner-function-name)
     
@@ -33,7 +33,7 @@ Three things in particular, named let, define and [] syntax:
       ...)
     
     ;; [] Brackets evaluate the function argument (as if funcalling it)
-    [(left-curry 5) 4] ;; => 1
+    [[(left-curry 5 4) '-] 3 2] ;; => (- 5 4 3 2)
     
     ;; λ is like a lambda but it uses scheme-style argument lists
     (λ (arg1 arg2 arg3) (list arg1 arg2 arg3)) ;; Arity: 3
