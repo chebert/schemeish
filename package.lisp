@@ -12,7 +12,6 @@
    #:map
    #:let
    #:install-syntax!
-   #:group
    #:λ
    #:append*
    #:empty?

@@ -49,24 +49,6 @@ Used to annotate functions that are used in macros."
   (install-syntax!))
 
 (for-macros
-  (defun ensure-bool (datum) (not (not datum)))
-  (defun group (predicate xs)
-    "Group xs together if the result of (predicate x) matches. Does not change order of xs."
-    (cond ((empty? xs) '())
-	  (t
-	   (let rec ((xs (rest xs))
-		     (current-group-name (ensure-bool [predicate (first xs)]))
-		     (groups (list (list (first xs)))))
-	     (cond
-	       ((empty? xs) (map #'reverse (reverse groups)))
-	       (t (let* ((x (first xs))
-			 (x-group-name (ensure-bool [predicate x])))
-		    (rec (rest xs)
-			 x-group-name
-			 (if (eq x-group-name current-group-name)
-			     (cons (cons x (first groups)) (rest groups))
-			     (cons (list x) groups))))))))))
-
   (defun flatten (v)
     "Flatten tree v into a list."
     (cond
@@ -77,14 +59,6 @@ Used to annotate functions that are used in macros."
 
 (assert (equal (flatten '((a) b (c (d) . e) ()))
 	       '(a b c d e)))
-(assert (equal
-	 (group #'listp '((1 2 3)
-			  (a b c)
-			  expr
-			  expr2
-			  (d e f)
-			  expr3))
-	 '(((1 2 3) (A B C)) (EXPR EXPR2) ((D E F)) (EXPR3))))
 
 (for-macros
   (defun optional-arg-list->lambda-list (args)
@@ -145,8 +119,8 @@ Used to annotate functions that are used in macros."
       ;; (arg . rest-args)
       ((consp args)
        (let ((arg (first args)))
-	 ;; arg is (optional default) or (:keyword default)
 	 (cond
+	   ;; arg is (optional default) or (:keyword default)
 	   ((consp arg)
 	    (let ((arg-name (first arg)))
 	      (cond
@@ -182,6 +156,7 @@ Used to annotate functions that are used in macros."
 ;; Bad arg-name for optional args
 (assert (null (ignore-errors (arg-list->lambda-list '(arg1 ((oops-arg) "form"))))))
 
+;; Invalid argument lists
 (assert (equal (arg-list->lambda-list '(a1 a2 :k1 :k2))
 	       '(A1 A2 &KEY K1 K2)))
 (assert (equal (arg-list->lambda-list '(:k1))
@@ -191,10 +166,171 @@ Used to annotate functions that are used in macros."
 (assert (null (ignore-errors (arg-list->lambda-list '(a1 a2 (:k1 "default") bad-positional)))))
 (assert (null (ignore-errors (arg-list->lambda-list '(a1 a2 (:k1 "default") (bad-optional))))))
 
+(for-macros
+  (defun define? (form) (and (consp form) (eq (first form) 'define)))
+  (assert (define? '(define name var)))
 
-(defmacro λ (arg-list &body body)
-  "Alias for schemeish:lambda"
-  `(cl:lambda ,(arg-list->lambda-list arg-list) ,@body))
+  (defun define-name (form)
+    (let ((name-form (second form)))
+      (first (flatten name-form))))
+
+  (assert (equal (define-name '(define (((nested-fn) x) y) z))
+		 'nested-fn)))
+
+(for-macros
+  (defun append* (lists)
+    "Append lists."
+    (apply #'append lists)))
+(assert (equal
+	 (append* '((1 2 3) (4 5 6)))
+	 '(1 2 3 4 5 6)))
+
+(for-macros
+  (defun declaration? (form) (and (consp form) (eq 'declare (first form)))))
+(assert (declaration? '(declare (ignore x))))
+
+(for-macros
+  (defun takef (list predicate)
+    "Takes initial elements of list that satisfy pred."
+    (let rec ((list list)
+	      (result '()))
+      (if (or (null list) (not [predicate (first list)]))
+	  (nreverse result)
+	  (rec
+	   (rest list)
+	   (cons (first list) result))))))
+
+(assert (equal (takef '(2 4 5 8) 'evenp)
+	       '(2 4)))
+
+(for-macros
+  (defun dropf (list predicate)
+    "Drops initial elements of list that don't satisfy pred."
+    (let rec ((list list))
+      (if (or (null list) (not [predicate (first list)]))
+	  list
+	  (rec (rest list))))))
+
+
+(assert (equal (dropf '(2 4 5 8) 'evenp)
+	       '(5 8)))
+
+(for-macros
+  (defun splitf-at (list predicate)
+    "Returns (list (takef list predicate) (dropf list predicate))"
+    (list (takef list predicate) (dropf list predicate))))
+
+
+(for-macros
+  (defun split-function-body (body)
+    "Split the function body into '(declarations defines body)"
+    (let* ((doc-list (cond
+		       ((stringp (first body))
+			(cond ((null (rest body)) ())
+			      (t (list (first body)))))
+		       (t ())))
+	   (body (if doc-list (rest body) body)))
+      (destructuring-bind (declarations body) (splitf-at body 'declaration?)
+	(unless (null (remove-if-not 'declaration? body))
+	  (error "declarations intermixed with definitions or code."))
+	(destructuring-bind (defines body) (splitf-at body 'define?)
+	  (unless body
+	    (error "Empty body."))
+	  (unless (null (remove-if-not 'define? body))
+	    (error "definitions intermixed with code."))
+	  (list (append doc-list declarations)
+		defines
+		body))))))
+
+;; if the body is just a string, then it's code.
+(assert (equal (split-function-body '("result"))
+	       '(() () ("result"))))
+
+;; otherwise the string is a docstring
+(assert (equal (split-function-body '("doc" result))
+	       '(("doc") () (result))))
+
+(assert (equal (split-function-body '("doc" (declare) "result"))
+	       '(("doc" (DECLARE)) NIL ("result"))))
+
+(assert (equal (split-function-body '("doc" (declare) (define) result))
+	       '(("doc" (DECLARE)) ((DEFINE)) (RESULT))))
+
+
+(assert (null (ignore-errors (split-function-body '((declare) (define) (declare) result)))))
+(assert (null (ignore-errors (split-function-body '((declare) (define) result (define))))))
+(assert (null (ignore-errors (split-function-body '("doc" (declare) result (declare))))))
+(assert (null (ignore-errors (split-function-body '("doc" (declare) (define))))))
+
+(for-macros
+  (defun define-function? (form)
+    (and (define? form)
+	 (consp (second form)))))
+
+(for-macros
+  (defun expand-define-closure-or-function (name-and-arg-list body expand-define-function)
+    (let ((name (first name-and-arg-list))
+	  (arg-list (rest name-and-arg-list)))
+      (cond
+	;; e.g. name-and-arglist is (((nested-fn x) y) z)
+	((consp name)
+	 (expand-define-closure-or-function
+	  name
+	  (list (expand-define-closure arg-list body))
+	  expand-define-function))
+	;; e.g. name-and-arglist is (fn x y z)
+	((symbolp name) [expand-define-function name arg-list body])
+	(t (error "Bad thing to define: ~s" name))))))
+
+(for-macros
+  (defun expand-define-function-for-labels (name arg-list body)
+    (list* name (arg-list->lambda-list arg-list) body)))
+
+(for-macros
+  (defun expand-function-body-definitions (definitions body)
+    (cond
+      ((null definitions) body)
+      (t (let* ((function-definitions (remove-if-not 'define-function? definitions)))
+	   `((let ,(map 'define-name definitions)
+	       (labels ,(map (cl:lambda (form)
+			       (expand-define-closure-or-function (second form)
+								  (expand-function-body (cddr form))
+								  'expand-define-function-for-labels))
+			 function-definitions)
+		 (setq ,@(append* (map (cl:lambda (form)
+					 (cond ((define-function? form)
+						(let ((name (define-name form)))
+						  `(,name #',name)))
+					       ;; Variable definition.
+					       (t `(,(second form) ,(third form)))))
+				       definitions)))
+		 ,@body))))))))
+
+(assert (equal (expand-function-body-definitions '() '(body))
+	       '(body)))
+
+(assert (equal (expand-function-body-definitions '((define x 1) (define (f x) (+ x 1))) '(body))
+	       '((LET (X F)
+		   (LABELS ((F (X) (+ X 1)))
+		     (SETQ X 1 F #'F)
+		     BODY)))))
+
+(assert (equal (expand-function-body-definitions '((define ((f x) y)
+						     (list x y)))
+						 '([(f 1) 2]))
+	       '((LET (F)
+		   (LABELS ((F (X)
+			      (LAMBDA (Y)
+				(LIST X Y))))
+		     (SETQ F #'F)
+		     (FUNCALL (F 1) 2))))))
+
+(for-macros
+  (defun expand-function-body (body)
+    (destructuring-bind (declarations definitions body) (split-function-body body)
+      `(,@declarations
+	,@(expand-function-body-definitions definitions body)))))
+
 (defmacro lambda (arg-list &body body)
   "A lambda with scheme style argument lists. Some examples:
   (λ (arg1 arg2 arg3) (list arg1 arg2 arg3)) ; Arity: 3
@@ -208,145 +344,56 @@ Used to annotate functions that are used in macros."
   Rest/Optional/Keyword arguments are not compatible with each other.
   See DEFINE for more information on argument lists.
 "
-  `(cl:lambda ,(arg-list->lambda-list arg-list) ,@body))
+  `(cl:lambda ,(arg-list->lambda-list arg-list) ,@(expand-function-body body)))
+(defmacro λ (arg-list &body body)
+  "Alias for schemeish:lambda"
+  `(lambda ,arg-list ,@body))
 
 (for-macros
-  (defun define-form-name (form)
-    (first (flatten form)))
-  
-  (defun define-form->lambda-list (form)
-    (assert (consp form))
-    (arg-list->lambda-list (cdr form)))
-  (defun define? (form) (and (consp form) (eq (first form) 'define)))
-  (defun define-procedure? (form)
-    (and (define? form) (consp (second form))))
-  (defun define-name (form)
-    (let ((name-form (second form)))
-      (first (flatten name-form))))
+  (defun expand-top-level-define-function (name arg-list body)
+    `(defun ,name ,(arg-list->lambda-list arg-list)
+       ,@(expand-function-body body))))
 
-  (defun append* (lists)
-    "Append lists."
-    (apply #'append lists))
+(assert (equal (expand-top-level-define-function 'fn-name '(x y z) '(body))
+	       '(DEFUN FN-NAME (X Y Z) BODY)))
 
-  (defun nested-define-name-and-arglists (form)
-    (let rec ((form form)
-	      (result '()))
-      (if (not (listp form))
-	  (cons form result)
-	  (rec (car form)
-	       (cons (cdr form) result)))))
-  (defun expand-nested-define (form body)
-    (let ((name-and-arglists (nested-define-name-and-arglists form)))
-      `(,(first name-and-arglists)
-	,(arg-list->lambda-list (second name-and-arglists))
-	,@(let rec ((arglists (reverse (cddr name-and-arglists)))
-		    (result body))
-	    (if (null arglists)
-		result
-		(rec (rest arglists)
-		     `((λ ,(first arglists)
-			 ,@result))))))))
-  
-  (defun expand-local-defines (defines body)
-    (let ((names (map #'define-name defines))
-	  (function-definitions (map (λ (define)
-				       (if (nested-define? (second define))
-					   (expand-nested-define (second define) (cddr define))
-					   `(,(define-name define)
-					     ,(define-form->lambda-list (second define))
-					     ,@(define-body->body (cddr define)))))
-				     (remove-if-not #'define-procedure? defines))))
-      `(let ,names
-	 (labels ,function-definitions
-	   (setq ,@(append* (map
-			     (λ (name define)
-			       (list name
-				     (if (define-procedure? define)
-					 `(function ,name)
-					 (third define))))
-			     names defines)))
-	   ,@body))))
+(for-macros
+  (defun expand-define-closure (arg-list body)
+    `(lambda ,arg-list
+       ,@(expand-function-body body))))
 
-  (defun nested-define? (name-or-form)
-    (and (listp name-or-form) (listp (first name-or-form))))
+(assert (equal (expand-define-closure '(x y z) '((print (list x y z))
+						 (+ x y z)))
+	       '(lambda (X Y Z)
+		 (PRINT (LIST X Y Z))
+		 (+ X Y Z))))
 
-  (defun declaration? (form) (and (consp form) (eq 'declare (first form))))
-  (defun docstring? (form) (stringp form))
-  (defun body-header? (form)
-    (or (declaration? form)
-	(docstring? form)))
+(for-macros
+  (defun expand-top-level-define-closure-or-function (name-and-arg-list body)
+    (expand-define-closure-or-function name-and-arg-list body 'expand-top-level-define-function)))
 
-  (defun takef (list predicate)
-    "Takes initial elements of list that satisfy pred."
-    (let rec ((list list)
-	      (result '()))
-      (if (or (empty? list) (not [predicate (first list)]))
-	  (nreverse result)
-	  (rec
-	   (rest list)
-	   (cons (first list) result)))))
-  (defun dropf (list predicate)
-    "Drops initial elements of list that don't satisfy pred."
-    (let rec ((list list))
-      (if (or (empty? list) (not [predicate (first list)]))
-	  list
-	  (rec (rest list)))))
+(assert (equal (expand-top-level-define-closure-or-function '(((nested-fn x) y) z) '(body))
+	       '(DEFUN NESTED-FN (X)
+		 (lambda (Y)
+		   (lambda (Z)
+		     BODY)))))
+(for-macros
+  (defun expand-top-level-define-parameter (name body)
+    `(defparameter ,name ,@body)))
 
-  (assert (equal (takef '(2 4 5 8) 'even?)
-		 '(2 4)))
+(assert (equal (expand-top-level-define-parameter '*name* '(value "docs"))
+	       '(DEFPARAMETER *NAME* VALUE "docs")))
 
-  (assert (equal (dropf '(2 4 5 8) 'even?)
-		 '(5 8)))
-
-  (defun expand-define (name-or-form body)
-    (let ((headers (takef body 'body-header?))
-	  (body (dropf body 'body-header?)))
-      (cond
-	((nested-define? name-or-form)
-	 (let ((name-arglist-and-body (expand-nested-define name-or-form body)))
-	   (cons 'defun
-		 (append (take name-arglist-and-body 2)
-			 headers
-			 (drop name-arglist-and-body 2)))))
-	((listp name-or-form)
-	 `(defun ,(define-form-name name-or-form)
-	      ,(define-form->lambda-list name-or-form)
-	    ,@headers
-	    ,@(define-body->body body)))
-	((symbolp name-or-form)
-	 (assert (= 1 (length body)))
-	 `(defparameter ,name-or-form ,@body))
-	(t
-	 (error "badly formed define.")))))
-  
-  (defun empty? (datum) (null datum))
-  (defun define-body->body (body)
+(for-macros
+  (defun expand-top-level-define (name body)
     (cond
-      ((empty? body) (error "define: empty definition"))
-      (t
-       (let* ((groups (group #'define? body))
-	      (count (length groups)))
-	 (cond ((= 1 count)
-		(if (define? (first (first groups)))
-		    (error "define: missing body")
-		    ;; no local definitions
-		    body))
-	       ((= 2 count)
-		(list (expand-local-defines (first groups) (second groups))))
-	       (t (error "define: local defines intermixed with code."))))))))
+      ;; name is (name . args)
+      ((consp name) (expand-top-level-define-closure-or-function name body))
+      ((symbolp name) (expand-top-level-define-parameter name body))
+      (t (error "Bad thing to define: ~S" name)))))
 
-(assert (equal
-	 (define-form->lambda-list '(name))
-	 '()))
-(assert (equal
-	 (define-form->lambda-list '(name . args))
-	 '(&rest args)))
-(assert (equal
-	 (define-form->lambda-list '(name arg1 arg2 . args))
-	 '(arg1 arg2 &rest args)))
-(assert (equal
-	 (define-form->lambda-list '(name arg1 arg2))
-	 '(arg1 arg2)))
+(assert (equal (expand-top-level-define '*name* '(value))
+	       '(DEFPARAMETER *NAME* VALUE)))
 
 (defmacro define (name-or-form &body body)
   "Definition form.
@@ -385,7 +432,7 @@ Used to annotate functions that are used in macros."
   (defun left-curry (&rest args)
     (λ (f)
        ...))"
-  (expand-define name-or-form body))
+  (expand-top-level-define name-or-form body))
 
 (define (((test-nested-defines x) y . yargs) . zargs)
   "Returns a thing"
@@ -419,14 +466,13 @@ Used to annotate functions that are used in macros."
 ;; (defun name (arg1 &rest args) body...)
 
 (assert (equal
-	 (macroexpand-1
-	  '(define (top arg1 . args)
-	    (define local-var 1)
-	    (define (local-fn arg1 . args)
-	      (define (local-local-fn arg)
-		'body)
-	      'body)
-	    local-var))
+	 (expand-top-level-define '(top arg1 . args)
+				  '((define local-var 1)
+				    (define (local-fn arg1 . args)
+				      (define (local-local-fn arg)
+					'body)
+				      'body)
+				    local-var))
 	 '(DEFUN TOP (ARG1 &REST ARGS)
 	   (LET (LOCAL-VAR LOCAL-FN)
 	     (LABELS ((LOCAL-FN (ARG1 &REST ARGS)
@@ -438,6 +484,8 @@ Used to annotate functions that are used in macros."
 	       (SETQ LOCAL-VAR 1
 		     LOCAL-FN #'LOCAL-FN)
 	       LOCAL-VAR)))))
+
+(define (empty? datum) (null datum))
 
 (define *get-bundle-type-predicate* (gensym))
 (define (make-bundle-predicate name)
@@ -727,10 +775,6 @@ Example:
 (define (even? x) (evenp x))
 (define (odd? x) (oddp x))
 
-
-(define (splitf-at list predicate)
-  "Returns (list (takef list predicate) (dropf list predicate))"
-  (list (takef list predicate) (dropf list predicate)))
 
 
 (define (compose . procs)
