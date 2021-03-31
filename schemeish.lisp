@@ -95,13 +95,26 @@ Used to annotate functions that are used in macros."
 	   ((consp arg) `(,arg ,@(optional-arg-list->lambda-list (rest args))))
 	   (t (error "Expected optional argument ~S to be of the form (name default-value-form) or (name)." arg)))))
       ((null args) ())
-      ((symbolp args) (error "Optional argument list cannot have a rest argument."))))
+      ((symbolp args) (error "Optional argument list cannot have a rest argument.")))))
 
+
+(assert (equal (optional-arg-list->lambda-list '((opt "option") (option)))
+	       '((OPT "option") (OPTION))))
+(assert (null (ignore-errors (optional-arg-list->lambda-list '(bad-argument)))))
+(assert (null (ignore-errors (optional-arg-list->lambda-list 'bad-rest-argument))))
+
+(for-macros
   (defun keyword-arg->lambda-list-arg (arg)
     (if (consp arg)
 	(cons (intern (symbol-name (first arg))) (rest arg))
-	(intern (symbol-name arg))))
-  
+	(intern (symbol-name arg)))))
+
+(assert (equal (keyword-arg->lambda-list-arg :keyword)
+	       'keyword))
+(assert (equal (keyword-arg->lambda-list-arg '(:keyword "default"))
+	       '(keyword "default")))
+
+(for-macros
   (defun keyword-arg-list->lambda-list (args)
     (cond
       ((consp args)
@@ -116,26 +129,37 @@ Used to annotate functions that are used in macros."
 	    `(,(keyword-arg->lambda-list-arg arg) ,@(keyword-arg-list->lambda-list (rest args))))
 	   (t (error "Expected keyword argument ~S to be of the form :key or (:key) or (:key default-value-form)" arg)))))
       ((null args) ())
-      ((symbolp args) (error "Keyword argument list not compatible with rest argument."))))
-  
+      ((symbolp args) (error "Keyword argument list not compatible with rest argument.")))))
+
+(assert (null (keyword-arg-list->lambda-list ())))
+(assert (null (ignore-errors (keyword-arg-list->lambda-list '(bad-argument)))))
+(assert (equal (keyword-arg-list->lambda-list '(:k1))
+	       '(k1)))
+(assert (equal (keyword-arg-list->lambda-list '((:k1 "default")))
+	       '((k1 "default"))))
+(assert (null (ignore-errors (keyword-arg-list->lambda-list '(((:bad-keyword) "default"))))))
+
+(for-macros
   (defun arg-list->lambda-list (args)
     (cond
+      ;; (arg . rest-args)
       ((consp args)
        (let ((arg (first args)))
+	 ;; arg is (optional default) or (:keyword default)
 	 (cond
 	   ((consp arg)
 	    (let ((arg-name (first arg)))
 	      (cond
-		((keywordp arg-name)
-		 `(&key ,(keyword-arg->lambda-list-arg arg) ,@(keyword-arg-list->lambda-list (rest args))))
-		((symbolp arg-name)
-		 `(&optional ,arg ,@(optional-arg-list->lambda-list (rest args))))
-		(t
-		 (error "bad thing to be an arg-name: ~S" arg-name)))))
-	   ((keywordp arg)
-	    `(&key ,(keyword-arg->lambda-list-arg arg) ,@(keyword-arg-list->lambda-list (rest args))))
+		((keywordp arg-name) `(&key ,@(keyword-arg-list->lambda-list args)))
+		((symbolp arg-name) `(&optional ,@(optional-arg-list->lambda-list args)))
+		(t (error "bad thing to be an arg-name: ~S" arg-name)))))
+	   ;; arg is :keyword
+	   ((keywordp arg) `(&key ,@(keyword-arg-list->lambda-list args)))
+	   ;; arg is positional
 	   (t (cons arg (arg-list->lambda-list (rest args)))))))
+      ;; args is empty
       ((null args) '())
+      ;; args is a rest parameter
       ((symbolp args) `(&rest ,args))
       (t (error "bad thing to be in an arglist: ~S" args)))))
 
@@ -169,7 +193,10 @@ Used to annotate functions that are used in macros."
 
 
 (defmacro λ (arg-list &body body)
-  "A lambda with scheme style arugment lists. Some examples:
+  "Alias for schemeish:lambda"
+  `(cl:lambda ,(arg-list->lambda-list arg-list) ,@body))
+(defmacro lambda (arg-list &body body)
+  "A lambda with scheme style argument lists. Some examples:
   (λ (arg1 arg2 arg3) (list arg1 arg2 arg3)) ; Arity: 3
   (λ (arg1 . args) (list* arg1 args)) ; Arity: at least 1
   (λ args args) ; Arity: at least 0
@@ -181,7 +208,7 @@ Used to annotate functions that are used in macros."
   Rest/Optional/Keyword arguments are not compatible with each other.
   See DEFINE for more information on argument lists.
 "
-  `(lambda ,(arg-list->lambda-list arg-list) ,@body))
+  `(cl:lambda ,(arg-list->lambda-list arg-list) ,@body))
 
 (for-macros
   (defun define-form-name (form)

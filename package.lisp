@@ -4,6 +4,7 @@
   (:use #:cl)
   (:shadow #:map
 	   #:let
+	   #:lambda
 	   #:sort
 	   #:stream)
   (:export
@@ -102,4 +103,5 @@
    #:disjoin*
    #:conjoin*
    #:conjoin
-   #:const))
+   #:const
+   #:lambda))
