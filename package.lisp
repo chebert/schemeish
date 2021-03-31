@@ -98,4 +98,8 @@
    #:stream-flatten
    #:stream-flatmap
    #:stream-range
-   #:stream-collect))
+   #:stream-collect
+   #:disjoin*
+   #:conjoin*
+   #:conjoin
+   #:const))

@@ -75,6 +75,8 @@ Used to annotate functions that are used in macros."
       ((null v) ())
       (t (list v)))))
 
+(assert (equal (flatten '((a) b (c (d) . e) ()))
+	       '(a b c d e)))
 (assert (equal
 	 (group #'listp '((1 2 3)
 			  (a b c)
@@ -261,6 +263,25 @@ Used to annotate functions that are used in macros."
        ...))"
   (expand-define name-or-form body))
 
+
+;; TODO:
+#+nil
+(define (fn-name first (:key "default") (:key2 "default2"))
+  (list first key key2))
+
+#+nil
+(defun fn-name (first &key (key "default") (key2 "default2"))
+  (list first key key2))
+
+#+nil
+(define (fn-name first (one 1) (two 2))
+  (list first one two))
+
+#+nil
+(defun fn-name (first &optional (one 1) (two 2))
+  (list first one two))
+
+
 (define (((test-nested-defines x) y . yargs) . zargs)
   "Returns a thing"
   `(,x ,y ,@yargs ,@zargs))
@@ -372,10 +393,10 @@ Example:
        ((eq *get-bundle-permissions* arg) ',(map (λ (name) (make-keyword name)) fn-names))
        ,@ (map (λ (name) `((eq ,(make-keyword name) arg) ,name)) fn-names))))
 
-(defun bundle-permissions (bundle)
+(define (bundle-permissions bundle)
   "Return a list of permissions to the bundle."
   [bundle *get-bundle-permissions*])
-(defun bundle-list (bundle)
+(define (bundle-list bundle)
   "Return the bundle as a '(constructor-name arg-values...)"
   [bundle *get-bundle-list*])
 
@@ -462,7 +483,7 @@ Example:
 	     (map 'rest lists)))))
 
 (assert (andmap 'positive? '(1 2 3)))
-;; (andmap 'positive? '(1 2 a))
+;; (andmap 'positive? '(1 2 a)) => error
 (assert (not (andmap 'positive? '(1 -2 a))))
 (assert (= 9 (andmap '+ '(1 2 3) '(4 5 6))))
 
@@ -604,9 +625,6 @@ Example:
   "Returns (list (takef list predicate) (dropf list predicate))"
   (list (takef list predicate) (dropf list predicate)))
 
-
-(assert (equal (flatten '((a) b (c (d) . e) ()))
-	       '(a b c d e)))
 
 (define (compose . procs)
   "Function compositions. Mulitple values of one function are used as arguments to the next."
@@ -993,6 +1011,19 @@ Example:
 (assert (equal (stream->list (prime-sum-pairs 6))
 	       '((2 1 3) (3 2 5) (4 1 5) (4 3 7) (5 2 7) (6 1 7) (6 5 11))))
 
+(define (random-stream limit)
+  (define (%random-stream rs)
+    (stream-cons (random limit rs)
+		 (%random-stream rs)))
+  (%random-stream (make-random-state)))
+
+;; Random-stream does not affect the random-state
+(assert (equal (stream->list (stream-take (random-stream 1.0) 10))
+	       (stream->list (stream-take (random-stream 1.0) 10))))
+
+(assert (stream-empty? (stream-filter (λ (x) (not (<= 0.0 x 1.0)))
+				      (stream-take (random-stream 1.0) 10))))
+
 (defun alist-ref (alist key &optional failure-result)
   "Rerturns the value associated with key in alist, else the failure-result."
   (let ((pair (assoc key alist :test #'equal?)))
@@ -1042,3 +1073,41 @@ Applies updater to failure-result if key is not present."
 (define (alist . keys-and-values)
   "Constructs an alist from pairs of key value ..."
   (apply #'alist-set* () keys-and-values))
+
+(define (disjoin* predicates)
+  (λ (x)
+    (let rec ((result nil)
+	      (predicates predicates))
+      (if (or result (null? predicates))
+	  result
+	  (rec [(first predicates) x]
+	       (rest predicates))))))
+(define (disjoin . predicates)
+  (disjoin* predicates))
+
+(assert (equal (map (disjoin 'negative? 'even?)
+		    '(-1 -2 1 2))
+	       '(t t nil t)))
+
+
+(define (conjoin* predicates)
+  (λ (x)
+    (let rec ((result t)
+	      (predicates predicates))
+      (if (or (not result) (null? predicates))
+	  result
+	  (rec [(first predicates) x]
+	       (rest predicates))))))
+(define (conjoin . predicates)
+  (conjoin* predicates))
+
+(assert (equal (map (conjoin 'negative? 'even?)
+		    '(-1 -2 1 2))
+	       '(nil t nil nil)))
+
+(define (const v)
+  (λ args
+    (declare (ignore args))
+    v))
+
+(assert (= [(const 3) 1 2 3] 3))
