@@ -43,7 +43,13 @@ Used to annotate functions that are used in macros."
     "Installs [] readaer syntax. 
     [function-name arg1 ...] => (funcall function-name arg1 ...)"
     (set-macro-character #\[ #'read-left-bracket)
-    (set-macro-character #\] #'read-right-bracket)))
+    (set-macro-character #\] #'read-right-bracket))
+
+  (defun uninstall-syntax! ()
+    (when (eq (get-macro-character #\[) #'read-left-bracket)
+      (set-macro-character #\[ nil))
+    (when (eq (get-macro-character #\]) #'read-right-bracket)
+      (set-macro-character #\] nil))))
 
 (for-macros
   (install-syntax!))

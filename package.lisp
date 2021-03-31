@@ -103,4 +103,5 @@
    #:conjoin*
    #:conjoin
    #:const
-   #:lambda))
+   #:lambda
+   #:uninstall-syntax!))
