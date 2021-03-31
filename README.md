@@ -24,7 +24,7 @@ Three things in particular, named let, define and [] syntax:
       ;; Binds both function/lexical variable
       (define (inner-function-name a1 a2) (list a1 a2))
       (define (mutually-recursive-function1 a) (mutually-recursive-function2 a))
-      (defien (mutually-recursive-function2 a) (mutually-recursive-function1 a))
+      (define (mutually-recursive-function2 a) (mutually-recursive-function1 a))
       (inner-function-name oarg1 oarg2)
       inner-function-name)
     
