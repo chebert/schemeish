@@ -20,10 +20,12 @@
    #:lambda
    #:λ
    #:define
-
+   #:and-let*
+   
    ;; Symbols
    #:make-keyword
    #:symbol->string
+   #:symbol?
    
    ;; Bundles
    #:make-bundle-predicate
@@ -153,7 +155,3 @@
       (cl:find-symbol (cl:symbol-name symbol) (cl:find-package :schemeish))
     (cl:unless (cl:eq accessibility :external)
       (cl:export symbol (cl:find-package :schemeish)))))
-
-(defpackage new-package
-  (:shadowing-import-from :cl :lambda)
-  (:use :schemeish))

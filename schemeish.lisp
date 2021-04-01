@@ -1365,4 +1365,37 @@ Applies updater to failure-result if key is not present."
   (and (subset? set1 set2)
        (subset? set2 set1)))
 
+(for-macros
+  (define (symbol? datum) (symbolp datum)))
+
+(for-macros
+  (define (and-let*-form clauses body)
+    (cond
+      ((empty? clauses) `(progn ,@body))
+      (t
+       (let ((clause (first clauses)))
+	 (cond
+	   ((list? clause)
+	    (cond
+	      ((null? (rest clause))
+	       `(and ,(first clause) ,(and-let*-form (rest clauses) body)))
+	      (t
+	       `(let ((,(first clause) ,(second clause)))
+		  (and ,(first clause) ,(and-let*-form (rest clauses) body))))))
+	   (t (error "invalid clause in and-let*: ~S" clause))))))))
+
+(defmacro and-let* ((&rest clauses) &body body)
+  "Evaluate each clause from first to last until one is false. If all are true, evaluate body.
+Each clause is one of: identifier, (expression), or (identifier expression).
+If the clause is (identifier expression) it creates a binding for the rest of the clauses and the body.
+Example (and-let* ((list (compute-list))
+                   ((pair? list))
+                   (item (car list))
+                   ((integer? item)))
+          (sqrt item))"
+  (and-let*-form clauses body))
+
+
+;; TODO: define-record-type
+
 (for-macros (uninstall-syntax!))
