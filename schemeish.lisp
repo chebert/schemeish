@@ -1738,6 +1738,29 @@ Example (and-let* ((list (compute-list))
 (struct-form 'mypoint '(x (y :mutable)) '())
 
 (defmacro define-struct (type-name (&rest field-specs) &rest struct-options)
+  "A structure is a record object with a CLOS class type, 
+automatically generated constructor of the form (MAKE-<type-name> field-args...)
+field accessors of the form (<type-name>-<field-name> struct-arg),
+and a type predicate of the form (<type-name>? datum). 
+It takes takes the form
+    (define-struct type-name (field-specs...) struct-options...)
+Where a field-spec is either FIELD-NAME or (FIELD-NAME :MUTABLE)
+and a struct-option is one of:
+  :mutable
+  :transparent
+  :super super-struct-type-name-form
+
+If mutable is provided for fields or the whole structure, 
+setters are generated of the form SET-<type-name>-<field-name>!
+and setf forms are generated for (setf (<type-name>-<field-name> struct-arg) value).
+
+If transparent is provided:
+- a recursive EQUAL? test is generated to test equality of each field. Otherwise only identity is tested.
+- (struct->list p) creates a list that looks like a constructor call. This is used when printing the object.
+- (struct-accessors p) returns a list of all of the accessors associated with transparent structure p. 
+"
+  ;; TODO: issue when a transparent object inherits from an opaque object
+  ;; TODO: guard clauses
   `(for-macros
      ,(struct-form type-name field-specs struct-options)))
 
@@ -1829,4 +1852,3 @@ Example (and-let* ((list (compute-list))
 		     (values x y))))
 
 (for-macros (uninstall-syntax!))
-

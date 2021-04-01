@@ -26,7 +26,8 @@
    #:make-keyword
    #:symbol->string
    #:symbol?
-   
+   #:string-append   
+
    ;; Bundles
    #:make-bundle-predicate
    #:bundle
@@ -149,7 +150,13 @@
    #:set-subtract
    #:subset?
    #:set=?
-   #:string-append))
+
+   ;; Structures
+   #:define-struct
+   #:struct?
+   #:struct-copy
+   #:struct->list
+   #:struct-accessors))
 
 (cl:do-external-symbols (symbol (cl:find-package :cl))
   (cl:multiple-value-bind (symbol accessibility)
