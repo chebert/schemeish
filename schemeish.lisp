@@ -1365,4 +1365,4 @@ Applies updater to failure-result if key is not present."
   (and (subset? set1 set2)
        (subset? set2 set1)))
 
-;; TODO: generators?
+(for-macros (uninstall-syntax!))

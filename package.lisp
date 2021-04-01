@@ -145,3 +145,9 @@
    #:set-subtract
    #:subset?
    #:set=?))
+
+(cl:do-external-symbols (symbol (cl:find-package :cl))
+  (cl:multiple-value-bind (symbol accessibility)
+      (cl:find-symbol (cl:symbol-name symbol) (cl:find-package :schemeish))
+    (cl:unless (cl:eq accessibility :external)
+      (cl:export symbol (cl:find-package :schemeish)))))
