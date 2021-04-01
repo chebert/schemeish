@@ -312,6 +312,22 @@ Used to annotate functions that are used in macros."
 					       (t `(,(second form) ,(third form)))))
 				       definitions)))
 		 ,@body))))))))
+(for-macros
+  (defun expand-function-body (body)
+    (destructuring-bind (declarations definitions body) (split-function-body body)
+      `(,@declarations
+	,@(expand-function-body-definitions definitions body)))))
+
+(for-macros
+  (defun expand-define-closure (arg-list body)
+    `(lambda ,arg-list
+       ,@(expand-function-body body))))
+
+(assert (equal (expand-define-closure '(x y z) '((print (list x y z))
+						 (+ x y z)))
+	       '(lambda (X Y Z)
+		 (PRINT (LIST X Y Z))
+		 (+ X Y Z))))
 
 (assert (equal (expand-function-body-definitions '() '(body))
 	       '(body)))
@@ -332,11 +348,6 @@ Used to annotate functions that are used in macros."
 		     (SETQ F #'F)
 		     (FUNCALL (F 1) 2))))))
 
-(for-macros
-  (defun expand-function-body (body)
-    (destructuring-bind (declarations definitions body) (split-function-body body)
-      `(,@declarations
-	,@(expand-function-body-definitions definitions body)))))
 
 (defmacro lambda (arg-list &body body)
   "A lambda with scheme style argument lists. Some examples:
@@ -364,16 +375,7 @@ Used to annotate functions that are used in macros."
 (assert (equal (expand-top-level-define-function 'fn-name '(x y z) '(body))
 	       '(DEFUN FN-NAME (X Y Z) BODY)))
 
-(for-macros
-  (defun expand-define-closure (arg-list body)
-    `(lambda ,arg-list
-       ,@(expand-function-body body))))
 
-(assert (equal (expand-define-closure '(x y z) '((print (list x y z))
-						 (+ x y z)))
-	       '(lambda (X Y Z)
-		 (PRINT (LIST X Y Z))
-		 (+ X Y Z))))
 
 (for-macros
   (defun expand-top-level-define-closure-or-function (name-and-arg-list body)
@@ -594,9 +596,10 @@ Example:
   "Return the value of list at pos."
   (nth pos list))
 
-(define (list-tail list pos)
-  "Return the sublist of list starting at pos."
-  (nthcdr pos list))
+(for-macros
+  (define (list-tail list pos)
+    "Return the sublist of list starting at pos."
+    (nthcdr pos list)))
 
 (define (foldl proc init . lists)
   "Fold (proc e1 e2 ... result) across lists starting from the start of the lists."
@@ -778,9 +781,10 @@ Example:
 (assert (equal (take '(1 2 3 4 5) 2)
 	       '(1 2)))
 
-(define (drop list n)
-  "Drops the first n elements from list"
-  (list-tail list n))
+(for-macros
+  (define (drop list n)
+    "Drops the first n elements from list"
+    (list-tail list n)))
 
 (define (split-at list pos)
   "Returns (list (take list pos) (drop list pos))"
@@ -1201,12 +1205,14 @@ Does not affect the random-state."
       (if (pair? pair)
 	  (cdr pair)
 	  failure-result))))
-(define (alist-remove alist key)
-  "Returns an alist with key removed."
-  (remove key alist :test #'equal? :key #'car))
-(define (alist-set alist key value)
-  "Returns an alist with key set to value."
-  (acons key value (alist-remove alist key)))
+(for-macros
+  (define (alist-remove alist key)
+    "Returns an alist with key removed."
+    (remove key alist :test #'equal? :key #'car)))
+(for-macros
+  (define (alist-set alist key value)
+    "Returns an alist with key set to value."
+    (acons key value (alist-remove alist key))))
 
 (define (alist-update alist key updater (failure-result))
   "Applies updater to the value associated with key and updates the result in alist.
@@ -1231,18 +1237,19 @@ Applies updater to failure-result if key is not present."
     (let ((no-key (gensym)))
       (not (eq? no-key (alist-ref alist key no-key))))))
 
-(define (alist-set* alist . keys-and-values)
-  "Update all of the values in alist with pairs of key value ..."
-  (let rec ((keys-and-values keys-and-values)
-	    (alist alist))
-    (cond
-      ((empty? keys-and-values) alist)
-      ((empty? (rest keys-and-values)) (error "badly formed arguments."))
-      (t (let ((key (first keys-and-values))
-	       (value (second keys-and-values)))
-	   (rec
-	    (drop keys-and-values 2)
-	    (alist-set alist key value)))))))
+(for-macros
+  (define (alist-set* alist . keys-and-values)
+    "Update all of the values in alist with pairs of key value ..."
+    (let rec ((keys-and-values keys-and-values)
+	      (alist alist))
+      (cond
+	((empty? keys-and-values) alist)
+	((empty? (rest keys-and-values)) (error "badly formed arguments."))
+	(t (let ((key (first keys-and-values))
+		 (value (second keys-and-values)))
+	     (rec
+	      (drop keys-and-values 2)
+	      (alist-set alist key value))))))))
 
 (for-macros
   (define (alist . keys-and-values)
@@ -1470,6 +1477,21 @@ Example (and-let* ((list (compute-list))
 		  (list (cons (struct-info-type-name info) (struct-info-field-names info))))))))))))
 
 (for-macros
+  (define (string-append . strings)
+    (apply 'concatenate 'string strings)))
+
+(for-macros
+  (define (struct-defclass-slot-name type-name field-name)
+    (intern (string-append (symbol->string type-name) "-" (symbol->string field-name)))))
+
+(for-macros
+  (define (struct-defclass-slot-names type-name field-names)
+    (map (λ (field-name) (struct-defclass-slot-name type-name field-name))
+	 field-names)))
+
+(assert (equal? (struct-defclass-slot-names 'point '(x y))
+		'(point-x point-y)))
+(for-macros
   (define (ancestor-fields->field-names ancestor-fields)
     (append-map 'cdr ancestor-fields))
   (define (ancestor-fields->slot-names ancestor-fields)
@@ -1535,27 +1557,13 @@ Example (and-let* ((list (compute-list))
 		      (:SUPER Λ NIL 'POINT))))
 
 (for-macros
-  (define (string-append . strings)
-    (apply 'concatenate 'string strings)))
-
-(for-macros
   (define (struct-constructor-name type-name)
     (intern (string-append (symbol->string 'make-) (symbol->string type-name)))))
 
 (assert (eq? (struct-constructor-name 'point)
 	     'make-point))
 
-(for-macros
-  (define (struct-defclass-slot-name type-name field-name)
-    (intern (string-append (symbol->string type-name) "-" (symbol->string field-name)))))
 
-(for-macros
-  (define (struct-defclass-slot-names type-name field-names)
-    (map (λ (field-name) (struct-defclass-slot-name type-name field-name))
-	 field-names)))
-
-(assert (equal? (struct-defclass-slot-names 'point '(x y))
-		'(point-x point-y)))
 
 (for-macros
   (define (struct-defclass-form type-name field-names super-type-name)
