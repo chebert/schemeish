@@ -15,11 +15,11 @@ It's recommended that you do these in a call to `FOR-MACROS` at the top and bott
 
 The following CL symbols are replaced by Schemeish:
 
- - `LAMBDA` uses scheme-style argument lists with nestable defines.
+ - `LAMBDA` uses scheme-style argument lists with nestable defines. I recommend shadowing this symbol and use λ (or some other name) instead.
  - `LET` is fully compatible with `CL:LET`, but with named let syntax described below
- - `SORT` is a non-modifying sort
+ - `SORT` is a non-modifying sort for lists
  - `MAP` maps a function over a list (equivalent to `MAPCAR`)
- - `STREAM` constructs a stream of elements.
+ - `STREAM` constructs a Scheme-style stream of elements.
 
 The rest of Schemeish is fully compatible with the `CL` package. If you'd like to favor `CL` in conflicts you can use `:SHADOWING-IMPORT-FROM`.
 
