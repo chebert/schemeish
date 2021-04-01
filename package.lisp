@@ -148,7 +148,8 @@
    #:set-intersect
    #:set-subtract
    #:subset?
-   #:set=?))
+   #:set=?
+   #:string-append))
 
 (cl:do-external-symbols (symbol (cl:find-package :cl))
   (cl:multiple-value-bind (symbol accessibility)

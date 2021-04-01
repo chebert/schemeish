@@ -40,12 +40,13 @@ Used to annotate functions that are used in macros."
     (error "read: unmatched ]"))
 
   (defun install-syntax! ()
-    "Installs [] readaer syntax. 
+    "Installs [] reader syntax. 
     [function-name arg1 ...] => (funcall function-name arg1 ...)"
     (set-macro-character #\[ #'read-left-bracket)
     (set-macro-character #\] #'read-right-bracket))
 
   (defun uninstall-syntax! ()
+    "Uninstalls [] reader syntax if it was installed using INSTALL-SYNTAX!."
     (when (eq (get-macro-character #\[) #'read-left-bracket)
       (set-macro-character #\[ nil))
     (when (eq (get-macro-character #\]) #'read-right-bracket)
@@ -560,21 +561,21 @@ Example:
   [bundle *get-bundle-list*])
 
 (define *point?* (make-bundle-predicate :point))
-(define (make-point x y)
+(define (make-bundle-point x y)
   (define (get-x) x)
   (define (get-y) y)
   (define (set-x! new-x) (setq x new-x))
   (define (set-y! new-y) (setq y new-y))
 
-  (bundle *point?* (make-point x y) get-x get-y set-x! set-y!))
+  (bundle *point?* (make-bundle-point x y) get-x get-y set-x! set-y!))
 
-(let ((point (make-point 3 4)))
+(let ((point (make-bundle-point 3 4)))
   (assert (= 3 [[point :get-x]]))
   [[point :set-x!] 32]
   (assert (= 32 [[point :get-x]]))
   (assert [*point?* point]))
 #+nil
-(sb-introspect:function-lambda-list [(make-point 3 4) :set-x!])
+(sb-introspect:function-lambda-list [(make-bundle-point 3 4) :set-x!])
 ;; => (NEW-X)
 
 
@@ -583,9 +584,9 @@ Example:
   (remove-if-not predicate list))
 
 (for-macros
-  (define (pair? datum) (consp datum))
-  (define (null? datum) (null datum))
-  (define (list? datum) (listp datum)))
+  (define (pair? datum) "T if datum is a cons." (consp datum))
+  (define (null? datum) "T if datum is nil." (null datum))
+  (define (list? datum) "Alias for (listp datum)." (listp datum)))
 
 (define (list-ref list pos)
   "Return the value of list at pos."
@@ -656,7 +657,9 @@ Example:
 	     (map 'rest lists)))))
 
 (define (eq? obj1 obj2) (eq obj1 obj2))
-(define (equal? obj1 obj2) (equal obj1 obj2))
+(defgeneric equal? (object1 object2)
+  (:documentation "Provides a generic interface to EQUAL."))
+(defmethod equal? (object1 object2) (equal object1 object2))
 
 (assert (ormap 'eq? '(a b c) '(a b c)))
 (assert (ormap 'positive? '(1 2 a)))
@@ -966,7 +969,7 @@ Example:
 	       '(3 2 1)))
 
 (define (stream-filter predicate stream)
-  "A stream with only the elements which satisfy stream."
+  "A stream with only the elements which satisfy predicate."
   (cond
     ((stream-empty? stream) stream)
     (t
@@ -990,7 +993,7 @@ Example:
 	       '(3)))
 
 (define (stream-take stream n)
-  "A stream with the first n elements of stream."
+  "A stream with up to the first n elements of stream."
   (if (or (stream-empty? stream) (<= n 0))
       *the-empty-stream*
       (stream-cons (stream-first stream)
@@ -1007,7 +1010,7 @@ Example:
 	   1))
 
 (define (stream-append . streams)
-  "A stream in which streams follow one after the other."
+  "A stream in which combines streams to follow one after the other."
   (cond
     ((null? streams) *the-empty-stream*)
     (t
@@ -1026,7 +1029,7 @@ Example:
 	 '(1 2 3 4 5 6 7 8 9)))
 
 (define (stream-flatten stream-of-streams)
-  "A stream which combines a stream of streams into a single stream using append."
+  "A stream which combines a stream of streams into a single stream using stream-append."
   (stream-fold 'stream-append
 	       *the-empty-stream*
 	       stream-of-streams))
@@ -1050,7 +1053,7 @@ Example:
 	       '(4 5 6 7 8)))
 
 (define (stream-flatmap proc s)
-  "Flatten the result of mapping proc across stream s."
+  "Stream-flatten the result of mapping proc across stream s."
   (stream-flatten (stream-map proc s)))
 
 (assert (equal (stream->list (stream-flatmap
@@ -1216,7 +1219,7 @@ Applies updater to failure-result if key is not present."
 (define (alist-has-key? alist key)
   "T if the key is present in alist"
   (let ((no-key (gensym)))
-    (eq? no-key (alist-ref alist key no-key))))
+    (not (eq? no-key (alist-ref alist key no-key)))))
 
 (define (alist-set* alist . keys-and-values)
   "Update all of the values in alist with pairs of key value ..."
@@ -1395,7 +1398,367 @@ Example (and-let* ((list (compute-list))
           (sqrt item))"
   (and-let*-form clauses body))
 
+(define (make-struct-info type-name super-type-name field-names)
+  (alist :type-name type-name
+	 :super-type-name super-type-name
+	 :field-names field-names))
 
-;; TODO: define-record-type
+(define (struct-info-type-name si) (alist-ref si :type-name))
+(define (struct-info-super-type-name si) (alist-ref si :super-type-name))
+(define (struct-info-field-names si) (alist-ref si :field-names))
 
-(for-macros (uninstall-syntax!))
+(defvar *struct-info-table*
+  (make-hash-table :test #'eq)
+  "Hash Table from structure type-name->struct-info")
+
+(define (get-struct-info type-name)
+  (gethash type-name *struct-info-table* nil))
+(define (set-struct-info! info)
+  (let* ((type-name (struct-info-type-name info))
+	 (existing-info (get-struct-info type-name)))
+    (when (and existing-info
+	       (or (not (equal? (struct-info-super-type-name info)
+				(struct-info-super-type-name existing-info)))
+		   (not (equal? (struct-info-field-names info)
+				(struct-info-field-names existing-info)))))
+      (warn "Modifying structure ~S. Any sub-classed structures need to be recompiled." type-name))
+    (setf (gethash type-name *struct-info-table*) info)))
+
+(define (struct-info-ancestor-fields info)
+  "Returns an alist of ((ancestor . fields) ... (parent . fields) (me . fields)) From oldest generation to youngest."
+  (let ((super-type-name (struct-info-super-type-name info)))
+    (cond
+      ((null? super-type-name)
+       (list (cons (struct-info-type-name info) (struct-info-field-names info))))
+      (t
+       (let ((super-struct-info (get-struct-info super-type-name)))
+	 (cond
+	   ((null? super-struct-info)
+	    (error "The super type ~S does not exist in the *struct-info-table*" super-type-name))
+	   (t  (append
+		(struct-info-ancestor-fields super-struct-info)
+		(list (cons (struct-info-type-name info) (struct-info-field-names info)))))))))))
+
+(define (ancestor-fields->field-names ancestor-fields)
+  (append-map 'cdr ancestor-fields))
+(define (ancestor-fields->slot-names ancestor-fields)
+  (append* (alist-map ancestor-fields
+		      (λ (type-name field-names)
+			(struct-defclass-slot-names type-name field-names)))))
+
+(let ((*struct-info-table* (make-hash-table :test #'eq)))
+  (set-struct-info! (make-struct-info 'grandpa () '(father)))
+  (set-struct-info! (make-struct-info 'father 'grandpa '(son)))
+  (set-struct-info! (make-struct-info 'son 'father '(grandpa)))
+
+  (let ((ancestor-fields (struct-info-ancestor-fields (get-struct-info 'son))))
+    (assert (equal? (ancestor-fields->field-names ancestor-fields)
+		    '(father son grandpa)))
+    (assert (equal? (ancestor-fields->slot-names ancestor-fields)
+		    '(grandpa-father father-son son-grandpa)))))
+
+
+(define (parse-struct-field-spec field-spec)
+  (cond
+    ((symbol? field-spec) (cons field-spec :immutable))
+    ((and (pair? field-spec)
+	  (symbol? (first field-spec)))
+     (cond
+       ((equal? (rest field-spec) '(:mutable))
+	(cons (first field-spec) :mutable))
+       (t (error "Unknown field-option(s): ~S" (rest field-spec)))))
+    (t (error "bad thing to be a field-spec: ~S" field-spec))))
+
+(assert (equal (parse-struct-field-spec 'field-name)
+	       '(FIELD-NAME . :IMMUTABLE)))
+(assert (equal (parse-struct-field-spec '(field-name :mutable))
+	       '(FIELD-NAME . :MUTABLE)))
+
+(define (parse-struct-options struct-options)
+  (cond
+    ((empty? struct-options) ())
+    (t
+     (let ((opt (first struct-options)))
+       (cond
+	 ((or (eq? :transparent opt)
+	      (eq? :mutable opt))
+	  (cons (cons opt ()) (parse-struct-options (rest struct-options))))
+	 ((or (eq? :guard opt)
+	      (eq? :super opt))
+	  (cond
+	    ((or (null? (rest struct-options))
+		 (keywordp (second struct-options)))
+	     (error "Expected form for struct-option ~S" opt))
+	    (t
+	     (cons (cons opt (eval (second struct-options))) (parse-struct-options (cddr struct-options))))))
+	 (t (error "Bad thing to be a struct-option ~S" opt)))))))
+
+
+#+nil(assert (equal (parse-struct-options '(:transparent :mutable :guard (lambda (x y z) (values x y z)) :super 'point))
+		    '((:TRANSPARENT) (:MUTABLE)
+		      (:GUARD Λ NIL
+		       (LAMBDA (X Y Z)
+			 (VALUES X Y Z)))
+		      (:SUPER Λ NIL 'POINT))))
+
+(define (string-append . strings)
+  (apply 'concatenate 'string strings))
+
+(define (struct-constructor-name type-name)
+  (intern (string-append (symbol->string 'make-) (symbol->string type-name))))
+
+(assert (eq? (struct-constructor-name 'point)
+	     'make-point))
+
+(define (struct-defclass-slot-names type-name field-names)
+  (map (λ (field-name)
+	 (intern (string-append (symbol->string type-name) "-" (symbol->string field-name))))
+       field-names))
+
+(assert (equal? (struct-defclass-slot-names 'point '(x y))
+		'(point-x point-y)))
+
+(defclass struct () ())
+(define (struct? datum)
+  (typep datum 'struct))
+(defgeneric struct-copy (struct)
+  (:documentation "Returns a shallow copy of struct."))
+(defmethod struct-copy (struct)
+  (error "Struct ~S is not a known structure type." struct))
+(defgeneric struct->list (transparent-struct)
+  (:documentation "Returns a list of the form '(constructor-name field-values) for the transparent structure."))
+(defmethod struct->list (struct)
+  (error "Struct ~S is not a transparent structure." struct))
+(defgeneric struct-accessors (transparent-struct)
+  (:documentation "Returns a list of accessor symbols for the transparent structure."))
+(defmethod struct-accessors (struct)
+  (error "Struct ~S is not a transparent structure." struct))
+
+(define (struct-defclass-form type-name field-names super-type-name)
+  (let ((supers (cond ((null? super-type-name) '(struct))
+		      (t `(,super-type-name)))))
+    `(defclass ,type-name ,supers
+       ,(struct-defclass-slot-names type-name field-names))))
+
+(assert (equal? (struct-defclass-form 'point '(x y) ())
+		'(DEFCLASS POINT (struct) (point-x point-y))))
+
+(assert (equal? (struct-defclass-form 'point3 '(z) 'point)
+		'(DEFCLASS POINT3 (point) (point3-z))))
+
+(define (struct-define-constructor-form type-name constructor-name field-names super-type-name)
+  (let* ((ancestor-fields (struct-info-ancestor-fields (get-struct-info super-type-name)))
+	 (super-field-names (ancestor-fields->field-names ancestor-fields))
+	 (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
+    `(define (,constructor-name ,@(append super-field-names field-names))
+       (let ((struct (make-instance ',type-name)))
+	 ,@(map (λ (slot-name value-name)
+		  `(setf (slot-value struct ',slot-name) ,value-name))
+		super-slot-names
+		super-field-names)
+	 ,@(map (λ (slot-name value-name)
+		  `(setf (slot-value struct ',slot-name) ,value-name))
+		(struct-defclass-slot-names type-name field-names)
+		field-names)
+	 struct))))
+
+(assert (equal? (struct-define-constructor-form 'point 'make-point '(x y) '())
+		'(DEFINE (MAKE-POINT X Y)
+		  (LET ((STRUCT (MAKE-INSTANCE 'POINT)))
+		    (SETF (SLOT-VALUE STRUCT 'POINT-X) X)
+		    (SETF (SLOT-VALUE STRUCT 'POINT-Y) Y)
+		    STRUCT))))
+
+(assert (equal? (struct-define-constructor-form 'point3 'make-point3 '(z) 'point)
+		'(DEFINE (MAKE-POINT3 X Y Z)
+		  (LET ((STRUCT (MAKE-INSTANCE 'POINT3)))
+		    (SETF (SLOT-VALUE STRUCT 'POINT-X) X)
+		    (SETF (SLOT-VALUE STRUCT 'POINT-Y) Y)
+		    (SETF (SLOT-VALUE STRUCT 'POINT3-Z) Z)
+		    STRUCT))))
+
+(define (struct-define-struct-copy-form type-name field-names super-type-name)
+  (let* ((ancestor-fields (struct-info-ancestor-fields (get-struct-info super-type-name)))
+	 (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
+    `(defmethod struct-copy ((struct ,type-name))
+       (let ((copy (make-instance ',type-name)))
+	 ,@(map (λ (slot-name)
+		  `(setf (slot-value copy ',slot-name) (slot-value struct ',slot-name)))
+		super-slot-names)
+	 ,@(map (λ (slot-name)
+		  `(setf (slot-value copy ',slot-name) (slot-value struct ',slot-name)))
+		(struct-defclass-slot-names type-name field-names))
+	 copy))))
+
+(define (struct-define-struct->list-form type-name field-names super-type-name)
+  (let* ((ancestor-fields (struct-info-ancestor-fields (get-struct-info super-type-name)))
+	 (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
+    `(defmethod struct->list ((struct ,type-name))
+       (list
+	',(struct-constructor-name type-name)
+	,@(map (λ (slot-name) `(slot-value struct ',slot-name)) super-slot-names)
+	,@(map (λ (slot-name) `(slot-value struct ',slot-name)) (struct-defclass-slot-names type-name field-names))))))
+
+(define (struct-define-accessor-form type-name slot-name)
+  `(define (,slot-name ,type-name)
+     (slot-value ,type-name ',slot-name)))
+
+(assert (equal? (struct-define-accessor-form 'point 'point-x)
+		'(DEFINE (POINT-X POINT)
+		  (SLOT-VALUE POINT 'POINT-X))))
+
+(define (struct-define-struct-accessors-form type-name field-names super-type-name)
+  (let* ((ancestor-fields (struct-info-ancestor-fields (get-struct-info super-type-name)))
+	 (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
+    `(defmethod struct-accessors ((struct ,type-name))
+       '(,@(append
+	    (map (λ (slot-name) slot-name) super-slot-names)
+	    (map (λ (slot-name) slot-name) (struct-defclass-slot-names type-name field-names)))))))
+
+(define (struct-define-equal?-form type-name field-names super-type-name)
+  (let* ((ancestor-fields (struct-info-ancestor-fields (get-struct-info super-type-name)))
+	 (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
+    `(defmethod equal? ((object1 ,type-name) (object2 ,type-name))
+       (and 
+	,@(append
+	   (map (λ (slot-name)
+		  `(equal? (slot-value object1 ',slot-name)
+			   (slot-value object2 ',slot-name)))
+		super-slot-names)
+	   (map (λ (slot-name)
+		  `(equal? (slot-value object1 ',slot-name)
+			   (slot-value object2 ',slot-name)))
+		(struct-defclass-slot-names type-name field-names)))))))
+
+(define (struct-define-print-object-form type-name)
+  `(defmethod print-object ((struct ,type-name) stream)
+     (print-object (struct->list struct) stream)))
+
+
+(define (struct-define-type-predicate-form type-name)
+  (let ((predicate-name (intern (string-append (symbol->string type-name) "?"))))
+    `(define (,predicate-name datum)
+       (typep datum ',type-name))))
+
+(assert (equal? (struct-define-type-predicate-form 'point)
+		'(DEFINE (POINT? DATUM)
+		  (TYPEP DATUM 'POINT))))
+
+(define (struct-form type-name field-specs struct-options)
+  (let* ((parsed-field-specs (map 'parse-struct-field-spec field-specs))
+	 (field-names (map 'car parsed-field-specs))
+	 (slot-names (struct-defclass-slot-names type-name field-names))
+	 (parsed-struct-options (parse-struct-options struct-options))
+	 (super-type-name (alist-ref parsed-struct-options :super nil)))
+    `(progn
+       (set-struct-info! (make-struct-info ',type-name ',super-type-name ',field-names))
+       ,(struct-defclass-form type-name field-names super-type-name)
+       ,(struct-define-struct-copy-form type-name field-names super-type-name)
+       ,@(cond ((alist-has-key? parsed-struct-options :transparent)
+		(list
+		 (struct-define-struct->list-form type-name field-names super-type-name)
+		 (struct-define-struct-accessors-form type-name field-names super-type-name)
+		 (struct-define-equal?-form type-name field-names super-type-name)
+		 (struct-define-print-object-form type-name)))
+	       (t ()))
+       ,(struct-define-constructor-form type-name (struct-constructor-name type-name)
+					field-names
+					super-type-name)
+       ,@(map (λ (slot-name) (struct-define-accessor-form type-name slot-name))
+	      slot-names)
+       ,(struct-define-type-predicate-form type-name))))
+
+(struct-form 'point '(x y) '())
+(struct-form 'point3 '(z) '(:super 'point))
+(struct-form 'tpoint '(x y) '(:transparent))
+
+(defmacro define-struct (type-name (&rest field-specs) &rest struct-options)
+  (struct-form type-name field-specs struct-options))
+
+;; Struct form
+'(define-struct <type-name>
+  (field-specs...)
+  struct-options...)
+
+(define (string-starts-with? string sub-string)
+  (string= (subseq string 0 (length sub-string))
+	   sub-string))
+
+(define-struct point (x y))
+(let ((p (make-point 3 4)))
+  (assert (equal? (list (point-x p)	   ;; 3
+			(point-y p)	   ;; 4
+			(point? p)	   ;; t
+			(struct? p)	   ;; t
+			(not (equal? (make-point 3 4) (make-point 3 4))) ;; t
+			(not (equal? (struct-copy p) p)) ;; t
+			(equal? p p))  ;; t
+		  (list 3 4 t t t t t)))
+  ;; #<POINT...>
+  (assert (equal? "#<POINT" (subseq (format nil "~S" p) 0 (length "#<POINT")))))
+
+;; Super types
+(define-struct point3d (z)
+	       :super 'point)
+(let ((p3d (make-point3d 3 4 5)))
+  (assert (and-let* ((copy (struct-copy p3d))
+		     ((equal? (point-x p3d) (point-x copy)))
+		     ((equal? (point3d-z p3d) (point3d-z copy))))
+	    (not (equal? p3d copy))))
+  (assert (equal? (list (point? p3d)	;; t
+			(point3d? p3d)	;; t
+			(point-x p3d)	;; 3
+			(point-y p3d)	;; 4
+			(point3d-z p3d) ;; 5
+			(and-let* ((copy (struct-copy p3d))
+				   ((equal? (point-x p3d) (point-x copy)))
+				   ((equal? (point3d-z p3d) (point3d-z copy))))
+			  (not (equal? p3d copy))) ;;t
+			(string-starts-with? (format nil "~S" p3d) "#<POINT3D")) ;; #<struct point3d>
+		  (list t t 3 4 5 t t))))
+
+;; Super-duper types
+(define-struct point4d (w)
+	       :super 'point3d)
+(let ((p4d (make-point4d 'x 'y 'z 'w)))
+  (assert [(conjoin 'struct? 'point? 'point3d? 'point4d?) p4d])
+  (list (point-x p4d)
+	(point-y p4d)
+	(point3d-z p4d)
+	(point4d-w p4d)))
+
+;; Transparent structures
+(define-struct tpoint (x y) :transparent)
+(let ((p (make-tpoint 3 4)))
+  (assert (every 'identity
+		 (list
+		  (equal? (struct->list p) '(make-tpoint 3 4))
+		  (equal? (struct-accessors p) '(tpoint-x tpoint-y))
+		  (string= (format nil "~S" '(make-tpoint 3 4)) (format nil "~S" p))
+		  (equal? p p)
+		  (equal? (make-tpoint 3 4) (make-tpoint 3 4))))))
+
+;; Mutable structures
+(struct mpoint (x y) :mutable :transparent)
+(let ((p (make-mpoint 3 4)))
+  (setf (mpoint-x p) 5)
+  (setf (mpoint-y p) 6)
+  (print p) ;; (make-mpoint 5 6)
+  )
+
+;; Mutable fields
+(struct mpoint3 (x y (z :mutable)) :transparent)
+(let ((p (make-mpoint3 3 4 5)))
+  (setf (mpoint3-z p) 20)
+  (print p) ;; (make-mpoint3 3 4 20)
+  )
+
+;; Guard-expressions
+(struct ipoint (x y)
+	:guard (λ (x y)
+		 (if (not (and (integerp x) (integerp y)))
+		     (error "ipoints require integer arguments. got: X=~S Y=~S" x y)
+		     (values x y))))
+
+;;(for-macros (uninstall-syntax!))
+
