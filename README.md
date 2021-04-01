@@ -3,7 +3,27 @@
 
 Provide Scheme/Racket style naming conventions and objects in Common Lisp.
 
-Three things in particular, named let, define and [] syntax:
+The SCHEMEISH package can be used in place of CL.
+
+    (defpackage my-new-package
+       (:shadowing-import-from :cl :lambda)
+       (:use :schemeish))
+       
+To use [] syntax (described below) you can use `INSTALL-SYNTAX!` and to disable it again you can use `UNINSTALL-SYNTAX!`. 
+It's recommended that you do these in a call to `FOR-MACROS` at the top and bottom of the file.
+
+
+The following CL symbols are replaced by Schemeish:
+
+ - `LAMBDA` uses scheme-style argument lists with nestable defines.
+ - `LET` is fully compatible with `CL:LET`, but with named let syntax described below
+ - `SORT` is a non-modifying sort
+ - `MAP` maps a function over a list (equivalent to `MAPCAR`)
+ - `STREAM` constructs a stream of elements.
+
+The rest of Schemeish is fully compatible with the `CL` package. If you'd like to favor `CL` in conflicts you can use `:SHADOWING-IMPORT-FROM`.
+
+Three things I find particularly valuable, named let, define and [] syntax:
 
     ;; Named let allows for local recursion.
     (let rec ((n 10)
