@@ -498,32 +498,41 @@ Used to annotate functions that are used in macros."
   (define (empty? datum) (null datum)))
 (define (procedure? datum) (functionp datum))
 
-(define *get-bundle-type-predicate* (gensym))
+(defvar *get-bundle-type-predicate* (gensym))
+(defvar *get-bundle-predicate-list* (gensym))
+(defvar *get-is-bundle-predicate?* (gensym))
+(defvar *is-bundle-predicate* (gensym))
+
 (define (make-bundle-predicate name)
   "Returns a predicate which, only evaluates to true 
 when given a bundle with this type-predicate"
-  (let (self)
-    (setq self
-	  (λ args
-	    (if (empty? args)
-		`(make-bundle-predicate ,name)
-		(let ((data (first args)))
-		  (and (functionp data)
-		       (eq self [data *get-bundle-type-predicate*]))))))))
+  (define (dispatch arg)
+    (cond
+      ((eq? *get-bundle-predicate-list* arg)
+       `(make-bundle-predicate ,name))
+      ((eq? *get-is-bundle-predicate?* arg)
+       *is-bundle-predicate*)
+      ((procedure? arg)
+       (eq? dispatch [arg *get-bundle-type-predicate*]))
+      (t nil)))
+  dispatch)
 
-(define *name?* (make-bundle-predicate :bundle))
+(define (bundle-predicate? datum)
+  (and (procedure? datum)
+       (eq? *is-bundle-predicate* [datum *get-is-bundle-predicate?*])))
+
+(defvar *name?* (make-bundle-predicate :bundle))
 (assert [*name?* (λ (arg)
 		   (cond
 		     ((eq *get-bundle-type-predicate* arg) *name?*)))])
 
-(define *get-bundle-list* (gensym))
+(defvar *get-bundle-list* (gensym))
 (for-macros
   (define (make-keyword symbol)
     (intern (symbol-name symbol) :keyword)))
 
 (define *get-bundle-permissions* (gensym))
-(define *bundle?* (gensym))
-(define *is-bundle* (gensym))
+(define *bundle?* (make-bundle-predicate :bundle))
 
 (defmacro bundle (type-predicate bundle-list-form &rest fn-names)
   "Create a bundle of permissions for closure objects.
@@ -550,8 +559,8 @@ Example:
       )"
   `(λ (arg)
      (cond
-       ((and ,type-predicate (eq *get-bundle-type-predicate* arg))
-	,type-predicate)
+       ((eq *get-bundle-type-predicate* arg)
+	(or ,type-predicate *bundle?*))
        ((eq *bundle?* arg)
 	*is-bundle*)
        ((eq *get-bundle-list* arg)
@@ -569,9 +578,9 @@ Example:
   [bundle *get-bundle-list*])
 (define (bundle? bundle)
   (and (procedure? bundle)
-       (eq *is-bundle* (ignore-errors [bundle *bundle?*]))))
+       (bundle-predicate? (ignore-errors [bundle *get-bundle-type-predicate*]))))
 
-(define *point?* (make-bundle-predicate :point))
+(defvar *point?* (make-bundle-predicate :point))
 (define (make-bundle-point x y)
   (define (get-x) x)
   (define (get-y) y)

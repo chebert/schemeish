@@ -30,9 +30,11 @@
 
    ;; Bundles
    #:make-bundle-predicate
+   #:bundle-predicate?
    #:bundle
    #:bundle-permissions
    #:bundle-list
+   #:bundle?
 
    ;; Lists
    #:append*
