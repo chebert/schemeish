@@ -196,6 +196,8 @@
    #:get-signal
    #:set-signal!
    #:add-action!
+
+   ;; Gates
    #:*inverter-delay*
    #:*and-gate-delay*
    #:*or-gate-delay*

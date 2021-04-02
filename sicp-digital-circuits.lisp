@@ -186,11 +186,11 @@
      (format t "~%~S ~S New-value = ~S"
 	     name (current-time *the-agenda*) (get-signal wire)))))
 
-(define *the-agenda* (make-agenda))
-
 (define *inverter-delay* 2)
 (define *and-gate-delay* 3)
 (define *or-gate-delay* 5)
+
+(define *the-agenda* (make-agenda))
 
 (define *input-1* (make-wire))
 (define *input-2* (make-wire))
