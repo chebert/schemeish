@@ -178,4 +178,30 @@
 ;; TODO: λ doesn't get read real well by common lisp when compiling file...
 ;; TODO: defines should be nestable inside of let.
 (defpackage #:sicp-digital-circuits
-  (:use :schemeish))
+  (:use :schemeish)
+  (:export
+   ;; agenda
+   #:empty-agenda?
+   #:first-agenda-item
+   #:current-time
+   #:remove-first-agenda-item!
+   #:add-to-agenda!
+   #:make-agenda
+   #:*the-agenda*
+   #:after-delay
+   #:propagate
+
+   ;; wires
+   #:make-wire
+   #:get-signal
+   #:set-signal!
+   #:add-action!
+   #:*inverter-delay*
+   #:*and-gate-delay*
+   #:*or-gate-delay*
+   #:inverter
+   #:and-gate
+   #:or-gate
+   #:half-adder
+   #:full-adder
+   #:probe))
