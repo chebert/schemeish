@@ -73,6 +73,24 @@ The following adjustments to emacs init.el enhance the experience:
         'paredit-wrap-square)
         
      (global-set-key (kbd "C-\\") "λ")
+     
+    
+    (defun swap-square-and-round ()
+      "Change |(..) to |[..]. | is point position."
+      (interactive)
+      (let* ((char (string (char-after)))
+	         (paren? (string= char "("))
+	         (square? (string= char "[")))
+        (cond
+         (paren? (paredit-open-square 1))
+         (square? (paredit-open-round 1)))
+        (when (or paren? square?)
+          (right-char 1)
+          (paredit-splice-sexp)
+          (left-char 1))))
+
+    (define-key paredit-mode-map (kbd "M-[") 'swap-square-and-round)
+
 
 ## License
 
