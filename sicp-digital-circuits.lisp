@@ -61,7 +61,7 @@
 (define (add-to-agenda! time action a) [[a :add!] time action])
 
 (define (after-delay delay action)
-  (add-to-agenda! (+ delay (agenda-current-time *the-agenda*))
+  (add-to-agenda! (+ delay (current-time *the-agenda*))
 		  action
 		  *the-agenda*))
 
@@ -106,22 +106,19 @@
   (set-signal! wire 1)
   (assert (= result 1)))
 
-(define (s->b signal)
+(define (signal->bool signal)
   (cond ((= 0 signal) nil)
 	((= 1 signal) t)
 	(t (error "bad signal ~s" signal))))
-(define (b->s bool) (if bool 1 0))
+(define (bool->signal bool) (if bool 1 0))
 
 (define (logical procedure)
   (lambda signal-args
-    (b->s (apply procedure (map 's->b signal-args)))))
-
-(define (every-true . args) (every 'identity args))
-(define (some-true . args) (some 'identity args))
+    (bool->signal (apply procedure (map 'signal->bool signal-args)))))
 
 (define (logical-not signal) [(logical 'not) signal])
-(define (logical-and s1 s2) [(logical 'every-true) s1 s2])
-(define (logical-or s1 s2) [(logical 'some-true) s1 s2])
+(define (logical-and s1 s2) [(logical (lcurry 'for-all 'identity)) s1 s2])
+(define (logical-or s1 s2) [(logical (lcurry 'there-exists 'identity)) s1 s2])
 
 (assert (= 1 (logical-not 0)))
 (assert (= 0 (logical-not 1)))
@@ -237,4 +234,3 @@
 ;; :SUM 8 New-value = 1
 ;; :CARRY-OUT 16 New-value = 1
 ;; :SUM 16 New-value = 0
-

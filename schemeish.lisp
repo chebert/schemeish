@@ -521,6 +521,8 @@ when given a bundle with this type-predicate"
     (intern (symbol-name symbol) :keyword)))
 
 (define *get-bundle-permissions* (gensym))
+(define *bundle?* (gensym))
+(define *is-bundle* (gensym))
 
 (defmacro bundle (type-predicate bundle-list-form &rest fn-names)
   "Create a bundle of permissions for closure objects.
@@ -549,6 +551,8 @@ Example:
      (cond
        ((and ,type-predicate (eq *get-bundle-type-predicate* arg))
 	,type-predicate)
+       ((eq *bundle?* arg)
+	*is-bundle*)
        ((eq *get-bundle-list* arg)
 	,(if bundle-list-form
 	     `(list ',(first bundle-list-form) ,@(rest bundle-list-form))
@@ -562,6 +566,9 @@ Example:
 (define (bundle-list bundle)
   "Return the bundle as a '(constructor-name arg-values...)"
   [bundle *get-bundle-list*])
+(define (bundle? bundle)
+  (and (procedure? bundle)
+       (eq *is-bundle* (ignore-errors [bundle *bundle?*]))))
 
 (define *point?* (make-bundle-predicate :point))
 (define (make-bundle-point x y)
@@ -573,6 +580,7 @@ Example:
   (bundle *point?* (make-bundle-point x y) get-x get-y set-x! set-y!))
 
 (let ((point (make-bundle-point 3 4)))
+  (assert (bundle? point))
   (assert (= 3 [[point :get-x]]))
   [[point :set-x!] 32]
   (assert (= 32 [[point :get-x]]))
@@ -831,6 +839,20 @@ Example:
     "Append the results of mapping procedure across lists."
     (append* (apply 'map proc lists))))
 
+(define (map-successive n f list)
+  "Maps f over successive groups of size n in list."
+  (let rec ((list list)
+	    (length (length list))
+	    (result ()))
+       (cond
+	((< length n) (nreverse result))
+	(t (rec (rest list)
+		(1- length)
+		(cons (apply f (subseq list 0 n)) result))))))
+
+(assert (equal? (map-successive 3 'list (list 1 2 3 4))
+		'((1 2 3) (2 3 4))))
+
 (define (filter-not pred list)
   "Returns a list of elements that don't satisfy predicate pred."
   (filter (compose 'not pred) list))
@@ -1075,6 +1097,17 @@ Example:
 	       '((1 4) (1 5) (2 4) (2 5))))
 
 
+(define (stream-map-successive n f stream)
+  "Apply f to successive groups of size n in stream."
+  (let ((group (stream->list (stream-take stream n))))
+    (cond ((< (length group) n)
+	   *the-empty-stream*)
+	  (t (stream-cons (apply f group)
+			  (stream-map-successive n f (stream-rest stream)))))))
+
+(assert (equal? (stream->list (stream-map-successive 3 'list (stream 1 2 3 4)))
+		'((1 2 3) (2 3 4))))
+
 (for-macros
   (define (stream-collect-bindings-fn binding-names body)
     (let ((arg-name (gensym)))
@@ -1286,6 +1319,16 @@ Applies updater to failure-result if key is not present."
 (define (conjoin . predicates)
   "Return a predicate equivalent to predicates joined together with and."
   (conjoin* predicates))
+
+(define (for-all* predicate list)
+  (every predicate list))
+(define (for-all predicate . list)
+  (every predicate list))
+
+(define (there-exists* predicate list)
+  (some predicate list))
+(define (there-exists predicate . list)
+  (some predicate list))
 
 (assert (equal (map (conjoin 'negative? 'even?)
 		    '(-1 -2 1 2))
@@ -1853,14 +1896,12 @@ the super classes in addition to the fields provided by field-specs."
 		     (values x y))))
 
 
-;; TODO: set-car! and set-cdr!
-;; TODO: mutable queues
-
 (define (set-car! pair value) (setf (car pair) value))
 (define (set-cdr! pair value) (setf (cdr pair) value))
 
 (define *queue?* (make-bundle-predicate :queue))
-(define (%make-queue (:front-ptr ()) (:rear-ptr ()))
+(define (make-queue (front-ptr ()))
+  (define rear-ptr (last front-ptr))
   (define (empty?) (null? front-ptr))
   (define (front)
     (cond
@@ -1883,14 +1924,13 @@ the super classes in addition to the fields provided by field-specs."
       (t
        (setq front-ptr (cdr front-ptr)))))
 
-  (bundle *queue?* (%make-queue :front-ptr front-ptr :rear-ptr rear-ptr)
+  (bundle *queue?* (make-queue front-ptr)
 	  empty?
 	  front
 	  insert!
 	  delete!))
 
 (define (queue? v) [*queue?* v])
-(define (make-queue) (%make-queue))
 (define (queue-empty? q) [[q :empty?]])
 (define (queue-front q) [[q :front]])
 (define (queue-insert! q item)
@@ -1913,5 +1953,27 @@ the super classes in addition to the fields provided by field-specs."
 
   (assert (null (ignore-errors (queue-front q))))
   (assert (null (ignore-errors (queue-delete! q)))))
+
+(define (serialize datum)
+  "Recursively serializes structs using struct->list, bundles using bundle-list, and lists
+into a list form that can be EVAL'd.
+Bundles will no longer share identity after EVAL."
+  (cond
+    ((struct? datum) (let ((list (struct->list datum)))
+		       (cons (first list) (map 'serialize (rest list)))))
+    ((bundle? datum) (let ((list (bundle-list datum)))
+		       (cons (first list) (map 'serialize (rest list)))))
+    ((null? datum) ())
+    ((pair? datum) `(cons ,(serialize (car datum)) ,(serialize (cdr datum))))
+    (t `',datum)))
+
+(assert (equal? (eval (serialize (list 1 2 3 4)))
+		(list 1 2 3 4)))
+
+(let* ((point (make-tpoint 3 4)))
+  (assert (equal? (eval (serialize point)) point)))
+(let* ((qpoint (make-tpoint (make-queue) (make-queue (list 1 2 3)))))
+  (assert (equal? (serialize (eval (serialize qpoint)))
+		  (serialize qpoint))))
 
 (for-macros (uninstall-syntax!))

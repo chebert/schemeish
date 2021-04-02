@@ -68,6 +68,7 @@
    #:range
    #:append-map
    #:filter-not
+   #:map-successive
 
    ;; Numbers
    #:positive?
@@ -119,6 +120,7 @@
    #:stream-flatmap
    #:stream-range
    #:stream-collect
+   #:stream-map-successive
 
    ;; Association lists
    #:alist-set
@@ -138,6 +140,10 @@
    #:nand
    #:nor
    #:xor
+   #:for-all
+   #:for-all*
+   #:there-exists
+   #:there-exists*
 
    ;; Lists as sets
    #:set-member?
@@ -158,6 +164,8 @@
    #:struct->list
    #:struct-accessors
 
+   #:serialize
+   
    ;; Mutable lists
    #:set-car!
    #:set-cdr!
