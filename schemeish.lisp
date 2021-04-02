@@ -496,6 +496,7 @@ Used to annotate functions that are used in macros."
 
 (for-macros
   (define (empty? datum) (null datum)))
+(define (procedure? datum) (functionp datum))
 
 (define *get-bundle-type-predicate* (gensym))
 (define (make-bundle-predicate name)
@@ -864,8 +865,6 @@ Example:
 
 (assert (equal (partition 'even? '(1 2 3 4 5 6))
 	       '((2 4 6) (1 3 5))))
-
-(define (procedure? datum) (functionp datum))
 
 (define (lcurry proc . left-args)
   "Return a procedure waiting for the right-args."
