@@ -156,10 +156,26 @@
    #:struct?
    #:struct-copy
    #:struct->list
-   #:struct-accessors))
+   #:struct-accessors
+
+   ;; Mutable lists
+   #:set-car!
+   #:set-cdr!
+
+   ;; Queue
+   #:make-queue
+   #:queue-front
+   #:queue-empty?
+   #:queue-insert!
+   #:queue-delete!))
 
 (cl:do-external-symbols (symbol (cl:find-package :cl))
   (cl:multiple-value-bind (symbol accessibility)
       (cl:find-symbol (cl:symbol-name symbol) (cl:find-package :schemeish))
     (cl:unless (cl:eq accessibility :external)
       (cl:export symbol (cl:find-package :schemeish)))))
+
+;; TODO: λ doesn't get read real well by common lisp when compiling file...
+;; TODO: defines should be nestable inside of let.
+(defpackage #:sicp-digital-circuits
+  (:use :schemeish))

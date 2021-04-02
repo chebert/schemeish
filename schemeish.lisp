@@ -1758,7 +1758,9 @@ If transparent is provided:
 - a recursive EQUAL? test is generated to test equality of each field. Otherwise only identity is tested.
 - (struct->list p) creates a list that looks like a constructor call. This is used when printing the object.
 - (struct-accessors p) returns a list of all of the accessors associated with transparent structure p. 
-"
+
+If a super-type symbol is specified, this structure will inherit all of the accessors, setters, and predicates from
+the super classes in addition to the fields provided by field-specs."
   ;; TODO: issue when a transparent object inherits from an opaque object
   ;; TODO: guard clauses
   `(for-macros
@@ -1783,8 +1785,7 @@ If transparent is provided:
 			(not (equal? (struct-copy p) p)) ;; t
 			(equal? p p))  ;; t
 		  (list 3 4 t t t t t)))
-  ;; #<POINT...>
-  (assert (equal? "#<POINT" (subseq (format nil "~S" p) 0 (length "#<POINT")))))
+  (assert (string-starts-with? (format nil "~S" p) "#<POINT")))
 
 ;; Super types
 (define-struct point3d (z)
@@ -1850,5 +1851,67 @@ If transparent is provided:
 		 (if (not (and (integerp x) (integerp y)))
 		     (error "ipoints require integer arguments. got: X=~S Y=~S" x y)
 		     (values x y))))
+
+
+;; TODO: set-car! and set-cdr!
+;; TODO: mutable queues
+
+(define (set-car! pair value) (setf (car pair) value))
+(define (set-cdr! pair value) (setf (cdr pair) value))
+
+(define *queue?* (make-bundle-predicate :queue))
+(define (%make-queue (:front-ptr ()) (:rear-ptr ()))
+  (define (empty?) (null? front-ptr))
+  (define (front)
+    (cond
+      ((empty?)
+       (error "Cannot get the front of an empty queue."))
+      (t (car front-ptr))))
+  (define (insert! item)
+    (let ((new-pair (cons item '())))
+      (cond
+	((empty?)
+	 (setq front-ptr new-pair)
+	 (setq rear-ptr new-pair))
+	(t
+	 (set-cdr! rear-ptr new-pair)
+	 (setq rear-ptr new-pair)))))
+  (define (delete!)
+    (cond
+      ((empty?)
+       (error "Cannot delete from an empty queue."))
+      (t
+       (setq front-ptr (cdr front-ptr)))))
+
+  (bundle *queue?* (%make-queue :front-ptr front-ptr :rear-ptr rear-ptr)
+	  empty?
+	  front
+	  insert!
+	  delete!))
+
+(define (queue? v) [*queue?* v])
+(define (make-queue) (%make-queue))
+(define (queue-empty? q) [[q :empty?]])
+(define (queue-front q) [[q :front]])
+(define (queue-insert! q item)
+  [[q :insert!] item]
+  q)
+(define (queue-delete! q)
+  [[q :delete!]]
+  q)
+
+(assert (queue? (make-queue)))
+(assert (queue-empty? (make-queue)))
+(let ((q (make-queue)))
+  (assert (eq? q (queue-insert! q 1)))
+  (assert (= 1 (queue-front q)))
+  (queue-insert! q 2)
+  (assert (= 1 (queue-front q)))
+  (assert (eq? q (queue-delete! q)))
+  (assert (= 2 (queue-front q)))
+  (assert (queue-empty? (queue-delete! q)))
+
+  (assert (null (ignore-errors (queue-front q))))
+  (assert (null (ignore-errors (queue-delete! q)))))
 
 (for-macros (uninstall-syntax!))
