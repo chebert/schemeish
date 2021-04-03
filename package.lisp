@@ -26,7 +26,13 @@
    #:make-keyword
    #:symbol->string
    #:symbol?
+
+   ;; Strings
    #:string-append   
+   #:string?
+   #:newline
+   #:display
+   #:displayln
 
    ;; Bundles
    #:make-bundle-predicate
@@ -83,7 +89,8 @@
    #:radians->degrees
    #:degrees->radians
    #:sqr
-   
+   #:number?
+
    ;; Procedures
    #:procedure?
    #:compose
@@ -186,54 +193,3 @@
       (cl:export symbol (cl:find-package :schemeish)))))
 
 ;; TODO: defines should be nestable inside of let.
-
-(defpackage #:sicp-digital-circuits
-  (:use :schemeish)
-  (:export
-   ;; agenda
-   #:empty-agenda?
-   #:first-agenda-item
-   #:current-time
-   #:remove-first-agenda-item!
-   #:add-to-agenda!
-   #:make-agenda
-   #:*the-agenda*
-   #:after-delay
-   #:propagate
-
-   ;; wires
-   #:make-wire
-   #:get-signal
-   #:set-signal!
-   #:add-action!
-
-   ;; Gates
-   #:*inverter-delay*
-   #:*and-gate-delay*
-   #:*or-gate-delay*
-   #:inverter
-   #:and-gate
-   #:or-gate
-   #:half-adder
-   #:full-adder
-   #:probe))
-
-(defpackage #:sicp-constraint-propagators
-  (:use :schemeish)
-  (:export
-   #:make-connector
-   #:has-value?
-   #:get-value
-   #:set-value!
-   #:forget-value!
-   #:connect
-   #:adder
-   #:celsius-fahrenheit-converter
-   #:probe
-   #:constant
-   #:multiplier
-   #:c+
-   #:c*
-   #:c-
-   #:cv
-   #:c/))

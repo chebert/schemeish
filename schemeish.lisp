@@ -502,6 +502,12 @@ Used to annotate functions that are used in macros."
 (defvar *get-bundle-predicate-list* (gensym))
 (defvar *get-is-bundle-predicate?* (gensym))
 (defvar *is-bundle-predicate* (gensym))
+(for-macros
+  (define (eq? obj1 obj2) (eq obj1 obj2))
+
+  (defgeneric equal? (object1 object2)
+    (:documentation "Provides a generic interface to EQUAL."))
+  (defmethod equal? (object1 object2) (equal object1 object2)))
 
 (define (make-bundle-predicate name)
   "Returns a predicate which, only evaluates to true 
@@ -677,12 +683,6 @@ Example:
 	(rec (apply proc (map 'first lists))
 	     (map 'rest lists)))))
 
-(for-macros
-  (define (eq? obj1 obj2) (eq obj1 obj2))
-
-  (defgeneric equal? (object1 object2)
-    (:documentation "Provides a generic interface to EQUAL."))
-  (defmethod equal? (object1 object2) (equal object1 object2)))
 
 (assert (ormap 'eq? '(a b c) '(a b c)))
 (assert (ormap 'positive? '(1 2 a)))
@@ -1388,6 +1388,8 @@ Applies updater to failure-result if key is not present."
     ((negative? x) -1)
     ((zero? x) 0)))
 
+(define (number? datum) (numberp datum))
+
 
 (define (set-member? set value)
   "True if value is a member of set."
@@ -1528,6 +1530,14 @@ Example (and-let* ((list (compute-list))
 (for-macros
   (define (string-append . strings)
     (apply 'concatenate 'string strings)))
+
+(define (string? datum) (stringp datum))
+
+(define (newline (out *standard-output*)) (format out "~%"))
+(define (display datum (out *standard-output*)) (format out "~A" datum))
+(define (displayln datum (out *standard-output*))
+  (display datum out)
+  (newline out))
 
 (for-macros
   (define (struct-defclass-slot-name type-name field-name)

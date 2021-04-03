@@ -1,3 +1,34 @@
+(cl:defpackage #:sicp-digital-circuits
+  (:use :schemeish)
+  (:export
+   ;; agenda
+   #:empty-agenda?
+   #:first-agenda-item
+   #:current-time
+   #:remove-first-agenda-item!
+   #:add-to-agenda!
+   #:make-agenda
+   #:*the-agenda*
+   #:after-delay
+   #:propagate
+
+   ;; wires
+   #:make-wire
+   #:get-signal
+   #:set-signal!
+   #:add-action!
+
+   ;; Gates
+   #:*inverter-delay*
+   #:*and-gate-delay*
+   #:*or-gate-delay*
+   #:inverter
+   #:and-gate
+   #:or-gate
+   #:half-adder
+   #:full-adder
+   #:probe))
+
 (in-package #:sicp-digital-circuits)
 
 (for-macros

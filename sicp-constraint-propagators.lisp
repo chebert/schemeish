@@ -1,3 +1,23 @@
+(cl:defpackage #:sicp-constraint-propagators
+  (:use :schemeish)
+  (:export
+   #:make-connector
+   #:has-value?
+   #:get-value
+   #:set-value!
+   #:forget-value!
+   #:connect
+   #:adder
+   #:celsius-fahrenheit-converter
+   #:probe
+   #:constant
+   #:multiplier
+   #:c+
+   #:c*
+   #:c-
+   #:cv
+   #:c/))
+
 (in-package #:sicp-constraint-propagators)
 
 (for-macros (install-syntax!))
@@ -204,7 +224,7 @@ Output:
 Probe: Celsius temp = 25
 Probe: Fahrenheit temp = 77
 ||#
-(set-value! *f* 212 'user)
+;; (set-value! *f* 212 'user)
 ;; error: Contradiction: (77 212)
 
 (forget-value! *c* 'user)
