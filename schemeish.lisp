@@ -621,7 +621,7 @@ Example:
   "Fold (proc e1 e2 ... result) across lists starting from the start of the lists."
   (let rec ((result init)
 	    (lists lists))
-    (if (member nil lists)
+    (if (or (empty? lists) (member nil lists))
 	result
 	(rec (apply proc (append (map #'first lists) (list result)))
 	     (map #'rest lists)))))
@@ -640,7 +640,7 @@ Example:
   "Fold (proc e1 e2 ... result) across lists starting from the end of the lists."
   (let rec ((result init)
 	    (lists (map 'reverse lists)))
-    (if (member nil lists)
+    (if (or (empty? lists) (member nil lists))
 	result
 	(rec (apply proc (append (map #'first lists) (list result)))
 	     (map #'rest lists)))))
@@ -852,11 +852,11 @@ Example:
   (let rec ((list list)
 	    (length (length list))
 	    (result ()))
-       (cond
-	((< length n) (nreverse result))
-	(t (rec (rest list)
-		(1- length)
-		(cons (apply f (subseq list 0 n)) result))))))
+    (cond
+      ((< length n) (nreverse result))
+      (t (rec (rest list)
+	      (1- length)
+	      (cons (apply f (subseq list 0 n)) result))))))
 
 (assert (equal? (map-successive 3 'list (list 1 2 3 4))
 		'((1 2 3) (2 3 4))))
