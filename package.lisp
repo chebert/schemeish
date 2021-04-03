@@ -185,8 +185,8 @@
     (cl:unless (cl:eq accessibility :external)
       (cl:export symbol (cl:find-package :schemeish)))))
 
-;; TODO: λ doesn't get read real well by common lisp when compiling file...
 ;; TODO: defines should be nestable inside of let.
+
 (defpackage #:sicp-digital-circuits
   (:use :schemeish)
   (:export
@@ -217,3 +217,23 @@
    #:half-adder
    #:full-adder
    #:probe))
+
+(defpackage #:sicp-constraint-propagators
+  (:use :schemeish)
+  (:export
+   #:make-connector
+   #:has-value?
+   #:get-value
+   #:set-value!
+   #:forget-value!
+   #:connect
+   #:adder
+   #:celsius-fahrenheit-converter
+   #:probe
+   #:constant
+   #:multiplier
+   #:c+
+   #:c*
+   #:c-
+   #:cv
+   #:c/))

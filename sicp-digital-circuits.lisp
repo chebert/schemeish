@@ -234,3 +234,5 @@
 ;; :SUM 8 New-value = 1
 ;; :CARRY-OUT 16 New-value = 1
 ;; :SUM 16 New-value = 0
+
+(for-macros (uninstall-syntax!))

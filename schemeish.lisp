@@ -561,8 +561,6 @@ Example:
      (cond
        ((eq *get-bundle-type-predicate* arg)
 	(or ,type-predicate *bundle?*))
-       ((eq *bundle?* arg)
-	*is-bundle*)
        ((eq *get-bundle-list* arg)
 	,(if bundle-list-form
 	     `(list ',(first bundle-list-form) ,@(rest bundle-list-form))
