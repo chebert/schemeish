@@ -4,6 +4,8 @@
 
 (in-package #:sicp-metacircular-evaluator)
 
+(for-macros (install-syntax!))
+
 (define (eval expr env)
   (cond
     ((self-evaluating? expr) expr)
@@ -262,6 +264,11 @@
 	(list 'cdr #'cdr)
 	(list 'cons #'cons)
 	(list 'null? #'null?)
+	(list '+ #'+)
+	(list '- #'-)
+	(list '* #'*)
+	(list '/ #'/)
+	(list '= #'=)
 	;; More primitives...
 	))
 
@@ -349,3 +356,148 @@ OK
 ;;; M-Eval value:
 ((1) (2) (3))
 "
+
+(define (analyze exp)
+  (cond ((self-evaluating? exp) 
+         (analyze-self-evaluating exp))
+        ((quoted? exp) (analyze-quoted exp))
+        ((variable? exp) (analyze-variable exp))
+        ((assignment? exp) (analyze-assignment exp))
+        ((definition? exp) (analyze-definition exp))
+        ((if? exp) (analyze-if exp))
+        ((lambda? exp) (analyze-lambda exp))
+        ((begin? exp) (analyze-sequence (begin-actions exp)))
+        ((cond? exp) (analyze (cond->if exp)))
+        ((application? exp) (analyze-application exp))
+        (t
+         (error "Unknown expression type -- ANALYZE ~S" exp))))
+
+(define (analyze-self-evaluating exp)
+  (lambda (env) (declare (ignore env)) exp))
+
+(define (analyze-quoted exp)
+  (let ((qval (text-of-quotation exp)))
+    (lambda (env) (declare (ignore env)) qval)))
+
+(define (analyze-variable exp)
+  (lambda (env) (lookup-variable-value exp env)))
+
+(define (analyze-assignment exp)
+  (let ((var (assignment-variable exp))
+        (vproc (analyze (assignment-value exp))))
+    (lambda (env)
+      (set-variable-value! var [vproc env] env)
+      'ok)))
+(define (analyze-definition exp)
+  (let ((var (definition-variable exp))
+        (vproc (analyze (definition-value exp))))
+    (lambda (env)
+      (define-variable! var [vproc env] env)
+      'ok)))
+
+
+(define (analyze-if exp)
+  (let ((pproc (analyze (if-predicate exp)))
+        (cproc (analyze (if-consequent exp)))
+        (aproc (analyze (if-alternative exp))))
+    (lambda (env)
+      (if (true? [pproc env])
+          [cproc env]
+          [aproc env]))))
+
+(define (analyze-lambda exp)
+  (let ((vars (lambda-parameters exp))
+        (bproc (analyze-sequence (lambda-body exp))))
+    (lambda (env) (make-procedure vars bproc env))))
+
+(define (analyze-sequence exps)
+  (define (sequentially proc1 proc2)
+    (lambda (env) [proc1 env] [proc2 env]))
+  (define (rec first-proc rest-procs)
+    (if (null? rest-procs)
+        first-proc
+        (rec (sequentially first-proc (car rest-procs))
+             (cdr rest-procs))))
+  (let ((procs (map 'analyze exps)))
+    (if (null? procs)
+        (error "Empty sequence -- ANALYZE"))
+    (rec (car procs) (cdr procs))))
+
+(define (analyze-application exp)
+  (let ((fproc (analyze (operator exp)))
+        (aprocs (map 'analyze (operands exp))))
+    (lambda (env)
+      (execute-application [fproc env]
+                           (map (lambda (aproc) [aproc env])
+                                aprocs)))))
+(define (execute-application proc args)
+  (cond ((primitive-procedure? proc)
+         (apply-primitive-procedure proc args))
+        ((compound-procedure? proc)
+         [(procedure-body proc)
+          (extend-environment (procedure-parameters proc)
+                              args
+                              (procedure-environment proc))])
+        (t
+         (error
+          "Unknown procedure type -- EXECUTE-APPLICATION ~S"
+          proc))))
+
+(define *the-global-environment* (setup-environment))
+(define *fib-test* '(begin
+		     (define (fib n)
+		       (cond ((= 0 n) 0)
+			     ((= 1 n) 1)
+			     (t (+ (fib (- n 1)) (fib (- n 2))))))
+		     (fib 30)))
+
+(time (eval *fib-test* *the-global-environment*))
+;; => 832040
+"Evaluation took:
+  4.591 seconds of real time
+  4.578125 seconds of total run time (4.546875 user, 0.031250 system)
+  [ Run times consist of 0.061 seconds GC time, and 4.518 seconds non-GC time. ]
+  99.72% CPU
+  9,149,610,335 processor cycles
+  931,278,112 bytes consed"
+
+(time [(analyze *fib-test*) *the-global-environment*])
+;; => 832040
+"Evaluation took:
+  2.305 seconds of real time
+  2.296875 seconds of total run time (2.296875 user, 0.000000 system)
+  [ Run times consist of 0.094 seconds GC time, and 2.203 seconds non-GC time. ]
+  99.65% CPU
+  4,588,646,253 processor cycles
+  1,156,917,568 bytes consed"
+
+(let ((proc (analyze *fib-test*)))
+  (time [proc *the-global-environment*]))
+;; => 832040
+"Evaluation took:
+  2.388 seconds of real time
+  2.390625 seconds of total run time (2.375000 user, 0.015625 system)
+  [ Run times consist of 0.077 seconds GC time, and 2.314 seconds non-GC time. ]
+  100.13% CPU
+  4,752,310,264 processor cycles
+  1,156,907,040 bytes consed"
+
+(time (progn
+	(define (fib n)
+	  (cond ((= 0 n) 0)
+		((= 1 n) 1)
+		(t (+ (fib (- n 1)) (fib (- n 2))))))
+	(fib 30)))
+;; => 832040
+"Evaluation took:
+  0.065 seconds of real time
+  0.046875 seconds of total run time (0.046875 user, 0.000000 system)
+  72.31% CPU
+  137,696,127 processor cycles
+  0 bytes consed"
+
+;; Fib test summary
+;; EVAL: 4.5-5.5 seconds
+;; ANALYZE: 2.3-2.5 seconds
+;; NATIVE: 0.01-0.1 seconds
+

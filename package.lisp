@@ -102,6 +102,9 @@
    #:conjoin
    #:const
    #:memo-proc
+   #:procedure-arity
+   #:procedure-arguments
+   #:has-specific-arity?
 
    ;; Streams
    #:delay
