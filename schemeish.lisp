@@ -330,7 +330,7 @@ Used to annotate functions that are used in macros."
   
   (defun expand-define-let-or-let* (body)
     (cond
-      ((null? body) body)
+      ((null body) body)
       (t
        (let ((form (first body)))
 	 (cond
@@ -407,14 +407,14 @@ Used to annotate functions that are used in macros."
 
 (defmacro lambda (arg-list &body body)
   "A lambda with scheme style argument lists. Some examples:
-  (λ (arg1 arg2 arg3) (list arg1 arg2 arg3)) ; Arity: 3
-  (λ (arg1 . args) (list* arg1 args)) ; Arity: at least 1
-  (λ args args) ; Arity: at least 0
+  (lambda (arg1 arg2 arg3) (list arg1 arg2 arg3)) ; Arity: 3
+  (lambda (arg1 . args) (list* arg1 args)) ; Arity: at least 1
+  (lambda args args) ; Arity: at least 0
 
-  (λ args args) ; all arguments stored in args
-  (λ (p1 p2 . args) (list* p1 p2 args)) ; Rest arg
-  (λ (p1 p2 (o1 \"default\") (o2 \"default\")) (list p1 p2 o1 o2)) ; Optional args
-  (λ (p1 p2 :k1 (:k2 \"default\")) (list p1 p2 k1 k2)) ; keyword args
+  (lambda args args) ; all arguments stored in args
+  (lambda (p1 p2 . args) (list* p1 p2 args)) ; Rest arg
+  (lambda (p1 p2 (o1 \"default\") (o2 \"default\")) (list p1 p2 o1 o2)) ; Optional args
+  (lambda (p1 p2 :k1 (:k2 \"default\")) (list p1 p2 k1 k2)) ; keyword args
   Rest/Optional/Keyword arguments are not compatible with each other.
   See DEFINE for more information on argument lists.
 "
@@ -495,7 +495,7 @@ Used to annotate functions that are used in macros."
     ...)
   ;; Expands to
   (defun left-curry (&rest args)
-    (λ (f)
+    (lambda (f)
        ...))
   
   It is an error to mix defines with expressions.
@@ -564,7 +564,7 @@ when given a bundle with this type-predicate"
        (eq? *is-bundle-predicate* [datum *get-is-bundle-predicate?*])))
 
 (defvar *name?* (make-bundle-predicate :bundle))
-(assert [*name?* (λ (arg)
+(assert [*name?* (lambda (arg)
 		   (cond
 		     ((eq *get-bundle-type-predicate* arg) *name?*)))])
 
@@ -599,7 +599,7 @@ Example:
       (bundle-permissions bundle) ; => '(:get-x :get-y :set-x! :set-y!)
       (bundle-list bundle) ; => '(make-point 32 4)
       )"
-  `(λ (arg)
+  `(lambda (arg)
      (cond
        ((eq *get-bundle-type-predicate* arg)
 	(or ,type-predicate *bundle?*))
@@ -607,8 +607,8 @@ Example:
 	,(if bundle-list-form
 	     `(list ',(first bundle-list-form) ,@(rest bundle-list-form))
 	     '()))
-       ((eq *get-bundle-permissions* arg) ',(map (λ (name) (make-keyword name)) fn-names))
-       ,@ (map (λ (name) `((eq ,(make-keyword name) arg) ,name)) fn-names))))
+       ((eq *get-bundle-permissions* arg) ',(map (lambda (name) (make-keyword name)) fn-names))
+       ,@ (map (lambda (name) `((eq ,(make-keyword name) arg) ,name)) fn-names))))
 
 (define (bundle-permissions bundle)
   "Return a list of permissions to the bundle."
@@ -671,7 +671,7 @@ Example:
 (assert (equal (foldl 'cons () '(1 2 3 4))
 	       '(4 3 2 1)))
 
-(assert (= (foldl (λ (a b result)
+(assert (= (foldl (lambda (a b result)
 		    (* result (- a b)))
 		  1
 		  '(1 2 3)
@@ -689,7 +689,7 @@ Example:
 
 (assert (equal (foldr 'cons '() '(1 2 3 4))
 	       '(1 2 3 4)))
-(assert (equal (foldr (λ (v l) (cons (1+ v) l)) '() '(1 2 3 4))
+(assert (equal (foldr (lambda (v l) (cons (1+ v) l)) '() '(1 2 3 4))
 	       '(2 3 4 5)))
 
 
@@ -733,7 +733,7 @@ Example:
 
 (assert (equal?
 	 (with-output-to-string (s)
-	   (for-each (λ (x y) (format s "~S" (list x y)))
+	   (for-each (lambda (x y) (format s "~S" (list x y)))
 		     '(a b c)
 		     '(1 2 3)))
 	 "(A 1)(B 2)(C 3)"))
@@ -744,7 +744,7 @@ Example:
 
 (define (remove* v-list list (test #'equal?))
   "Removes all elements in v-list from list."
-  (foldl (λ (v result) (remove v result :test test)) list v-list))
+  (foldl (lambda (v result) (remove v result :test test)) list v-list))
 
 (assert (equal
 	 (remove* (list 1 2) (list 1 2 3 2 4 5 2))
@@ -752,7 +752,7 @@ Example:
 
 (define (remq* v-list list) (remove* v-list list #'eq?))
 
-(define (sort list less-than? (:extract-key (λ (x) x)))
+(define (sort list less-than? (:extract-key (lambda (x) x)))
   "Returns a sorted list."
   (cl:sort (copy-list list) less-than? :key extract-key))
 
@@ -769,7 +769,7 @@ Example:
 	list
 	(rec (rest list)))))
 
-(assert (equal (memf (λ (arg) (> arg 9)) '(7 8 9 10 11))
+(assert (equal (memf (lambda (arg) (> arg 9)) '(7 8 9 10 11))
 	       '(10 11)))
 
 (define (findf proc list)
@@ -779,7 +779,7 @@ Example:
 	(first found)
 	())))
 
-(assert (= (findf (λ (arg) (> arg 9)) '(7 8 9 10 11))
+(assert (= (findf (lambda (arg) (> arg 9)) '(7 8 9 10 11))
 	   10))
 
 (define (list-update list pos updater)
@@ -849,21 +849,21 @@ Example:
 
 (define (compose . procs)
   "Function compositions. Mulitple values of one function are used as arguments to the next."
-  (foldr (λ (proc result)
-	   (λ args
+  (foldr (lambda (proc result)
+	   (lambda args
 	     (multiple-value-call proc (apply result args))))
-	 (λ args (values-list args))
+	 (lambda args (values-list args))
 	 procs))
 
 (assert (equal (multiple-value-list [(compose) :x :y :z])
 	       '(:x :y :z)))
 
-(assert (equal [(compose (λ (x y z) (list 'f x y z))) 'x 'y 'z]
+(assert (equal [(compose (lambda (x y z) (list 'f x y z))) 'x 'y 'z]
 	       '(f x y z)))
 
 (assert (equal
-	 [(compose (λ (a b c) (list 'f a b c))
-		   (λ (x y) (values (list 'g x) (list 'g y) (list 'g 'c))))
+	 [(compose (lambda (a b c) (list 'f a b c))
+		   (lambda (x y) (values (list 'g x) (list 'g y) (list 'g 'c))))
 	  'x 'y]
 
 	 '(f (g x) (g y) (g c))))
@@ -911,7 +911,7 @@ Example:
 
 (define (lcurry proc . left-args)
   "Return a procedure waiting for the right-args."
-  (λ right-args
+  (lambda right-args
     (apply proc (append left-args right-args))))
 
 (assert (= [(lcurry '- 5 4) 3]
@@ -919,7 +919,7 @@ Example:
 
 (define (rcurry proc . right-args)
   "Return a procedure waiting the left-args."
-  (λ left-args
+  (lambda left-args
     (apply proc (append left-args right-args))))
 
 (assert (= [(rcurry '- 4 3) 5]
@@ -927,7 +927,7 @@ Example:
 
 (define (swap-args proc)
   "Swap args of 2-argument procedure proc."
-  (λ (x y) [proc y x]))
+  (lambda (x y) [proc y x]))
 
 (assert (equal [(swap-args 'cons) 1 2]
 	       (cons 2 1)))
@@ -936,7 +936,7 @@ Example:
   "Memoize procedure proc of no arguments."
   (let ((run? ())
 	(result-values))
-    (λ args
+    (lambda args
       (unless run?
 	(setq result-values (multiple-value-list (apply proc args))
 	      run? t)
@@ -945,7 +945,7 @@ Example:
 
 (defmacro delay (&body body)
   "Delays body."
-  `(memo-proc (λ () ,@body)))
+  `(memo-proc (lambda () ,@body)))
 (define (force promise)
   "Evaluates promise."
   [promise])
@@ -975,13 +975,13 @@ Example:
 (define (stream-length stream)
   "The length of the stream."
   (let ((count 0))
-    (stream-for-each stream (λ (x) (declare (ignore x)) (incf count)))
+    (stream-for-each stream (lambda (x) (declare (ignore x)) (incf count)))
     count))
 
 (define (stream->list stream)
   "A list of all of the elements in stream."
   (let ((xs ()))
-    (stream-for-each stream (λ (x) (push x xs)))
+    (stream-for-each stream (lambda (x) (push x xs)))
     (nreverse xs)))
 
 (define (stream-first stream)
@@ -1131,9 +1131,9 @@ Example:
   (stream-flatten (stream-map proc s)))
 
 (assert (equal (stream->list (stream-flatmap
-			      (λ (i)
+			      (lambda (i)
 				(stream-map
-				 (λ (j) (list i j))
+				 (lambda (j) (list i j))
 				 (stream 4 5)))
 			      (stream 1 2)))
 	       '((1 4) (1 5) (2 4) (2 5))))
@@ -1153,7 +1153,7 @@ Example:
 (for-macros
   (define (stream-collect-bindings-fn binding-names body)
     (let ((arg-name (gensym)))
-      `(λ (,arg-name)
+      `(lambda (,arg-name)
 	 (destructuring-bind ,binding-names ,arg-name
 	   (declare (ignorable ,@binding-names))
 	   ,@body)))))
@@ -1168,7 +1168,7 @@ Example:
 
 (for-macros
   (define (stream-collect-inner-map-form binding binding-names)
-    `(stream-map (λ (,(first binding))
+    `(stream-map (lambda (,(first binding))
 		   (list ,@binding-names))
 		 ,(second binding))))
 
@@ -1176,7 +1176,7 @@ Example:
 			       '(i j))
 (for-macros
   (define (stream-collect-flatmap-form binding body)
-    `(stream-flatmap (λ (,(first binding))
+    `(stream-flatmap (lambda (,(first binding))
 		       ,@body)
 		     ,(second binding))))
 
@@ -1244,7 +1244,7 @@ Example:
 
 (define (prime? num)
   (let ((root (floor (sqrt num))))
-    (not (find-if (λ (div) (zerop (rem num div))) (range (1+ root) 2)))))
+    (not (find-if (lambda (div) (zerop (rem num div))) (range (1+ root) 2)))))
 
 (define (prime-sum-pairs n)
   (stream-collect
@@ -1270,7 +1270,7 @@ Does not affect the random-state."
 (assert (equal (stream->list (stream-take (random-stream 1.0) 10))
 	       (stream->list (stream-take (random-stream 1.0) 10))))
 
-(assert (stream-empty? (stream-filter (λ (x) (not (<= 0.0 x 1.0)))
+(assert (stream-empty? (stream-filter (lambda (x) (not (<= 0.0 x 1.0)))
 				      (stream-take (random-stream 1.0) 10))))
 
 (for-macros
@@ -1297,14 +1297,14 @@ Applies updater to failure-result if key is not present."
 (for-macros
   (define (alist-map alist proc)
     "Alist with proc applied to all values of alist."
-    (map (λ (binding) [proc (car binding) (cdr binding)]) alist)))
+    (map (lambda (binding) [proc (car binding) (cdr binding)]) alist)))
 
 (define (alist-keys alist)
   "A list of all keys in alist."
-  (alist-map alist (λ (key value) (declare (ignore value)) key)))
+  (alist-map alist (lambda (key value) (declare (ignore value)) key)))
 (define (alist-values alist)
   "A list of all of the values in alist."
-  (alist-map alist (λ (key value) (declare (ignore key)) value)))
+  (alist-map alist (lambda (key value) (declare (ignore key)) value)))
 
 (for-macros
   (define (alist-has-key? alist key)
@@ -1333,7 +1333,7 @@ Applies updater to failure-result if key is not present."
 
 (define (disjoin* predicates)
   "Return a predicate equivalent to predicates joined together with or."
-  (λ (x)
+  (lambda (x)
     (let rec ((result nil)
 	      (predicates predicates))
       (if (or result (null? predicates))
@@ -1351,7 +1351,7 @@ Applies updater to failure-result if key is not present."
 
 (define (conjoin* predicates)
   "Return a predicate equivalent to predicates joined together with and."
-  (λ (x)
+  (lambda (x)
     (let rec ((result t)
 	      (predicates predicates))
       (if (or (not result) (null? predicates))
@@ -1378,7 +1378,7 @@ Applies updater to failure-result if key is not present."
 
 (define (const v)
   "Return a procedure of 0+ args that always returns v"
-  (λ args
+  (lambda args
     (declare (ignore args))
     v))
 
@@ -1449,19 +1449,19 @@ Applies updater to failure-result if key is not present."
   (list->stream set))
 (define (set-union . sets)
   "Returns the union of all sets."
-  (foldl (λ (set result)
+  (foldl (lambda (set result)
 	   (union set result :test #'equal?))
 	 ()
 	 sets))
 (define (set-intersect set . sets)
   "Return a set with all elements in set that are also in all sets."
-  (foldl (λ (set result)
+  (foldl (lambda (set result)
 	   (intersection result set :test #'equal?))
 	 set
 	 sets))
 (define (set-subtract set . sets)
   "Return a set with all elements in set that are not in any of sets."
-  (foldl (λ (set result)
+  (foldl (lambda (set result)
 	   (set-difference result set :test #'equal?))
 	 set
 	 sets))
@@ -1581,7 +1581,7 @@ Example (and-let* ((list (compute-list))
 
 (for-macros
   (define (struct-defclass-slot-names type-name field-names)
-    (map (λ (field-name) (struct-defclass-slot-name type-name field-name))
+    (map (lambda (field-name) (struct-defclass-slot-name type-name field-name))
 	 field-names)))
 
 (assert (equal? (struct-defclass-slot-names 'point '(x y))
@@ -1591,7 +1591,7 @@ Example (and-let* ((list (compute-list))
     (append-map 'cdr ancestor-fields))
   (define (ancestor-fields->slot-names ancestor-fields)
     (append* (alist-map ancestor-fields
-			(λ (type-name field-names)
+			(lambda (type-name field-names)
 			  (struct-defclass-slot-names type-name field-names))))))
 
 (let ((*struct-info-table* (make-hash-table :test #'eq)))
@@ -1646,10 +1646,10 @@ Example (and-let* ((list (compute-list))
 
 #+nil(assert (equal (parse-struct-options '(:transparent :mutable :guard (lambda (x y z) (values x y z)) :super 'point))
 		    '((:TRANSPARENT) (:MUTABLE)
-		      (:GUARD Λ NIL
+		      (:GUARD LAMBDA NIL
 		       (LAMBDA (X Y Z)
 			 (VALUES X Y Z)))
-		      (:SUPER Λ NIL 'POINT))))
+		      (:SUPER LAMBDA NIL 'POINT))))
 
 (for-macros
   (define (struct-constructor-name type-name)
@@ -1680,11 +1680,11 @@ Example (and-let* ((list (compute-list))
 	   (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
       `(define (,constructor-name ,@(append super-field-names field-names))
 	 (let ((struct (make-instance ',type-name)))
-	   ,@(map (λ (slot-name value-name)
+	   ,@(map (lambda (slot-name value-name)
 		    `(setf (slot-value struct ',slot-name) ,value-name))
 		  super-slot-names
 		  super-field-names)
-	   ,@(map (λ (slot-name value-name)
+	   ,@(map (lambda (slot-name value-name)
 		    `(setf (slot-value struct ',slot-name) ,value-name))
 		  (struct-defclass-slot-names type-name field-names)
 		  field-names)
@@ -1714,10 +1714,10 @@ Example (and-let* ((list (compute-list))
 	   (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
       `(defmethod struct-copy ((struct ,type-name))
 	 (let ((copy (make-instance ',type-name)))
-	   ,@(map (λ (slot-name)
+	   ,@(map (lambda (slot-name)
 		    `(setf (slot-value copy ',slot-name) (slot-value struct ',slot-name)))
 		  super-slot-names)
-	   ,@(map (λ (slot-name)
+	   ,@(map (lambda (slot-name)
 		    `(setf (slot-value copy ',slot-name) (slot-value struct ',slot-name)))
 		  (struct-defclass-slot-names type-name field-names))
 	   copy)))))
@@ -1729,8 +1729,8 @@ Example (and-let* ((list (compute-list))
       `(defmethod struct->list ((struct ,type-name))
 	 (list
 	  ',(struct-constructor-name type-name)
-	  ,@(map (λ (slot-name) `(slot-value struct ',slot-name)) super-slot-names)
-	  ,@(map (λ (slot-name) `(slot-value struct ',slot-name)) (struct-defclass-slot-names type-name field-names)))))))
+	  ,@(map (lambda (slot-name) `(slot-value struct ',slot-name)) super-slot-names)
+	  ,@(map (lambda (slot-name) `(slot-value struct ',slot-name)) (struct-defclass-slot-names type-name field-names)))))))
 
 (for-macros
   (define (struct-define-accessor-form type-name slot-name)
@@ -1747,8 +1747,8 @@ Example (and-let* ((list (compute-list))
 	   (super-slot-names (ancestor-fields->slot-names ancestor-fields)))
       `(defmethod struct-accessors ((struct ,type-name))
 	 '(,@(append
-	      (map (λ (slot-name) slot-name) super-slot-names)
-	      (map (λ (slot-name) slot-name) (struct-defclass-slot-names type-name field-names))))))))
+	      (map (lambda (slot-name) slot-name) super-slot-names)
+	      (map (lambda (slot-name) slot-name) (struct-defclass-slot-names type-name field-names))))))))
 
 (for-macros
   (define (struct-define-field-setter-forms type-name field-name)
@@ -1767,11 +1767,11 @@ Example (and-let* ((list (compute-list))
       `(defmethod equal? ((object1 ,type-name) (object2 ,type-name))
 	 (and 
 	  ,@(append
-	     (map (λ (slot-name)
+	     (map (lambda (slot-name)
 		    `(equal? (slot-value object1 ',slot-name)
 			     (slot-value object2 ',slot-name)))
 		  super-slot-names)
-	     (map (λ (slot-name)
+	     (map (lambda (slot-name)
 		    `(equal? (slot-value object1 ',slot-name)
 			     (slot-value object2 ',slot-name)))
 		  (struct-defclass-slot-names type-name field-names))))))))
@@ -1811,18 +1811,18 @@ Example (and-let* ((list (compute-list))
 		   (struct-define-print-object-form type-name)))
 		 (t ()))
 	 ,@(cond ((alist-has-key? parsed-struct-options :mutable)
-		  (map (λ (field-name)
+		  (map (lambda (field-name)
 			 (struct-define-field-setter-forms type-name field-name))
 		       field-names))
 		 (t
-		  (map (λ (field-spec)
+		  (map (lambda (field-spec)
 			 (struct-define-field-setter-forms type-name (car field-spec)))
-		       (filter (λ (field-spec) (eq? (cdr field-spec) :mutable))
+		       (filter (lambda (field-spec) (eq? (cdr field-spec) :mutable))
 			       parsed-field-specs))))
 	 ,(struct-define-constructor-form type-name (struct-constructor-name type-name)
 					  field-names
 					  super-type-name)
-	 ,@(map (λ (slot-name) (struct-define-accessor-form type-name slot-name))
+	 ,@(map (lambda (slot-name) (struct-define-accessor-form type-name slot-name))
 		slot-names)
 	 ,(struct-define-type-predicate-form type-name)))))
 
@@ -1942,7 +1942,7 @@ the super classes in addition to the fields provided by field-specs."
 ;; TODO: Guard-expressions
 #+nil
 (struct ipoint (x y)
-	:guard (λ (x y)
+	:guard (lambda (x y)
 		 (if (not (and (integerp x) (integerp y)))
 		     (error "ipoints require integer arguments. got: X=~S Y=~S" x y)
 		     (values x y))))
