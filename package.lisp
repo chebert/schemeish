@@ -41,6 +41,8 @@
    #:bundle-permissions
    #:bundle-list
    #:bundle?
+   #:bundle-predicate-symbol
+   #:bundle-documentation
 
    ;; Lists
    #:append*

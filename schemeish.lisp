@@ -535,7 +535,7 @@ Used to annotate functions that are used in macros."
 (define (procedure? datum) (functionp datum))
 
 (defvar *get-bundle-type-predicate* (gensym))
-(defvar *get-bundle-predicate-list* (gensym))
+(defvar *get-bundle-predicate-symbol* (gensym))
 (defvar *get-is-bundle-predicate?* (gensym))
 (defvar *is-bundle-predicate* (gensym))
 (for-macros
@@ -550,8 +550,7 @@ Used to annotate functions that are used in macros."
 when given a bundle with this type-predicate"
   (define (dispatch arg)
     (cond
-      ((eq? *get-bundle-predicate-list* arg)
-       `(make-bundle-predicate ,name))
+      ((eq? *get-bundle-predicate-symbol* arg) name)
       ((eq? *get-is-bundle-predicate?* arg)
        *is-bundle-predicate*)
       ((procedure? arg)
@@ -559,10 +558,12 @@ when given a bundle with this type-predicate"
       (t nil)))
   dispatch)
 
+(define (bundle-predicate-symbol predicate)
+  "Returns the debug symbol associated with predicate."
+  [predicate *get-bundle-predicate-symbol*])
 (define (bundle-predicate? datum)
   (and (procedure? datum)
        (eq? *is-bundle-predicate* [datum *get-is-bundle-predicate?*])))
-
 (defvar *name?* (make-bundle-predicate :bundle))
 (assert [*name?* (lambda (arg)
 		   (cond
@@ -610,6 +611,15 @@ Example:
        ((eq *get-bundle-permissions* arg) ',(map (lambda (name) (make-keyword name)) fn-names))
        ,@ (map (lambda (name) `((eq ,(make-keyword name) arg) ,name)) fn-names))))
 
+(define (bundle-documentation bundle)
+  "Generates documentation for bundle and all of its permissions."
+  (with-output-to-string (s)
+    (format s "~S~%A bundle of type ~S with permissions:" (bundle-list bundle) (bundle-predicate-symbol [bundle *get-bundle-type-predicate*]))
+    (for-each (lambda (permission)
+		(let ((fn [bundle permission]))
+		  (format s "~&  ~S: ~A" (cons (list 'bundle permission) (arg:arglist fn)) (documentation fn 'function))))
+	      (bundle-permissions bundle))))
+
 (define (bundle-permissions bundle)
   "Return a list of permissions to the bundle."
   [bundle *get-bundle-permissions*])
@@ -622,12 +632,34 @@ Example:
 
 (defvar *point?* (make-bundle-predicate :point))
 (define (make-bundle-point x y)
-  (define (get-x) x)
-  (define (get-y) y)
-  (define (set-x! new-x) (setq x new-x))
-  (define (set-y! new-y) (setq y new-y))
+  (define (get-x) "x-coord" x)
+  (define (get-y) "y-coord" y)
+  (define (set-x! new-x) "set x-coord to new-x" (setq x new-x))
+  (define (set-y! new-y) "set y-coord to new-y" (setq y new-y))
 
   (bundle *point?* (make-bundle-point x y) get-x get-y set-x! set-y!))
+
+(define (for-each proc . lists)
+  "Apply proc to each element of lists. Arity of proc should match the number of lists."
+  (let rec ((lists lists))
+    (unless (member nil lists)
+      (apply proc (map 'first lists))
+      (rec (map 'rest lists)))))
+
+(assert (equal?
+	 (with-output-to-string (s)
+	   (for-each (lambda (x y) (format s "~S" (list x y)))
+		     '(a b c)
+		     '(1 2 3)))
+	 "(A 1)(B 2)(C 3)"))
+
+(bundle-documentation (make-bundle-point 3 4))
+"(MAKE-BUNDLE-POINT 3 4)
+A bundle of type :POINT with permissions:
+  ((BUNDLE :GET-X)): x-coord
+  ((BUNDLE :GET-Y)): y-coord
+  ((BUNDLE :SET-X!) NEW-X): set x-coord to new-x
+  ((BUNDLE :SET-Y!) NEW-Y): set y-coord to new-y"
 
 (let ((point (make-bundle-point 3 4)))
   (assert (bundle? point))
@@ -724,19 +756,6 @@ Example:
 (assert (ormap 'positive? '(1 2 a)))
 (assert (= 5 (ormap '+ '(1 2 3) '(4 5 6))))
 
-(define (for-each proc . lists)
-  "Apply proc to each element of lists. Arity of proc should match the number of lists."
-  (let rec ((lists lists))
-    (unless (member nil lists)
-      (apply proc (map 'first lists))
-      (rec (map 'rest lists)))))
-
-(assert (equal?
-	 (with-output-to-string (s)
-	   (for-each (lambda (x y) (format s "~S" (list x y)))
-		     '(a b c)
-		     '(1 2 3)))
-	 "(A 1)(B 2)(C 3)"))
 
 (define (remq v list)
   "Remove using eq? as a test."
