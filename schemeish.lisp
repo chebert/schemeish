@@ -441,7 +441,10 @@ Used to annotate functions that are used in macros."
   (defun left-curry (&rest args)
     (λ (f)
        ...))"
-  (expand-top-level-define name-or-form body))
+  `(macrolet ((define (&whole whole &body ignored)
+		(declare (ignore ignored))
+		(error "Improperly nested define: ~S in expansion for ~S" whole name-or-form)))
+     ,(expand-top-level-define name-or-form body)))
 
 (define (((test-nested-defines x) y . yargs) . zargs)
   "Returns a thing"
@@ -2216,3 +2219,7 @@ Bundles will no longer share identity after EVAL."
 (assert (has-specific-arity? '(2 3 (:** . 4)) 6))
 
 (for-macros (uninstall-syntax!))
+
+
+;; solution:
+;;   check to see if the first form is a let*/let and replace it with (make-let/* (let-bindings form) (expand-function-body (let-body form)))

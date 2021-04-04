@@ -194,5 +194,3 @@
       (cl:find-symbol (cl:symbol-name symbol) (cl:find-package :schemeish))
     (cl:unless (cl:eq accessibility :external)
       (cl:export symbol (cl:find-package :schemeish)))))
-
-;; TODO: defines should be nestable inside of let.
