@@ -358,6 +358,48 @@
    #:queue-insert!
    #:queue-delete!))
 
+(defpackage #:schemeish.expand-lexically
+  (:documentation "Provides tools to expand lexically/expose macros.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let)
+  (:shadowing-import-from #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export
+   #:lexical-bindings
+   #:parameter-name->lexical-name
+   #:parameter-name?
+   #:special-form?
+   #:special?
+   #:lexical-name->parameter-name))
+
+(defpackage #:schemeish.lexically
+  (:documentation "Provides the lexically and expose macros.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.expand-define
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let
+	#:schemeish.expand-lexically)
+  (:shadowing-import-from #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export
+   #:lexically
+   #:expose))
+
 (defpackage #:schemeish
   (:documentation "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
   (:use #:cl
@@ -365,7 +407,6 @@
 	#:schemeish.named-let
 	#:schemeish.syntax
 	#:schemeish.arguments
-	#:schemeish.expand-define
 	#:schemeish.define
 	#:schemeish.lambda
 	#:schemeish.base
@@ -374,7 +415,8 @@
 	#:schemeish.bundle
 	#:schemeish.queue
 	#:schemeish.struct
-	#:schemeish.define-struct)
+	#:schemeish.define-struct
+	#:schemeish.lexically)
   (:shadowing-import-from
    #:schemeish.named-let #:let)
   (:shadowing-import-from

@@ -22,4 +22,6 @@
 	       (:file "struct")
 	       (:file "define-struct")
 	       (:file "queue")
+	       (:file "expand-lexically")
+	       (:file "lexically")
 	       (:file "schemeish")))
