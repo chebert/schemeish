@@ -54,7 +54,8 @@
 	#:schemeish.syntax)
   (:shadowing-import-from #:schemeish.lambda #:lambda)
   (:shadowing-import-from #:schemeish.named-let #:let)
-  (:shadow #:map)
+  (:shadow #:map
+	   #:sort)
   (:export
    #:eq?
    #:equal?
@@ -65,7 +66,85 @@
    #:map
    #:append*
    #:empty?
-   #:for-each))
+   #:for-each
+   #:filter
+   #:pair?
+   #:null?
+   #:list?
+   #:list-ref
+   #:list-tail
+   #:foldl
+   #:foldr
+   #:negative?
+   #:positive?
+   #:andmap
+   #:ormap
+   #:remq
+   #:remove*
+   #:remq*
+   #:sort
+   #:memf
+   #:findf
+   #:list-update
+   #:list-set
+   #:take
+   #:drop
+   #:split-at
+   #:even?
+   #:odd?
+   #:zero?
+   #:compose
+   #:filter-map
+   #:range
+   #:append-map
+   #:map-successive
+   #:filter-not
+   #:partition
+   #:rcurry
+   #:lcurry
+   #:swap-args
+   #:memo-proc
+   #:alist-ref
+   #:alist-remove
+   #:alist-set
+   #:alist-update
+   #:alist-map
+   #:alist-keys
+   #:alist-values
+   #:alist-has-key?
+   #:alist-set*
+   #:alist
+   #:disjoin*
+   #:disjoin
+   #:conjoin*
+   #:conjoin
+   #:for-all*
+   #:for-all
+   #:there-exists*
+   #:there-exists
+   #:const
+   #:nand
+   #:nor
+   #:xor
+   #:quotient
+   #:number->string
+   #:degrees->radians
+   #:radians->degrees
+   #:sqr
+   #:sgn
+   #:number?
+   #:set-member?
+   #:set-add
+   #:set-remove
+   #:set-empty?
+   #:set-count
+   #:set->stream
+   #:set-union
+   #:set-intersect
+   #:set-subtract
+   #:subset?
+   #:set=?
+   #:flatten))
 
 (defpackage #:schemeish.bundle
   (:use #:cl
@@ -76,8 +155,9 @@
   (:shadowing-import-from
    #:schemeish.lambda #:lambda)
   (:shadowing-import-from #:schemeish.named-let #:let)
-  (:shadowing-import-from
-   #:schemeish.base #:map)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort)
   (:export
    #:bundle
    #:bundle-documentation
@@ -101,12 +181,12 @@
    #:schemeish.named-let #:let)
   (:shadowing-import-from
    #:schemeish.lambda #:lambda)
-  (:shadowing-import-from
-   #:schemeish.base #:map)
-  (:shadow #:sort
-	   #:stream
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort)
+  (:shadow #:stream
 
-	   ;; Special symbols
+	   ;; Special symbols are shadowed so that they can be bound lexically
 	   #:+
 	   #:/
 	   #:-
