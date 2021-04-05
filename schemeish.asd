@@ -10,4 +10,6 @@
   :components ((:file "package")
 	       (:file "for-macros")
 	       (:file "named-let")
+	       (:file "syntax")
+	       (:file "arguments")
                (:file "schemeish")))

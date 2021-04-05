@@ -9,8 +9,21 @@
   (:shadow #:let)
   (:export #:let))
 
+(defpackage #:schemeish.syntax
+  (:use #:cl)
+  (:export #:install-syntax! #:uninstall-syntax!))
+
+(defpackage #:schemeish.arguments
+  (:use #:cl)
+  (:export
+   #:arg-list->lambda-list))
+
 (defpackage #:schemeish
-  (:use #:cl #:schemeish.for-macros #:schemeish.named-let)
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.named-let
+	#:schemeish.syntax
+	#:schemeish.arguments)
   (:shadowing-import-from #:schemeish.named-let #:let)
   (:shadow #:lambda
 	   #:map
