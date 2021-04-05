@@ -8,4 +8,5 @@
   :serial t
   :depends-on (:trivial-arguments)
   :components ((:file "package")
+	       (:file "for-macros")
                (:file "schemeish")))

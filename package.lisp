@@ -1,7 +1,11 @@
 ;;;; package.lisp
 
-(defpackage #:schemeish
+(defpackage #:schemeish.for-macros
   (:use #:cl)
+  (:export #:for-macros))
+
+(defpackage #:schemeish
+  (:use #:cl #:schemeish.for-macros)
   (:shadow #:let
 	   #:lambda
 	   #:map

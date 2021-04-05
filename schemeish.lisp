@@ -2,11 +2,6 @@
 
 (in-package #:schemeish)
 
-(defmacro for-macros (&body body)
-  "Evaluates to `(eval-when (:compile-toplevel :load-toplevel :execute) ,@body).
-Used to annotate functions that are used in macros."
-  `(eval-when (:compile-toplevel :load-toplevel :execute) ,@body))
-
 (for-macros
   (defun map (function list &rest more-lists)
     (apply #'mapcar function list more-lists))
