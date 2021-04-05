@@ -18,15 +18,46 @@
   (:export
    #:arg-list->lambda-list))
 
-(defpackage #:schemeish
+(defpackage #:schemeish.expand-define
   (:use #:cl
 	#:schemeish.for-macros
 	#:schemeish.named-let
 	#:schemeish.syntax
 	#:schemeish.arguments)
-  (:shadowing-import-from #:schemeish.named-let #:let)
-  (:shadow #:lambda
-	   #:map
+  (:shadowing-import-from #:schemeish.named-let #:let )
+  (:export
+   ;; TODO: rename to expand-body
+   #:expand-function-body
+   #:expand-top-level-define))
+
+(defpackage #:schemeish.lambda
+  (:use #:cl
+	#:schemeish.arguments
+	#:schemeish.expand-define)
+  (:shadow #:lambda)
+  (:export #:lambda))
+(defpackage #:schemeish.define
+  (:use #:cl
+	#:schemeish.expand-define
+	#:schemeish.for-macros
+	#:schemeish.syntax)
+  (:shadowing-import-from #:schemeish.lambda #:lambda)
+  (:export #:define))
+
+(defpackage #:schemeish
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.named-let
+	#:schemeish.syntax
+	#:schemeish.arguments
+	#:schemeish.expand-define
+	#:schemeish.define
+	#:schemeish.lambda)
+  (:shadowing-import-from
+   #:schemeish.named-let #:let)
+  (:shadowing-import-from
+   #:schemeish.lambda #:lambda)
+  (:shadow #:map
 	   #:sort
 	   #:stream
 

@@ -12,4 +12,7 @@
 	       (:file "named-let")
 	       (:file "syntax")
 	       (:file "arguments")
-               (:file "schemeish")))
+	       (:file "expand-define")
+	       (:file "lambda")
+	       (:file "define")
+	       (:file "schemeish")))
