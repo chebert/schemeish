@@ -126,6 +126,14 @@
    #:swap-args
    #:memo-proc
    #:document!
+   #:has-specific-arity?
+   #:procedure-arity
+   #:procedure-arguments
+   #:procedure-arguments-required-arguments
+   #:procedure-arguments-optional-arguments
+   #:procedure-arguments-key-arguments
+   #:procedure-arguments-rest-argument
+   #:procedure-arguments-allow-other-keys?
 
    ;; Alists
    #:alist-ref
