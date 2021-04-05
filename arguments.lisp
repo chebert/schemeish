@@ -1,6 +1,5 @@
 (in-package #:schemeish.arguments)
 
-
 (defun optional-arg-list->lambda-list (args)
   (cond
     ((consp args)

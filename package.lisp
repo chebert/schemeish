@@ -55,7 +55,8 @@
   (:shadowing-import-from #:schemeish.lambda #:lambda)
   (:shadowing-import-from #:schemeish.named-let #:let)
   (:shadow #:map
-	   #:sort)
+	   #:sort
+	   #:stream)
   (:export
    #:eq?
    #:equal?
@@ -144,7 +145,42 @@
    #:set-subtract
    #:subset?
    #:set=?
-   #:flatten))
+   #:flatten
+   #:delay
+   #:force
+   #:*the-empty-stream*
+   #:stream-cons
+   #:stream-car
+   #:stream-cdr
+   #:stream-empty?
+   #:stream-for-each
+   #:stream-length
+   #:stream->list
+   #:stream-first
+   #:stream-rest
+   #:stream?
+   #:list->stream
+   #:stream
+   #:stream-map
+   #:stream-fold
+   #:stream-filter
+   #:stream-drop
+   #:stream-take
+   #:stream-ref
+   #:stream-append
+   #:stream-flatten
+   #:stream-range
+   #:stream-flatmap
+   #:stream-map-successive
+   #:random-stream
+   #:string-append
+   #:string?
+   #:newline
+   #:display
+   #:displayln
+   #:set-car!
+   #:set-cdr!
+   #:set!))
 
 (defpackage #:schemeish.and-let
   (:use #:cl
@@ -157,7 +193,8 @@
   (:shadowing-import-from #:schemeish.named-let #:let)
   (:shadowing-import-from #:schemeish.base
 			  #:map
-			  #:sort)
+			  #:sort
+			  #:stream)
   (:export
    #:and-let*))
 
@@ -173,7 +210,8 @@
   (:shadowing-import-from #:schemeish.named-let #:let)
   (:shadowing-import-from #:schemeish.base
 			  #:map
-			  #:sort)
+			  #:sort
+			  #:stream)
   (:export
    #:bundle
    #:bundle-documentation
@@ -200,23 +238,24 @@
    #:schemeish.lambda #:lambda)
   (:shadowing-import-from #:schemeish.base
 			  #:map
-			  #:sort)
-  (:shadow #:stream
-
-	   ;; Special symbols are shadowed so that they can be bound lexically
-	   #:+
-	   #:/
-	   #:-
-	   #:*
-	   #:++
-	   #:+++
-	   #://
-	   #:///
-	   #:**
-	   #:***)
+			  #:sort
+			  #:stream)
+  (:shadow
+   ;; Special symbols without *ear-muffs* are shadowed
+   ;; so that they can be bound lexically
+   #:+
+   #:/
+   #:-
+   #:*
+   #:++
+   #:+++
+   #://
+   #:///
+   #:**
+   #:***)
   (:export
    #:NIL
-   ;; Re-export the un-special functions
+   ;; Re-export shadowed functions
    #:+
    #:/
    #:-
