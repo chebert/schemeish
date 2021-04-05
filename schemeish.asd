@@ -15,4 +15,6 @@
 	       (:file "expand-define")
 	       (:file "lambda")
 	       (:file "define")
+	       (:file "base")
+	       (:file "bundle")
 	       (:file "schemeish")))

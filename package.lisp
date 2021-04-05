@@ -24,7 +24,7 @@
 	#:schemeish.named-let
 	#:schemeish.syntax
 	#:schemeish.arguments)
-  (:shadowing-import-from #:schemeish.named-let #:let )
+  (:shadowing-import-from #:schemeish.named-let #:let)
   (:export
    ;; TODO: rename to expand-body
    #:expand-function-body
@@ -44,6 +44,48 @@
   (:shadowing-import-from #:schemeish.lambda #:lambda)
   (:export #:define))
 
+(import '(schemeish.define:define) :schemeish.expand-define)
+(shadowing-import '(schemeish.lambda:lambda) :schemeish.expand-define)
+
+(defpackage #:schemeish.base
+  (:use #:cl
+	#:schemeish.define
+	#:schemeish.for-macros
+	#:schemeish.syntax)
+  (:shadowing-import-from #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadow #:map)
+  (:export
+   #:eq?
+   #:equal?
+   #:symbol?
+   #:symbol->string
+   #:make-keyword
+   #:procedure?
+   #:map
+   #:append*
+   #:empty?
+   #:for-each))
+
+(defpackage #:schemeish.bundle
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base)
+  (:shadowing-import-from
+   #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from
+   #:schemeish.base #:map)
+  (:export
+   #:bundle
+   #:bundle-documentation
+   #:bundle-permissions
+   #:bundle-list
+   #:bundle?
+   #:make-bundle-predicate))
+
 (defpackage #:schemeish
   (:use #:cl
 	#:schemeish.for-macros
@@ -52,13 +94,16 @@
 	#:schemeish.arguments
 	#:schemeish.expand-define
 	#:schemeish.define
-	#:schemeish.lambda)
+	#:schemeish.lambda
+	#:schemeish.base
+	#:schemeish.bundle)
   (:shadowing-import-from
    #:schemeish.named-let #:let)
   (:shadowing-import-from
    #:schemeish.lambda #:lambda)
-  (:shadow #:map
-	   #:sort
+  (:shadowing-import-from
+   #:schemeish.base #:map)
+  (:shadow #:sort
 	   #:stream
 
 	   ;; Special symbols

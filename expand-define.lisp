@@ -1,10 +1,7 @@
 (in-package #:schemeish.expand-define)
 
 (for-macros
-  (import '(schemeish.define:define))
-  (shadowing-import '(schemeish.lambda:lambda)))
-
-(for-macros (install-syntax!))
+  (install-syntax!))
 
 (defun flatten (v)
   "Flatten tree v into a list."
