@@ -50,8 +50,9 @@
   (:shadowing-import-from #:schemeish.lambda #:lambda)
   (:export #:define))
 
-(import '(schemeish.define:define) :schemeish.expand-define)
-(shadowing-import '(schemeish.lambda:lambda) :schemeish.expand-define)
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (import '(schemeish.define:define) :schemeish.expand-define)
+  (shadowing-import '(schemeish.lambda:lambda) :schemeish.expand-define))
 
 (defpackage #:schemeish.base
   (:documentation
@@ -410,7 +411,8 @@
 
 
 (defpackage #:schemeish.serialize
-  (:documentation "Provides the lexically and expose macros.")
+  (:documentation "Provides the serialize function which can recursively serialize lisp data, bundles, and structs
+into a form ready for EVAL.")
   (:use #:cl
 	#:schemeish.for-macros
 	#:schemeish.expand-define
