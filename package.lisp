@@ -21,6 +21,8 @@
    #:λ
    #:define
    #:and-let*
+   #:lexically
+   #:expose
    
    ;; Symbols
    #:make-keyword

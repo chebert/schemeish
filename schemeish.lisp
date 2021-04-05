@@ -2274,4 +2274,41 @@ Bundles will no longer share identity after EVAL."
 
 (assert (eq? :yeah-its-kay (definition-with-definitions-nested-inside-let)))
 
+(for-macros
+  (define (lexical-name->parameter-name symbol)
+    (intern (string-append "*" (symbol->string symbol) "*"))))
+
+(defmacro lexically (&body body)
+  "Evaluate body in a lexical scope, expanding defines as if inside of a define or lambda."
+  `(progn ,@(expand-function-body body)))
+
+(defmacro expose ((&rest fn-names) &rest var-names)
+  "Define var-names as parameters in the global scope, wrapping *s around each name.
+Define fn-names as functions in the global scope."
+  (let ((parameter-names (map #'lexical-name->parameter-name var-names)))
+    `(progn
+       ,@(map (lambda (parameter-name var-name) `(defparameter ,parameter-name ,var-name))
+	      parameter-names var-names)
+       ,@(map (lambda (fn-name) `(setf (fdefinition ',fn-name) (function ,fn-name)))
+	      fn-names)
+       ',(append parameter-names fn-names))))
+
+(assert (equal? (lexically
+		  (define lexical-test-x 1)
+		  (define (lexical-test-y) (+ lexical-test-x 2))
+		  (define (lexical-test-z) (+ (lexical-test-y) lexical-test-x))
+
+		  (expose (lexical-test-y lexical-test-z)
+			  lexical-test-x))
+		'(*LEXICAL-TEST-X* LEXICAL-TEST-Y LEXICAL-TEST-Z)))
+
+(assert (= 1 *lexical-test-x*))
+(assert (= 3 (lexical-test-y)))
+(assert (= 4 (lexical-test-z)))
+
+(defvar *procedure-arglists*
+  (make-hash-table :test #'eq
+		   :weakness :key))
+;; TODO: combine docs/set arities for compose et al.
+
 (for-macros (uninstall-syntax!))
