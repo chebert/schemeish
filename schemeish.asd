@@ -24,4 +24,5 @@
 	       (:file "queue")
 	       (:file "expand-lexically")
 	       (:file "lexically")
+	       (:file "serialize")
 	       (:file "schemeish")))

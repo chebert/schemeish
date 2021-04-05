@@ -74,7 +74,6 @@ Used in conjunction with LEXICALLY you can do something like:
 		    (define (test-y) "test-y" [+f test-x 2])
 		    (define (lexical-test-z) "tests z" [+f [test-y] test-x])
 		    (define lexical-test-w 1)
-		    (print [test-y])
 		    (expose ((lexical-test-y test-y)
 			     lexical-test-z)
 			    (*lexical-test-x* test-x)

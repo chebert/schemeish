@@ -408,6 +408,29 @@
    #:lexically
    #:expose))
 
+
+(defpackage #:schemeish.serialize
+  (:documentation "Provides the lexically and expose macros.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.expand-define
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let
+	#:schemeish.bundle
+	#:schemeish.struct
+	#:schemeish.define-struct
+	#:schemeish.queue)
+  (:shadowing-import-from #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export
+   #:serialize))
+
 (defpackage #:schemeish
   (:documentation "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
   (:use #:cl
@@ -424,7 +447,8 @@
 	#:schemeish.queue
 	#:schemeish.struct
 	#:schemeish.define-struct
-	#:schemeish.lexically)
+	#:schemeish.lexically
+	#:schemeish.serialize)
   (:shadowing-import-from
    #:schemeish.named-let #:let)
   (:shadowing-import-from
@@ -636,7 +660,6 @@
    #:queue-empty?
    #:queue-insert!
    #:queue-delete!))
-
 
 (cl:do-external-symbols (symbol (cl:find-package :cl))
   (cl:multiple-value-bind (symbol accessibility)
