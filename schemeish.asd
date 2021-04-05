@@ -9,4 +9,5 @@
   :depends-on (:trivial-arguments)
   :components ((:file "package")
 	       (:file "for-macros")
+	       (:file "named-let")
                (:file "schemeish")))

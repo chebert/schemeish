@@ -4,10 +4,15 @@
   (:use #:cl)
   (:export #:for-macros))
 
+(defpackage #:schemeish.named-let
+  (:use #:cl)
+  (:shadow #:let)
+  (:export #:let))
+
 (defpackage #:schemeish
-  (:use #:cl #:schemeish.for-macros)
-  (:shadow #:let
-	   #:lambda
+  (:use #:cl #:schemeish.for-macros #:schemeish.named-let)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadow #:lambda
 	   #:map
 	   #:sort
 	   #:stream
