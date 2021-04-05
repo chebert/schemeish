@@ -16,6 +16,7 @@
 	       (:file "lambda")
 	       (:file "define")
 	       (:file "base")
+	       (:file "expand-stream-collect")
 	       (:file "and-let")
 	       (:file "bundle")
 	       (:file "schemeish")))

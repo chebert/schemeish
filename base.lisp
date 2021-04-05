@@ -12,6 +12,12 @@
 
 (define (procedure? datum) (functionp datum))
 
+(define (document! proc docstring)
+  "Attach documentation to proc before returning it."
+  (setf (documentation proc 'function) docstring)
+  proc)
+
+
 (define (eq? obj1 obj2) (eq obj1 obj2))
 
 (defgeneric equal? (object1 object2)

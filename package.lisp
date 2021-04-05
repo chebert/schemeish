@@ -1,24 +1,28 @@
 ;;;; package.lisp
 
 (defpackage #:schemeish.for-macros
+  (:documentation "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
   (:use #:cl)
   (:export #:for-macros))
 
 (defpackage #:schemeish.named-let
+  (:documentation "Provides an optionally named LET which can be used to write a locally recursive form.")
   (:use #:cl)
   (:shadow #:let)
   (:export #:let))
 
 (defpackage #:schemeish.syntax
+  (:documentation "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
   (:use #:cl)
   (:export #:install-syntax! #:uninstall-syntax!))
 
 (defpackage #:schemeish.arguments
+  (:documentation "Tools to translate scheme style argument lists to CL style argument lists.")
   (:use #:cl)
-  (:export
-   #:arg-list->lambda-list))
+  (:export #:arg-list->lambda-list))
 
 (defpackage #:schemeish.expand-define
+  (:documentation "Tools to expand define and define-like forms.")
   (:use #:cl
 	#:schemeish.for-macros
 	#:schemeish.named-let
@@ -31,12 +35,14 @@
    #:expand-top-level-define))
 
 (defpackage #:schemeish.lambda
+  (:documentation "Replaces LAMBDA with a scheme style argument list and a body that can have local defines.")
   (:use #:cl
 	#:schemeish.arguments
 	#:schemeish.expand-define)
   (:shadow #:lambda)
   (:export #:lambda))
 (defpackage #:schemeish.define
+  (:documentation "Provides DEFINE. See DEFINE's docs for more details.")
   (:use #:cl
 	#:schemeish.expand-define
 	#:schemeish.for-macros
@@ -48,6 +54,16 @@
 (shadowing-import '(schemeish.lambda:lambda) :schemeish.expand-define)
 
 (defpackage #:schemeish.base
+  (:documentation
+   "Provides many core functions and simple macros, including
+  - symbols
+  - lists
+  - procedures
+  - alists
+  - sets
+  - strings
+  - output
+  - mutation")
   (:use #:cl
 	#:schemeish.define
 	#:schemeish.for-macros
@@ -58,12 +74,12 @@
 	   #:sort
 	   #:stream)
   (:export
-   #:eq?
-   #:equal?
+   ;; Symbols
    #:symbol?
    #:symbol->string
    #:make-keyword
-   #:procedure?
+
+   ;; Lists
    #:map
    #:append*
    #:empty?
@@ -101,10 +117,17 @@
    #:map-successive
    #:filter-not
    #:partition
+   #:flatten
+
+   ;; Procedures
+   #:procedure?
    #:rcurry
    #:lcurry
    #:swap-args
    #:memo-proc
+   #:document!
+
+   ;; Alists
    #:alist-ref
    #:alist-remove
    #:alist-set
@@ -115,6 +138,10 @@
    #:alist-has-key?
    #:alist-set*
    #:alist
+
+   ;; Booleans
+   #:eq?
+   #:equal?
    #:disjoin*
    #:disjoin
    #:conjoin*
@@ -127,6 +154,8 @@
    #:nand
    #:nor
    #:xor
+
+   ;; Numbers
    #:quotient
    #:number->string
    #:degrees->radians
@@ -134,6 +163,8 @@
    #:sqr
    #:sgn
    #:number?
+
+   ;; Sets
    #:set-member?
    #:set-add
    #:set-remove
@@ -145,7 +176,8 @@
    #:set-subtract
    #:subset?
    #:set=?
-   #:flatten
+
+   ;; Streams
    #:delay
    #:force
    #:*the-empty-stream*
@@ -173,16 +205,23 @@
    #:stream-flatmap
    #:stream-map-successive
    #:random-stream
+
+   ;; Strings
    #:string-append
    #:string?
+
+   ;; Output
    #:newline
    #:display
    #:displayln
+
+   ;; Mutation
    #:set-car!
    #:set-cdr!
    #:set!))
 
-(defpackage #:schemeish.and-let
+(defpackage #:schemeish.expand-stream-collect
+  (:documentation "Provides tools to expand a stream-collect macro form.")
   (:use #:cl
 	#:schemeish.for-macros
 	#:schemeish.define
@@ -195,10 +234,43 @@
 			  #:map
 			  #:sort
 			  #:stream)
-  (:export
-   #:and-let*))
+  (:export #:stream-collect-form))
+
+(defpackage #:schemeish.stream-collect
+  (:documentation "Provides the stream-collect macro.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.expand-stream-collect
+	#:schemeish.base)
+  (:shadowing-import-from
+   #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export #:stream-collect))
+
+(defpackage #:schemeish.and-let
+  (:documentation "Provides the and-let* macro. See its docs for more details.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base)
+  (:shadowing-import-from
+   #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export #:and-let*))
 
 (defpackage #:schemeish.bundle
+  (:documentation "Provides bundle and make-bundle-predicate for creating dispatch-style closures.")
   (:use #:cl
 	#:schemeish.for-macros
 	#:schemeish.define
@@ -221,6 +293,7 @@
    #:make-bundle-predicate))
 
 (defpackage #:schemeish
+  (:documentation "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
   (:use #:cl
 	#:schemeish.for-macros
 	#:schemeish.named-let
@@ -231,6 +304,7 @@
 	#:schemeish.lambda
 	#:schemeish.base
 	#:schemeish.and-let
+	#:schemeish.stream-collect
 	#:schemeish.bundle)
   (:shadowing-import-from
    #:schemeish.named-let #:let)
@@ -254,7 +328,6 @@
    #:**
    #:***)
   (:export
-   #:NIL
    ;; Re-export shadowed functions
    #:+
    #:/
@@ -450,4 +523,4 @@
   (cl:multiple-value-bind (symbol accessibility)
       (cl:find-symbol (cl:symbol-name symbol) (cl:find-package :schemeish))
     (cl:unless (cl:eq accessibility :external)
-      (cl:export symbol (cl:find-package :schemeish)))))
+      (cl:export (list symbol) (cl:find-package :schemeish)))))
