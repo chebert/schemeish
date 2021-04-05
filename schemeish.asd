@@ -16,5 +16,6 @@
 	       (:file "lambda")
 	       (:file "define")
 	       (:file "base")
+	       (:file "and-let")
 	       (:file "bundle")
 	       (:file "schemeish")))

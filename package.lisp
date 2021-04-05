@@ -146,12 +146,28 @@
    #:set=?
    #:flatten))
 
-(defpackage #:schemeish.bundle
+(defpackage #:schemeish.and-let
   (:use #:cl
 	#:schemeish.for-macros
 	#:schemeish.define
 	#:schemeish.syntax
 	#:schemeish.base)
+  (:shadowing-import-from
+   #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort)
+  (:export
+   #:and-let*))
+
+(defpackage #:schemeish.bundle
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let)
   (:shadowing-import-from
    #:schemeish.lambda #:lambda)
   (:shadowing-import-from #:schemeish.named-let #:let)
@@ -176,6 +192,7 @@
 	#:schemeish.define
 	#:schemeish.lambda
 	#:schemeish.base
+	#:schemeish.and-let
 	#:schemeish.bundle)
   (:shadowing-import-from
    #:schemeish.named-let #:let)
