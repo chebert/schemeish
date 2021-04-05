@@ -419,9 +419,6 @@ Used to annotate functions that are used in macros."
   See DEFINE for more information on argument lists.
 "
   `(cl:lambda ,(arg-list->lambda-list arg-list) ,@(expand-function-body body)))
-(defmacro λ (arg-list &body body)
-  "Alias for schemeish:lambda"
-  `(lambda ,arg-list ,@body))
 
 (for-macros
   (defun expand-top-level-define-function (name arg-list body)

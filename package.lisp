@@ -18,7 +18,6 @@
    #:for-macros
    #:let
    #:lambda
-   #:λ
    #:define
    #:and-let*
    #:lexically
