@@ -6,9 +6,26 @@
 	   #:lambda
 	   #:map
 	   #:sort
-	   #:stream)
+	   #:stream
+
+	   ;; Special symbols
+	   #:+
+	   #:/
+	   #:-
+	   #:*
+	   #:++
+	   #:+++
+	   #://
+	   #:///
+	   #:**
+	   #:***)
   (:export
    #:NIL
+   ;; Re-export the un-special functions
+   #:+
+   #:/
+   #:-
+   #:*
    
    ;; Reader macros
    #:install-syntax!
@@ -108,6 +125,7 @@
    #:procedure-arity
    #:procedure-arguments
    #:has-specific-arity?
+   #:document!
 
    ;; Streams
    #:delay
@@ -182,6 +200,7 @@
    #:serialize
    
    ;; Mutable lists
+   #:set!
    #:set-car!
    #:set-cdr!
 
@@ -191,6 +210,7 @@
    #:queue-empty?
    #:queue-insert!
    #:queue-delete!))
+
 
 (cl:do-external-symbols (symbol (cl:find-package :cl))
   (cl:multiple-value-bind (symbol accessibility)
