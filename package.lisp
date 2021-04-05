@@ -209,6 +209,7 @@
    ;; Strings
    #:string-append
    #:string?
+   #:string-starts-with?
 
    ;; Output
    #:newline
@@ -269,6 +270,48 @@
 			  #:stream)
   (:export #:and-let*))
 
+
+(defpackage #:schemeish.struct
+  (:documentation "Provides the basis and expansions for define-struct.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let)
+  (:shadowing-import-from
+   #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export
+   #:struct
+   #:struct?
+   #:struct-copy
+   #:struct->list
+   #:struct-accessors
+   #:struct-form))
+
+(defpackage #:schemeish.define-struct
+  (:documentation "Provides define-struct.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let
+	#:schemeish.struct)
+  (:shadowing-import-from
+   #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export #:define-struct))
+
 (defpackage #:schemeish.bundle
   (:documentation "Provides bundle and make-bundle-predicate for creating dispatch-style closures.")
   (:use #:cl
@@ -292,6 +335,29 @@
    #:bundle?
    #:make-bundle-predicate))
 
+(defpackage #:schemeish.queue
+  (:documentation "Provides a bundle-based implementation of a queue.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let
+	#:schemeish.bundle)
+  (:shadowing-import-from #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream)
+  (:export
+   #:make-queue
+   #:queue?
+   #:queue-empty?
+   #:queue-front
+   #:queue-insert!
+   #:queue-delete!))
+
 (defpackage #:schemeish
   (:documentation "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
   (:use #:cl
@@ -305,7 +371,10 @@
 	#:schemeish.base
 	#:schemeish.and-let
 	#:schemeish.stream-collect
-	#:schemeish.bundle)
+	#:schemeish.bundle
+	#:schemeish.queue
+	#:schemeish.struct
+	#:schemeish.define-struct)
   (:shadowing-import-from
    #:schemeish.named-let #:let)
   (:shadowing-import-from

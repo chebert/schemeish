@@ -539,6 +539,10 @@ Applies updater to failure-result if key is not present."
 
 (define (string? datum) (stringp datum))
 
+(define (string-starts-with? string sub-string)
+  (string= (subseq string 0 (length sub-string))
+	   sub-string))
+
 (define (newline (out *standard-output*)) (format out "~%"))
 (define (display datum (out *standard-output*)) (format out "~A" datum))
 (define (displayln datum (out *standard-output*))

@@ -70,4 +70,18 @@
 (assert (equal [[(test-inner-nested-defines) :x] :y]
 	       '(:x :y)))
 
+(define (definition-with-definitions-nested-inside-let)
+  (define a 1)
+  (define steak :sauce)
+  (let ((here :marker))
+    (define (okay? var)
+      (if (eq var :sauce)
+	  :yeah-its-kay))
+    (let* ((uh-oh :hi))
+      (define (steak-sauce) steak)
+      (okay? (and here uh-oh (steak-sauce))))))
+
+(assert (eq :yeah-its-kay (definition-with-definitions-nested-inside-let)))
+
+
 (for-macros (uninstall-syntax!))

@@ -19,4 +19,7 @@
 	       (:file "expand-stream-collect")
 	       (:file "and-let")
 	       (:file "bundle")
+	       (:file "struct")
+	       (:file "define-struct")
+	       (:file "queue")
 	       (:file "schemeish")))
