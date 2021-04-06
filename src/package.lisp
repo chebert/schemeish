@@ -1,5 +1,11 @@
 ;;;; package.lisp
 
+;; TODO: automatically have packages use/shadowing-import-from other packages
+;; TODO: factor out groups of packages that are used together as single packages.
+;; TODO: generate documentation for structs/symbols
+;; TODO: lambda shouldn't need to expand function body in expand-function-body
+;; TODO: rename expand-function-body
+
 (defpackage #:schemeish.for-macros
   (:documentation "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
   (:use #:cl)
