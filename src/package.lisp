@@ -13,18 +13,18 @@
 
 (defpackage #:schemeish.named-let
   (:documentation "Provides an optionally named LET which can be used to write a locally recursive form.")
-  (:use #:cl)
+  (:use #:cl #:schemeish.for-macros)
   (:shadow #:let)
   (:export #:let))
 
 (defpackage #:schemeish.syntax
   (:documentation "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
-  (:use #:cl)
+  (:use #:cl #:schemeish.for-macros)
   (:export #:install-syntax! #:uninstall-syntax!))
 
 (defpackage #:schemeish.arguments
   (:documentation "Tools to translate scheme style argument lists to CL style argument lists.")
-  (:use #:cl)
+  (:use #:cl #:schemeish.for-macros)
   (:export #:arg-list->lambda-list))
 
 (defpackage #:schemeish.expand-define
@@ -43,6 +43,7 @@
 (defpackage #:schemeish.lambda
   (:documentation "Replaces LAMBDA with a scheme style argument list and a body that can have local defines.")
   (:use #:cl
+	#:schemeish.for-macros
 	#:schemeish.arguments
 	#:schemeish.expand-define)
   (:shadow #:lambda)
@@ -438,6 +439,26 @@ into a form ready for EVAL.")
 			  #:stream)
   (:export
    #:serialize))
+
+(defpackage #:schemeish.package-utils
+  (:documentation "Provides tools for dealing with CL packages.")
+  (:use #:cl
+	#:schemeish.for-macros
+	#:schemeish.expand-define
+	#:schemeish.define
+	#:schemeish.syntax
+	#:schemeish.base
+	#:schemeish.and-let
+	#:schemeish.bundle
+	#:schemeish.struct
+	#:schemeish.define-struct
+	#:schemeish.queue)
+  (:shadowing-import-from #:schemeish.lambda #:lambda)
+  (:shadowing-import-from #:schemeish.named-let #:let)
+  (:shadowing-import-from #:schemeish.base
+			  #:map
+			  #:sort
+			  #:stream))
 
 (defpackage #:schemeish
   (:documentation "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")

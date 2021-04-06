@@ -78,7 +78,7 @@ This operation fails if the resulting lexical-name is declared to be special."
 	       (push `(,lexical-sym #',sym) fn-bindings))
 	     (push `(,sym #',sym) fn-bindings))
 	 (push sym package-symbols))
-	((and (special? sym) (parameter-name? sym))
+	((and (special? sym) (parameter-name? sym) (boundp sym))
 	 (push (list (parameter-name->lexical-name sym parameter-wrap-string) sym) special-bindings)
 	 (push sym package-symbols))))
     (nconc fn-bindings special-bindings)))
