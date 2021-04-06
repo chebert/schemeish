@@ -36,22 +36,38 @@
   (let ((package (find-package package-designator)))
     (filter-not (lcurry 'symbol-in-package? package) (package-symbols package-designator))))
 
-(define (package-imported-symbols-alist package)
-  "Return an list of (package-name . symbols-in-package-name) of all of the symbols in package."
-  (alist-map (group (compose 'package-name 'symbol-package)
-		    (package-imported-symbols package))
+(define (group-by-package symbols)
+  (alist-map (group (compose 'package-name 'symbol-package) symbols)
 	     (lambda (name symbols)
-	       (cons (make-symbol name) (map (compose 'make-symbol 'symbol-name) symbols)))))
+	       (cons (make-symbol name)
+		     (map 'uninterned symbols)))))
 
-(define (package-unused-imported-symbols-alist package)
-  "Return a list of (package-name . symbols-in-package-name) of all of the symbols in package that are not from a used package.
-The symbols themselves are, of course, probably being used by the package."
-  (filter-not (lambda (package-list)
-		(member (symbol-name (first package-list))
-			(map 'package-name
-			     (package-use-list package))))
-	      (package-imported-symbols-alist package)))
+(define (package-unshadowed-symbols package)
+  (set-difference (package-symbols package) (package-shadowing-symbols package)))
 
+(define (package-unshadowed-imported-symbols package)
+  (set-difference (package-imported-symbols package) (package-shadowing-symbols package)))
+
+(define (package-used-symbols package)
+  (let ((use-list (package-use-list package)))
+    (filter (lambda (symbol) (member (symbol-package symbol) use-list))
+	    (package-symbols package))))
+(define (package-unused-symbols package)
+  (set-difference (package-symbols package) (package-used-symbols package)))
+
+(define (package-import-froms package)
+  (map (lambda (list)
+	 (cons :import-from list))
+       (group-by-package (intersection
+			  (intersection (package-unshadowed-symbols package)
+					(package-imported-symbols package))
+			  (package-unused-symbols package)))))
+
+(define (package-shadowing-import-froms package)
+  (map (lambda (list)
+	 (cons :shadowing-import-from list))
+       (group-by-package (intersection (package-imported-symbols package)
+				       (package-shadowing-symbols package)))))
 
 (define (use-shadowing-package shadowing-package package)
   "Uses SHADOWING-PACKAGE in PACKAGE, but first shadowing-imports all of the shadowing symbols in shadowing-package.
@@ -104,8 +120,8 @@ Returns the package."
 (define (package-shadowing-export symbols package)
   "Shadows and exports each symbol in symbols.
 Returns the package."
-  (apply #'package-shadow package symbols)
-  (apply #'package-export package symbols)
+  (package-shadow symbols package)
+  (package-export symbols package)
   package)
 
 (define (build-package name)
@@ -129,27 +145,27 @@ Returns the package."
     (lcurry #'document-package documentation))
    (build-package name)])
 
+(define (uninterned symbol)
+  (make-symbol (symbol-name symbol)))
+
+(define (package-exports package)
+  (map 'uninterned (package-external-symbols package)))
+
 (define (defpackage-form package-designator)
   (let* ((package (find-package package-designator))
 	 (documentation (documentation package t))
 	 (use-list (map (compose 'make-symbol 'package-name) (package-use-list package)))
-	 (exports (map (compose 'make-symbol 'symbol-name) (package-external-symbols package)))
-	 (shadow (package-shadowing-symbols package))
+	 (exports (package-exports package))
+	 (shadow (map 'uninterned (package-shadowing-symbols package)))
 	 (nicknames (package-nicknames package)))
     `(cl:defpackage ,(make-symbol (package-name package))
-       ,@(alist-map (package-unused-imported-symbols-alist package)
-		    (lambda (package-name symbols)
-		      `(:import-from ,package-name ,@symbols)))
        ,@(when documentation `((:documentation ,documentation)))
+       ,@(package-import-froms package)
+       ,@(package-shadowing-import-froms package)
        ,@(when use-list `((:use ,@use-list)))
-       ,@(when exports `((:exports ,@exports)))
+       ,@(when exports `((:export ,@exports)))
        ,@(when shadow `((:shadow ,@shadow)))
-       ,@(when nicknames `((:nicknames ,@nicknames)))
-
-       ;; A shadowing import occurs when 
-       (:shadowing-import-from :todo))))
-
-(defpackage-form :basic-syntax)
+       ,@(when nicknames `((:nicknames ,@nicknames))))))
 
 (defpackage #:for-macros
   (:documentation "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
@@ -211,6 +227,7 @@ Returns the package."
   - output
   - mutation"
   :use-shadowing-packages '(:cl :basic-syntax :lambda :define)
+  :shadows '(:map :sort :stream)
   :exports
   '(;; Symbols
     :symbol?
