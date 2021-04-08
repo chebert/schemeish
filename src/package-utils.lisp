@@ -2,12 +2,13 @@
 
 (install-syntax!)
 
-(defparameter *resolve-package-designator* #'identity
+(defvar *resolve-package-designator* #'identity
   "Resolves a package designator.")
 
 (define (package? datum) (packagep datum))
 
 (define (package-find unresolved-package-designator)
+  "Resolves the designator using *RESOLVE-PACKAGE-DESIGNATOR* before finding the package."
   (cond
     ((package? unresolved-package-designator) unresolved-package-designator)
     (t (find-package [*resolve-package-designator* unresolved-package-designator]))))
@@ -48,9 +49,9 @@
 
 (define (package-used-symbols package)
   "List of all of the symbols in package that are from a USE-PACKAGE, and not explicitly imported."
-  (let ((use-list (package-use-list (package-find package))))
-    (filter (lambda (symbol) (member (symbol-package symbol) use-list))
-	    (package-symbols package))))
+  (intersection (package-symbols package)
+		(append-map (lambda (used-package) (package-exported-symbols used-package))
+			    (package-use-list (package-find package)))))
 (define (package-unused-symbols package)
   "List of all of the explicitly imported symbols, that are not part of a USEd package."
   (set-difference (package-symbols package) (package-used-symbols package)))

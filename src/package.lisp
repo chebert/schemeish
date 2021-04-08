@@ -6,53 +6,35 @@
   (:EXPORT #:FOR-MACROS))
 (DEFPACKAGE #:SCHEMEISH.NAMED-LET
   (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
+  (:USE #:SCHEMEISH.FOR-MACROS #:COMMON-LISP)
   (:EXPORT #:LET)
   (:SHADOW #:LET))
 (DEFPACKAGE #:SCHEMEISH.ARGUMENTS
   (:DOCUMENTATION "Tools to translate scheme style argument lists to CL style argument lists.")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
+  (:USE #:SCHEMEISH.FOR-MACROS #:COMMON-LISP)
   (:EXPORT #:ARG-LIST->LAMBDA-LIST))
 (DEFPACKAGE #:SCHEMEISH.SYNTAX
   (:DOCUMENTATION "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
+  (:USE #:SCHEMEISH.FOR-MACROS #:COMMON-LISP)
   (:EXPORT #:INSTALL-SYNTAX! #:UNINSTALL-SYNTAX!))
 (DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
   (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.FOR-MACROS
+  (:USE #:SCHEMEISH.SYNTAX
         #:SCHEMEISH.NAMED-LET
-        #:SCHEMEISH.SYNTAX)
+        #:SCHEMEISH.FOR-MACROS
+        #:COMMON-LISP)
   (:EXPORT #:LET #:FOR-MACROS #:INSTALL-SYNTAX! #:UNINSTALL-SYNTAX!))
 (DEFPACKAGE #:SCHEMEISH.EXPAND-DEFINE
   (:DOCUMENTATION "Tools to expand define and define-like forms.")
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX #:COMMON-LISP)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.ARGUMENTS)
   (:EXPORT #:EXPAND-FUNCTION-BODY #:EXPAND-TOP-LEVEL-DEFINE))
 (DEFPACKAGE #:SCHEMEISH.DEFINE
   (:DOCUMENTATION "Provides DEFINE. See DEFINE's docs for more details.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.ARGUMENTS)
-  (:EXPORT #:EXPAND-TOP-LEVEL-DEFINE #:LAMBDA #:DEFINE #:EXPAND-FUNCTION-BODY)
+  (:USE #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX #:COMMON-LISP)
+  (:EXPORT #:EXPAND-TOP-LEVEL-DEFINE #:DEFINE #:LAMBDA #:EXPAND-FUNCTION-BODY)
   (:SHADOW #:LAMBDA))
 (DEFPACKAGE #:SCHEMEISH.BASE
   (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
@@ -64,59 +46,53 @@
   - strings
   - output
   - mutation")
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.DEFINE)
+  (:USE #:SCHEMEISH.DEFINE #:SCHEMEISH.BASIC-SYNTAX #:COMMON-LISP)
   (:EXPORT #:CONJOIN*
-           #:ALIST-REMOVE
+           #:PROCEDURE-ARGUMENTS-OPTIONAL-ARGUMENTS
            #:LAMBDA
-           #:ZERO?
+           #:FOR-EACH
            #:SET!
-           #:LCURRY
+           #:APPEND*
            #:MAP-SUCCESSIVE
-           #:REMQ*
-           #:REMOVE*
+           #:CONJOIN
+           #:EXPAND-TOP-LEVEL-DEFINE
            #:EQ?
-           #:DISPLAYLN
+           #:FILTER-MAP
            #:SQR
-           #:STREAM-CAR
-           #:EMPTY?
-           #:ALIST-HAS-KEY?
-           #:STREAM-FIRST
+           #:STREAM-REST
+           #:INSTALL-SYNTAX!
+           #:ALIST-VALUES
+           #:DEFINE
            #:POSITIVE?
            #:SET-INTERSECT
            #:STREAM->LIST
-           #:XOR
-           #:CONST
+           #:LIST-REF
+           #:STRING-APPEND
            #:APPEND-MAP
-           #:EQUAL?
+           #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
            #:STREAM-FOLD
+           #:STREAM-REF
            #:TAKE
            #:FILTER
            #:STREAM-EMPTY?
-           #:ALIST-SET*
+           #:NULL?
            #:FOLDR
-           #:CONJOIN
+           #:XOR
+           #:SORT
            #:MAP
-           #:FILTER-MAP
+           #:CONST
            #:RADIANS->DEGREES
            #:STREAM-DROP
-           #:SORT
+           #:PROCEDURE-ARGUMENTS-REQUIRED-ARGUMENTS
            #:STRING-STARTS-WITH?
-           #:LIST-REF
-           #:NUMBER?
-           #:STREAM-REST
-           #:FOR-ALL
+           #:DISJOIN
+           #:MAKE-KEYWORD
+           #:ALIST-KEYS
+           #:NEGATIVE?
            #:SET->STREAM
-           #:REMQ
+           #:SUBSET?
            #:RANGE
            #:SET-UNION
            #:EXPAND-FUNCTION-BODY
@@ -124,8 +100,8 @@
            #:PROCEDURE-ARGUMENTS-KEY-ARGUMENTS
            #:DISJOIN*
            #:STREAM
+           #:REMQ*
            #:FLATTEN
-           #:ALIST-VALUES
            #:ODD?
            #:SYMBOL->STRING
            #:SET-REMOVE
@@ -133,50 +109,48 @@
            #:ALIST-SET
            #:LIST?
            #:FOR-MACROS
-           #:PROCEDURE-ARGUMENTS-OPTIONAL-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-REQUIRED-ARGUMENTS
-           #:FOR-EACH
+           #:RANDOM-STREAM
+           #:REMQ
+           #:ZERO?
            #:SET-SUBTRACT
-           #:DISJOIN
+           #:GROUP
            #:PARTITION
            #:DROP
            #:ORMAP
-           #:ALIST-REF
+           #:STREAM-APPEND
            #:PAIR?
            #:FINDF
            #:PROCEDURE?
            #:SET-CDR!
            #:DISPLAY
+           #:ALIST-HAS-KEY?
            #:THERE-EXISTS*
+           #:STREAM-FIRST
+           #:REMOVE*
            #:MEMF
+           #:FOR-ALL
            #:UNINSTALL-SYNTAX!
-           #:NULL?
            #:SYMBOL?
-           #:RANDOM-STREAM
            #:FOR-ALL*
            #:NEWLINE
-           #:MAKE-KEYWORD
            #:LIST-TAIL
            #:ALIST-UPDATE
-           #:STRING-APPEND
            #:SPLIT-AT
-           #:SUBSET?
            #:ALIST-MAP
            #:EVEN?
            #:STREAM-MAP
            #:FORCE
            #:STREAM-CONS
-           #:STREAM-REF
-           #:STREAM-APPEND
+           #:EMPTY?
+           #:ALIST-REF
            #:LIST-SET
            #:SET=?
-           #:EXPAND-TOP-LEVEL-DEFINE
-           #:GROUP
+           #:ALIST-REMOVE
            #:SET-ADD
            #:STREAM-RANGE
-           #:APPEND*
-           #:ALIST-KEYS
+           #:DISPLAYLN
            #:THERE-EXISTS
+           #:STREAM-CAR
            #:STREAM-LENGTH
            #:PROCEDURE-ARGUMENTS
            #:STREAM-MAP-SUCCESSIVE
@@ -189,7 +163,7 @@
            #:FILTER-NOT
            #:STREAM-FOR-EACH
            #:SWAP-ARGS
-           #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
+           #:NUMBER?
            #:ANDMAP
            #:DOCUMENT!
            #:*THE-EMPTY-STREAM*
@@ -199,19 +173,19 @@
            #:STREAM?
            #:STREAM-FILTER
            #:HAS-SPECIFIC-ARITY?
-           #:NEGATIVE?
            #:STREAM-FLATMAP
            #:PROCEDURE-ARITY
            #:STREAM-TAKE
            #:QUOTIENT
+           #:ALIST-SET*
            #:LIST-UPDATE
            #:RCURRY
-           #:INSTALL-SYNTAX!
-           #:DEFINE
+           #:LCURRY
            #:SGN
            #:DELAY
            #:SET-COUNT
            #:STRING?
+           #:EQUAL?
            #:COMPOSE
            #:MEMO-PROC
            #:STREAM-FLATTEN
@@ -220,95 +194,36 @@
   (:SHADOW #:MAP #:SORT #:STREAM))
 (DEFPACKAGE #:SCHEMEISH.AND-LET
   (:DOCUMENTATION "Provides the and-let* macro.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:STREAM #:MAP)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
+  (:USE #:SCHEMEISH.BASE #:COMMON-LISP)
   (:EXPORT #:AND-LET*))
 (DEFPACKAGE #:SCHEMEISH.EXPAND-STREAM-COLLECT
   (:DOCUMENTATION "Provides tools to expand a stream-collect macro form.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:MAP #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
+  (:USE #:SCHEMEISH.BASE #:COMMON-LISP)
   (:EXPORT #:STREAM-COLLECT-FORM))
 (DEFPACKAGE #:SCHEMEISH.EXPAND-LEXICALLY
   (:DOCUMENTATION "Provides tools to expand lexically/expose macros.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:MAP #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.AND-LET)
-  (:EXPORT #:SPECIAL?
+  (:USE #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:COMMON-LISP)
+  (:EXPORT #:LEXICAL-NAME->PARAMETER-NAME
            #:PARAMETER-NAME?
-           #:LEXICAL-NAME->PARAMETER-NAME
            #:PARAMETER-NAME->LEXICAL-NAME
            #:LEXICAL-BINDINGS
+           #:SPECIAL?
            #:SPECIAL-FORM?))
 (DEFPACKAGE #:SCHEMEISH.BUNDLE
   (:DOCUMENTATION "Provides bundle and make-bundle-predicate for creating dispatch-style closures.")
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:DEFINE
-                #:EXPAND-FUNCTION-BODY)
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:MAP #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.AND-LET)
+  (:USE #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:COMMON-LISP)
   (:EXPORT #:BUNDLE-DOCUMENTATION
            #:BUNDLE?
            #:BUNDLE-LIST
@@ -317,23 +232,10 @@
            #:BUNDLE))
 (DEFPACKAGE #:SCHEMEISH.STRUCT
   (:DOCUMENTATION "Provides the basis and expansions for define-struct.")
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:EXPAND-FUNCTION-BODY
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:DEFINE)
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:STREAM #:MAP #:SORT)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.AND-LET)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:STREAM #:SORT #:MAP)
+  (:USE #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:COMMON-LISP)
   (:EXPORT #:STRUCT-COPY
            #:STRUCT->LIST
            #:STRUCT-ACCESSORS
@@ -342,97 +244,36 @@
            #:STRUCT))
 (DEFPACKAGE #:SCHEMEISH.STREAM-COLLECT
   (:DOCUMENTATION "Provides the stream-collect macro.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:STREAM #:MAP)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.EXPAND-STREAM-COLLECT)
+  (:USE #:SCHEMEISH.EXPAND-STREAM-COLLECT #:SCHEMEISH.BASE #:COMMON-LISP)
   (:EXPORT #:STREAM-COLLECT))
 (DEFPACKAGE #:SCHEMEISH.DEFINE-STRUCT
   (:DOCUMENTATION "Provides define-struct.")
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:STREAM #:MAP #:SORT)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.AND-LET #:SCHEMEISH.STRUCT)
+  (:USE #:SCHEMEISH.STRUCT #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:COMMON-LISP)
   (:EXPORT #:DEFINE-STRUCT))
 (DEFPACKAGE #:SCHEMEISH.LEXICALLY
   (:DOCUMENTATION "Provides the lexically and expose macros.")
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:STREAM #:SORT #:MAP)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:STREAM #:SORT)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.BASE
+  (:USE #:SCHEMEISH.EXPAND-LEXICALLY
         #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.EXPAND-LEXICALLY)
+        #:SCHEMEISH.BASE
+        #:COMMON-LISP)
   (:EXPORT #:LEXICALLY #:EXPOSE))
 (DEFPACKAGE #:SCHEMEISH.QUEUE
   (:DOCUMENTATION "Provides a bundle-based implementation of a queue.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:EXPAND-FUNCTION-BODY
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:DEFINE
-                #:EXPAND-FUNCTION-BODY)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.AND-LET #:SCHEMEISH.BUNDLE)
-  (:EXPORT #:QUEUE-EMPTY?
-           #:MAKE-QUEUE
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:STREAM #:MAP)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:SCHEMEISH.BUNDLE #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:COMMON-LISP)
+  (:EXPORT #:MAKE-QUEUE
+           #:QUEUE-EMPTY?
            #:QUEUE?
            #:QUEUE-FRONT
            #:QUEUE-DELETE!
@@ -440,76 +281,48 @@
 (DEFPACKAGE #:SCHEMEISH.SERIALIZE
   (:DOCUMENTATION "Provides the serialize function which can recursively serialize lisp data, bundles, and structs
 into a form ready for EVAL.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:STREAM #:MAP)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.BASE
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BUNDLE
-        #:SCHEMEISH.STRUCT
+  (:USE #:SCHEMEISH.QUEUE
         #:SCHEMEISH.DEFINE-STRUCT
-        #:SCHEMEISH.QUEUE)
+        #:SCHEMEISH.STRUCT
+        #:SCHEMEISH.BUNDLE
+        #:SCHEMEISH.AND-LET
+        #:SCHEMEISH.BASE
+        #:COMMON-LISP)
   (:EXPORT #:SERIALIZE))
 (DEFPACKAGE #:SCHEMEISH.PACKAGE-UTILS
   (:DOCUMENTATION "Provides tools for dealing with CL packages.")
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE)
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:STREAM #:MAP)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:SCHEMEISH.BASE
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BUNDLE
-        #:SCHEMEISH.STRUCT
-        #:SCHEMEISH.DEFINE-STRUCT
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:STREAM #:MAP #:SORT)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:USE #:COMMON-LISP
         #:SCHEMEISH.QUEUE
-        #:COMMON-LISP)
-  (:EXPORT #:PACKAGE-FILE-CONTENTS
+        #:SCHEMEISH.DEFINE-STRUCT
+        #:SCHEMEISH.STRUCT
+        #:SCHEMEISH.BUNDLE
+        #:SCHEMEISH.AND-LET
+        #:SCHEMEISH.BASE)
+  (:EXPORT #:SYMBOL-IN-PACKAGE?
            #:*RESOLVE-PACKAGE-DESIGNATOR*
-           #:PACKAGE-DEPENDENCIES
-           #:DEFPACKAGE-FORM
-           #:DOCUMENT
            #:ALL-PACKAGES-WITH-STRING-PREFIX
+           #:DEFPACKAGE-FORM
+           #:FILTER-PACKAGES
            #:ENSURE-STRING
            #:INDEPENDENT-PACKAGE?
-           #:PACKAGE-FIND
+           #:NICKNAME-PACKAGE
            #:PACKAGE-DELETE
-           #:SYMBOL-IN-PACKAGE?
+           #:PACKAGE-FILE-CONTENTS
            #:DEFINE-PACKAGE-FORM
-           #:PACKAGE-SHADOWING-EXPORT
+           #:UNIQUE-PACKAGE-NAME
            #:WITH-TEMPORARY-PACKAGE
            #:PACKAGE-SHADOWING-IMPORT-FROMS
-           #:UNIQUE-PACKAGE-NAME
            #:PACKAGE-HIERARCHY
-           #:NICKNAME-PACKAGE
+           #:PACKAGE-DEPENDENCIES
+           #:SYMBOLS-IN-PACKAGE
            #:PACKAGE-SHADOW
+           #:DOCUMENT
            #:PACKAGE-EXPORTED-SYMBOLS
            #:PACKAGE-SHADOWING-IMPORT-FROM
            #:PACKAGE-SYMBOLS
@@ -517,162 +330,148 @@ into a form ready for EVAL.")
            #:HIERARCHICAL-DEFPACKAGE-FORMS
            #:PACKAGE-IMPORT-FROMS
            #:PACKAGE-USED-SYMBOLS
-           #:EXTEND-PACKAGE*
+           #:PACKAGE-EXTERNAL-SYMBOLS
            #:PACKAGE-IMPORTED-SYMBOLS
            #:PACKAGE?
            #:PACKAGE-EXTERNAL-SYMBOLS-FROM
            #:UNINTERNED
            #:PACKAGE-RE-EXPORT-SHADOWING
            #:PACKAGE-UNUSED-SYMBOLS
-           #:SYMBOLS-IN-PACKAGE
            #:PACKAGE-NON-SHADOWING-SYMBOLS
            #:DEFINE-PACKAGE
-           #:FILTER-PACKAGES
            #:PACKAGE-USE-SHADOWING
+           #:EXTEND-PACKAGE*
            #:GROUP-BY-PACKAGE
            #:PACKAGE-EXPORT
            #:EXTEND-PACKAGE
            #:PACKAGE-IMPORT-FROM
            #:SYMBOLS-INTERNED-IN-PACKAGE
            #:PACKAGE-USE
-           #:PACKAGE-EXTERNAL-SYMBOLS))
+           #:PACKAGE-FIND
+           #:PACKAGE-SHADOWING-EXPORT))
 (DEFPACKAGE #:SCHEMEISH.SCHEMEISH
   (:DOCUMENTATION "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
-  (:IMPORT-FROM #:SCHEMEISH.SYNTAX
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!
-                #:UNINSTALL-SYNTAX!
-                #:INSTALL-SYNTAX!)
-  (:IMPORT-FROM #:SCHEMEISH.DEFINE
-                #:DEFINE
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:EXPAND-TOP-LEVEL-DEFINE
-                #:EXPAND-FUNCTION-BODY
-                #:DEFINE)
-  (:IMPORT-FROM #:SCHEMEISH.FOR-MACROS #:FOR-MACROS #:FOR-MACROS)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:SORT #:STREAM #:MAP)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:USE #:SCHEMEISH.SERIALIZE
-        #:SCHEMEISH.LEXICALLY
-        #:SCHEMEISH.DEFINE-STRUCT
-        #:SCHEMEISH.STRUCT
-        #:SCHEMEISH.QUEUE
-        #:SCHEMEISH.BUNDLE
-        #:SCHEMEISH.STREAM-COLLECT
-        #:SCHEMEISH.AND-LET
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP
         #:SCHEMEISH.BASE
-        #:COMMON-LISP)
-  (:EXPORT #:MACRO-FUNCTION
-           #:READ-LINE
-           #:LOOP
-           #:DELETE-DUPLICATES
+        #:SCHEMEISH.AND-LET
+        #:SCHEMEISH.STREAM-COLLECT
+        #:SCHEMEISH.BUNDLE
+        #:SCHEMEISH.QUEUE
+        #:SCHEMEISH.STRUCT
+        #:SCHEMEISH.DEFINE-STRUCT
+        #:SCHEMEISH.LEXICALLY
+        #:SCHEMEISH.SERIALIZE)
+  (:EXPORT #:LIST*
+           #:LOGCOUNT
+           #:DIRECTORY
+           #:CDDAAR
            #:CHAR<=
-           #:VECTOR-POP
-           #:GENSYM
+           #:LOGIOR
+           #:DO*
            #:VALUES-LIST
-           #:SYNONYM-STREAM
-           #:STREAM->LIST
-           #:BASE-CHAR
-           #:FMAKUNBOUND
-           #:CONJUGATE
+           #:STRING-NOT-EQUAL
+           #:SYMBOL
+           #:*LOAD-TRUENAME*
+           #:SIMPLE-BASE-STRING
+           #:WRITE-TO-STRING
            #:LEAST-NEGATIVE-SINGLE-FLOAT
-           #:DESCRIBE-OBJECT
-           #:EVAL-WHEN
+           #:MAP-SUCCESSIVE
+           #:MAP
            #:EVENP
-           #:*TERMINAL-IO*
-           #:COS
+           #:*PRINT-CASE*
+           #:POSITIVE?
            #:STRING-RIGHT-TRIM
            #:SOME
-           #:LOGNAND
-           #:BOTH-CASE-P
-           #:SIMPLE-BASE-STRING
-           #:CDDAAR
-           #:OTHERWISE
+           #:LEAST-POSITIVE-NORMALIZED-SINGLE-FLOAT
+           #:STEP
+           #:DOTIMES
+           #:WRITE-BYTE
+           #:INVALID-METHOD-ERROR
            #:BOOLE-NOR
-           #:INTEGER-LENGTH
-           #:FORCE
+           #:ROW-MAJOR-AREF
+           #:USE-VALUE
            #:PARSE-INTEGER
-           #:LOGBITP
+           #:GRAPHIC-CHAR-P
            #:BLOCK
            #:DOLIST
            #:CONCATENATED-STREAM
-           #:EQ?
-           #:ADD-METHOD
+           #:TRACE
+           #:DOUBLE-FLOAT
            #:BROADCAST-STREAM-STREAMS
-           #:NUMBER?
+           #:CONSTANTLY
            #:SIMPLE-ARRAY
-           #:COPY-ALIST
+           #:DIGIT-CHAR-P
            #:SIMPLE-VECTOR-P
-           #:CADR
-           #:WRITE-BYTE
-           #:DISPLAYLN
-           #:STREAM-LENGTH
-           #:INTEGER
-           #:SYMBOL?
+           #:STREAM-REF
+           #:PACKAGE-ERROR
+           #:BOOLE-ORC2
+           #:CHAR>
+           #:PACKAGE-USE-LIST
            #:STYLE-WARNING
-           #:LET
+           #:STREAM-FOLD
            #:/
            #:COUNT
            #:DISASSEMBLE
            #:NSET-DIFFERENCE
-           #:STRING-NOT-GREATERP
-           #:RESTART
-           #:CDDAR
+           #:DEFTYPE
+           #:TREE-EQUAL
+           #:*COMPILE-FILE-TRUENAME*
            #:SET-SUBTRACT
-           #:BOUNDP
-           #:CLASS-OF
+           #:RCURRY
+           #:ADJUSTABLE-ARRAY-P
            #:HASH-TABLE-P
            #:WITH-OPEN-FILE
-           #:GET-OUTPUT-STREAM-STRING
-           #:*PACKAGE*
-           #:REMHASH
+           #:AND
+           #:HOST-NAMESTRING
+           #:BUNDLE-DOCUMENTATION
+           #:SUBSET?
            #:FBOUNDP
            #:SET-CAR!
            #:BIT-AND
            #:TYPE-ERROR-DATUM
-           #:BIT-ORC1
+           #:VECTOR
            #:STRING-STREAM
-           #:DECODE-FLOAT
+           #:SHADOWING-IMPORT
            #:STANDARD-CHAR-P
-           #:*ERROR-OUTPUT*
-           #:BASE-STRING
-           #:FUNCTION
-           #:READ-BYTE
-           #:ALIST-VALUES
+           #:*LOAD-PATHNAME*
+           #:PRINT-UNREADABLE-OBJECT
+           #:NINTH
+           #:*PRINT-ESCAPE*
+           #:FTRUNCATE
            #:MAKE-LIST
-           #:MACROEXPAND
+           #:FIND-IF-NOT
            #:MEMBER-IF-NOT
-           #:NEXT-METHOD-P
+           #:INTERSECTION
            #:SATISFIES
-           #:SYMBOL-PACKAGE
-           #:ARRAY
-           #:ALIST-KEYS
+           #:STRING-LESSP
+           #:CHAR-NOT-EQUAL
+           #:OUTPUT-STREAM-P
            #:WITH-OUTPUT-TO-STRING
-           #:PROG1
+           #:BOOLE-IOR
            #:EQ
            #:BREAK
            #:MOST-POSITIVE-DOUBLE-FLOAT
            #:CHAR-UPCASE
-           #:REDUCE
+           #:NSTRING-CAPITALIZE
            #:CDR
-           #:DISPLAY
-           #:LEAST-POSITIVE-DOUBLE-FLOAT
-           #:SUBSET?
-           #:DELAY
-           #:FINISH-OUTPUT
-           #:UNTRACE
+           #:STANDARD-OBJECT
+           #:STREAM-ELEMENT-TYPE
+           #:STRING-APPEND
+           #:LIST?
+           #:STREAM-CONS
+           #:PARSE-NAMESTRING
            #:MAKE-SYNONYM-STREAM
            #:WITH-COMPILATION-UNIT
-           #:MOST-NEGATIVE-LONG-FLOAT
+           #:SET-MEMBER?
            #:REMOVE-METHOD
            #:ALIST-SET*
            #:MAPCAR
            #:CASE
-           #:STREAM-ERROR
+           #:BOUNDP
+           #:BOOLE-AND
            #:*PRINT-RADIX*
            #:+
            #:SCHAR
@@ -682,157 +481,154 @@ into a form ready for EVAL.")
            #:NO-APPLICABLE-METHOD
            #:NUNION
            #:SET-EXCLUSIVE-OR
-           #:ISQRT
+           #:NUMBER
            #:NTHCDR
            #:DEFINE-STRUCT
            #:SIMPLE-STRING-P
-           #:*MACROEXPAND-HOOK*
+           #:SYNONYM-STREAM-SYMBOL
            #:MOST-POSITIVE-FIXNUM
-           #:&WHOLE
-           #:LIST*
+           #:SIGNAL
+           #:RASSOC
            #:COMPILED-FUNCTION
            #:LAMBDA
            #:ODDP
-           #:CALL-METHOD
-           #:REQUIRE
+           #:UPPER-CASE-P
            #:*
            #:NSUBSTITUTE-IF-NOT
            #:NSUBLIS
+           #:DEFINE-SETF-EXPANDER
            #:METHOD-COMBINATION
            #:WITH-SIMPLE-RESTART
-           #:PPRINT-EXIT-IF-LIST-EXHAUSTED
-           #:PLUSP
-           #:IGNORE
+           #:RPLACA
+           #:ECASE
+           #:NSET-EXCLUSIVE-OR
            #:ERROR
            #:PPRINT-POP
-           #:SUBTYPEP
+           #:STREAM-REST
            #:ASH
            #:FILE-ERROR
-           #:FLOOR
+           #:CDDDAR
            #:FROUND
            #:BUILT-IN-CLASS
            #:CHAR-DOWNCASE
            #:LEAST-NEGATIVE-NORMALIZED-SINGLE-FLOAT
            #:SUBSTITUTE-IF
            #:TRUNCATE
-           #:INCF
-           #:MAKE-SYMBOL
+           #:BOOLE-C1
+           #:SUBTYPEP
+           #:MAKUNBOUND
+           #:LOOP
            #:MULTIPLE-VALUE-LIST
-           #:ABORT
-           #:BOOLE-1
-           #:*PRINT-READABLY*
+           #:MAP-INTO
+           #:IMPORT
+           #:MERGE
            #:DEBUG
            #:GET-DISPATCH-MACRO-CHARACTER
-           #:DEFTYPE
            #:WRITE
            #:ZEROP
            #:STRUCT
-           #:USER-HOMEDIR-PATHNAME
+           #:DISPLAYLN
+           #:ALIST-SET
            #:LIST->STREAM
            #:LOGEQV
            #:DELETE-IF
-           #:BOOLE-ORC2
-           #:INVALID-METHOD-ERROR
+           #:READ-LINE
+           #:STREAM-EXTERNAL-FORMAT
            #:T
            #:FLOATING-POINT-OVERFLOW
-           #:STRING<
+           #:MOST-NEGATIVE-DOUBLE-FLOAT
            #:STREAM-RANGE
-           #:CHAR-EQUAL
+           #:REQUIRE
            #:RATIONALIZE
            #:GET
            #:STRUCT-FORM
            #:SLOT-BOUNDP
            #:LISTP
            #:MAPLIST
-           #:DO*
            #:*PRINT-LEVEL*
-           #:*COMPILE-FILE-TRUENAME*
            #:NOR
-           #:FILE-LENGTH
+           #:DEFCONSTANT
            #:FORCE-OUTPUT
            #:LONG-FLOAT
            #:INPUT-STREAM-P
            #:CDAAR
-           #:BOOLE-IOR
-           #:ASIN
-           #:NOTINLINE
-           #:RPLACD
+           #:LOGORC2
+           #:STREAM
+           #:&AUX
+           #:PROVIDE
            #:PSETF
            #:APPEND
-           #:WITH-INPUT-FROM-STRING
-           #:CALL-ARGUMENTS-LIMIT
+           #:ANDMAP
+           #:MINUSP
            #:CHAR-INT
            #:COMPILE
            #:EVEN?
-           #:NIL
+           #:FCEILING
            #:COMPILATION-SPEED
            #:DO-EXTERNAL-SYMBOLS
            #:INSPECT
            #:&BODY
+           #:DELETE-DUPLICATES
            #:NTH
            #:LISTEN
-           #:THERE-EXISTS
+           #:EQUAL?
            #:WRITE-STRING
-           #:PRINT-NOT-READABLE-OBJECT
-           #:RPLACA
-           #:FCEILING
+           #:BOOLE-C2
            #:LOAD-TIME-VALUE
-           #:CADAR
-           #:PROG
-           #:LEAST-POSITIVE-NORMALIZED-SHORT-FLOAT
+           #:CDADDR
+           #:SEQUENCE
+           #:COMPILE-FILE-PATHNAME
            #:GET-INTERNAL-REAL-TIME
            #:MAKE-BUNDLE-PREDICATE
            #:PACKAGE
            #:CLASS-NAME
            #:STREAM-APPEND
-           #:DRIBBLE
+           #:ROUND
            #:BOOLE-XOR
-           #:PACKAGE-USED-BY-LIST
+           #:PHASE
            #:REAL
            #:STRING-LEFT-TRIM
            #:SOFTWARE-VERSION
            #:COPY-PPRINT-DISPATCH
            #:SLOT-MISSING
            #:NSUBST-IF-NOT
-           #:MOST-NEGATIVE-SINGLE-FLOAT
+           #:CHAR-NAME
            #:STRING<=
-           #:LOGCOUNT
            #:PPRINT-TABULAR
            #:SPECIAL
            #:ARITHMETIC-ERROR-OPERATION
            #:ENSURE-DIRECTORIES-EXIST
            #:UPDATE-INSTANCE-FOR-DIFFERENT-CLASS
-           #:CONST
+           #:&KEY
            #:SPECIAL-OPERATOR-P
            #:MAKE-CONDITION
-           #:PROVIDE
-           #:DEFINE-SETF-EXPANDER
-           #:*COMPILE-PRINT*
+           #:MAKE-KEYWORD
+           #:&ENVIRONMENT
+           #:SQR
            #:PSETQ
-           #:ANDMAP
-           #:NSTRING-DOWNCASE
-           #:STREAM-TAKE
+           #:UNBOUND-SLOT
+           #:DOCUMENT!
            #:LOGICAL-PATHNAME
            #:BYTE
            #:FILTER
            #:WARNING
            #:NTH-VALUE
-           #:AND
-           #:NOT
+           #:WITH-ACCESSORS
            #:INTERNAL-TIME-UNITS-PER-SECOND
-           #:ATANH
-           #:RCURRY
-           #:OPEN-STREAM-P
+           #:WITH-STANDARD-IO-SYNTAX
+           #:ARRAY-ELEMENT-TYPE
+           #:EXPAND-TOP-LEVEL-DEFINE
            #:CLEAR-INPUT
            #:DOUBLE-FLOAT-EPSILON
            #:IMAGPART
            #:ARRAY-DISPLACEMENT
-           #:DEGREES->RADIANS
+           #:COMPLEX
+           #:SPLIT-AT
            #:PATHNAME-TYPE
+           #:ATANH
            #:DECLARE
-           #:DOCUMENT!
-           #:CHAR-NAME
-           #:PROCEDURE-ARGUMENTS-KEY-ARGUMENTS
+           #:SET-UNION
+           #:FLOATP
            #:SINGLE-FLOAT-EPSILON
            #:READTABLEP
            #:STANDARD
@@ -841,24 +637,27 @@ into a form ready for EVAL.")
            #:TYPE
            #:PATHNAME-HOST
            #:LEAST-NEGATIVE-NORMALIZED-SHORT-FLOAT
-           #:NEGATIVE?
-           #:MAKE-TWO-WAY-STREAM
+           #:BIT-XOR
+           #:-
            #:NINTERSECTION
            #:VECTOR-PUSH
            #:COSH
-           #:SINH
+           #:CLEAR-OUTPUT
            #:STORE-VALUE
-           #:GET-SETF-EXPANSION
+           #:GENERIC-FUNCTION
            #:PROCEDURE-ARITY
-           #:REMOVE
+           #:COPY-SYMBOL
            #:FILE-STRING-LENGTH
            #:PATHNAME-VERSION
-           #:-
-           #:POSITIVE?
+           #:DESTRUCTURING-BIND
+           #:INTEGER-DECODE-FLOAT
            #:SIMPLE-CONDITION
            #:CHECK-TYPE
            #:STRING/=
-           #:VECTOR
+           #:*PACKAGE*
+           #:FORMAT
+           #:NEGATIVE?
+           #:EQ?
            #:ALIST-MAP
            #:READ-SEQUENCE
            #:MOST-POSITIVE-SHORT-FLOAT
@@ -867,197 +666,199 @@ into a form ready for EVAL.")
            #:MERGE-PATHNAMES
            #:TAN
            #:ZERO?
-           #:ARRAY-RANK-LIMIT
+           #:*FEATURES*
            #:ARITHMETIC-ERROR-OPERANDS
-           #:CONCATENATE
-           #:PRINC-TO-STRING
+           #:LOGAND
+           #:DIGIT-CHAR
            #:SIMPLE-WARNING
            #:*MODULES*
-           #:SET-MEMBER?
+           #:FUNCTION
            #:FFLOOR
-           #:SHADOWING-IMPORT
+           #:LIST-TAIL
+           #:PPRINT-EXIT-IF-LIST-EXHAUSTED
            #:Y-OR-N-P
            #:LEXICALLY
            #:SUBST-IF
-           #:STREAM
            #:MACROLET
            #:*PRINT-CIRCLE*
            #:DOUBLE-FLOAT-NEGATIVE-EPSILON
-           #:IMPORT
+           #:STREAM-TAKE
            #:WITH-SLOTS
            #:COMPILER-MACRO
            #:STRING-UPCASE
            #:CAAR
            #:PARTITION
            #:TENTH
-           #:APPEND-MAP
+           #:NSUBSTITUTE-IF
            #:*PRINT-RIGHT-MARGIN*
-           #:PACKAGEP
+           #:REALPART
            #:REMOVE*
            #:PROCEDURE-ARGUMENTS
            #:STABLE-SORT
            #:OPTIMIZE
            #:MAKE-HASH-TABLE
-           #:UPPER-CASE-P
            #:REMOVE-IF
            #:CHAR-NOT-GREATERP
-           #:UPDATE-INSTANCE-FOR-REDEFINED-CLASS
-           #:WITH-STANDARD-IO-SYNTAX
+           #:INVOKE-RESTART-INTERACTIVELY
+           #:ASSOC-IF-NOT
            #:CONSP
            #:INSTALL-SYNTAX!
            #:SEVENTH
+           #:SYMBOL-PACKAGE
            #:LIST-ALL-PACKAGES
            #:*PRINT-BASE*
            #:SORT
-           #:PACKAGE-ERROR
            #:MASK-FIELD
            #:UNSIGNED-BYTE
            #:FOLDR
-           #:SHARED-INITIALIZE
+           #:EXPAND-FUNCTION-BODY
            #:COND
-           #:FILE-POSITION
+           #:LOGNAND
+           #:DIVISION-BY-ZERO
            #:NULL
            #:LEAST-NEGATIVE-DOUBLE-FLOAT
-           #:STREAM-REST
+           #:LEAST-POSITIVE-DOUBLE-FLOAT
            #:REMQ*
            #:ALIST
            #:1+
-           #:SIMPLE-BIT-VECTOR
-           #:STREAM-REF
+           #:NBUTLAST
            #:METHOD-QUALIFIERS
            #:SECOND
            #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
            #:SET=?
            #:DOCUMENTATION
-           #:CONSTANTLY
+           #:RESTART
            #:BIT-IOR
-           #:SINGLE-FLOAT-NEGATIVE-EPSILON
+           #:SUBST
            #:STREAM?
            #:SPEED
            #:FOR-EACH
-           #:FIND-IF-NOT
+           #:SET-SYNTAX-FROM-CHAR
            #:UNDEFINED-FUNCTION
+           #:MACRO-FUNCTION
            #:DIRECTORY-NAMESTRING
-           #:NUMERATOR
-           #:*LOAD-TRUENAME*
-           #:FIND-ALL-SYMBOLS
+           #:EMPTY?
+           #:DEFMETHOD
            #:METHOD-COMBINATION-ERROR
            #:EIGHTH
            #:BOOLE-EQV
            #:RESTART-CASE
-           #:MERGE
-           #:SAFETY
-           #:BYTE-POSITION
+           #:EXTENDED-CHAR
+           #:SET-COUNT
            #:PATHNAME-DEVICE
+           #:OPEN-STREAM-P
            #:COUNT-IF-NOT
-           #:*BREAK-ON-SIGNALS*
+           #:NEWLINE
            #:MAPL
            #:EQUALP
            #:FIND
            #:CHAR-CODE
            #:MULTIPLE-VALUE-SETQ
            #:QUEUE-INSERT!
-           #:MOD
-           #:COPY-SYMBOL
+           #:MAKE-PATHNAME
+           #:IDENTITY
            #:SLEEP
            #:CODE-CHAR
            #:EXPT
-           #:LOGANDC2
+           #:NUMBER->STRING
            #:SYMBOL->STRING
+           #:STRUCT->LIST
            #:COPY-LIST
            #:RESTART-NAME
            #:PPRINT-LOGICAL-BLOCK
            #:*GENSYM-COUNTER*
            #:RENAME-PACKAGE
            #:UNWIND-PROTECT
-           #:LEAST-POSITIVE-NORMALIZED-DOUBLE-FLOAT
+           #:RASSOC-IF
            #:POP
-           #:ENOUGH-NAMESTRING
+           #:ENCODE-UNIVERSAL-TIME
            #:STREAM-FILTER
            #:NCONC
-           #:INVOKE-DEBUGGER
+           #:MULTIPLE-VALUE-BIND
            #:PROG*
            #:BOOLE
-           #:WRITE-LINE
+           #:MOST-POSITIVE-SINGLE-FLOAT
+           #:STRING<
            #:USE-PACKAGE
+           #:*MACROEXPAND-HOOK*
            #:DPB
            #:CELL-ERROR
-           #:ARRAY-IN-BOUNDS-P
+           #:STREAM-FLATMAP
+           #:MAKE-STRING
            #:LIST-REF
-           #:ARRAYP
+           #:ROTATEF
            #:WITH-OPEN-STREAM
            #:RATIONALP
-           #:CADDAR
+           #:NOTANY
            #:DECLAIM
            #:ALIST-HAS-KEY?
            #:FILE-STREAM
            #:BOOLE-SET
            #:MOST-POSITIVE-LONG-FLOAT
-           #:&AUX
+           #:GCD
            #:FDEFINITION
            #:*PRINT-PPRINT-DISPATCH*
-           #:SET-ADD
+           #:FILE-POSITION
+           #:STREAM-DROP
            #:SIMPLE-TYPE-ERROR
-           #:TWO-WAY-STREAM-INPUT-STREAM
-           #:STREAM-FLATMAP
+           #:FLOAT
+           #:OTHERWISE
            #:FIXNUM
            #:SINGLE-FLOAT
-           #:HASH-TABLE-SIZE
-           #:MAKE-STRING
-           #:MAKE-KEYWORD
+           #:BUNDLE
+           #:COMPUTE-APPLICABLE-METHODS
            #:PRINT
            #:MAKE-LOAD-FORM
            #:TRUENAME
-           #:ROUND
+           #:VARIABLE
            #:*COMPILE-VERBOSE*
-           #:TYPEP
-           #:BOOLE-AND
-           #:TANH
-           #:CTYPECASE
-           #:STORAGE-CONDITION
            #:IGNORE-ERRORS
+           #:UNEXPORT
+           #:VECTOR-POP
+           #:CTYPECASE
+           #:ASSERT
            #:REPLACE
            #:*QUERY-IO*
            #:STREAM-CAR
-           #:READTABLE-CASE
-           #:HASH-TABLE-COUNT
+           #:SXHASH
+           #:CADDAR
+           #:MAKE-SEQUENCE
            #:FUNCTION-KEYWORDS
-           #:SIMPLE-ERROR
+           #:SHADOW
            #:DENOMINATOR
-           #:STRUCT->LIST
+           #:CHAR>=
            #:PI
            #:ARRAY-DIMENSION-LIMIT
-           #:SET-COUNT
-           #:BOOLE-C2
-           #:ASSERT
+           #:ISQRT
+           #:TWO-WAY-STREAM-INPUT-STREAM
+           #:SIMPLE-BIT-VECTOR
            #:LOGNOR
            #:MACHINE-VERSION
            #:SCALE-FLOAT
            #:LDB
            #:DECODE-UNIVERSAL-TIME
+           #:LEAST-POSITIVE-NORMALIZED-DOUBLE-FLOAT
            #:PRINT-NOT-READABLE
            #:*PRINT-ARRAY*
            #:LIST-LENGTH
            #:CDAADR
            #:COMPUTE-RESTARTS
-           #:SPLIT-AT
+           #:CONJUGATE
+           #:INVOKE-DEBUGGER
            #:GET-DECODED-TIME
            #:ASINH
            #:PACKAGE-NAME
-           #:TREE-EQUAL
-           #:MAKE-SEQUENCE
            #:1-
            #:DO-ALL-SYMBOLS
-           #:CHAR-NOT-EQUAL
            #:LISP-IMPLEMENTATION-TYPE
            #:LEAST-NEGATIVE-SHORT-FLOAT
            #:CONS
            #:QUEUE?
            #:LOGXOR
+           #:REMHASH
            #:MAKE-LOAD-FORM-SAVING-SLOTS
            #:ROOM
-           #:SEQUENCE
-           #:PPRINT-FILL
+           #:SUBST-IF-NOT
            #:PACKAGE-NICKNAMES
            #:ED
            #:MAKE-CONCATENATED-STREAM
@@ -1069,24 +870,27 @@ into a form ready for EVAL.")
            #:CDDR
            #:MACROEXPAND-1
            #:SHORT-FLOAT
-           #:TRACE
+           #:NSUBST-IF
            #:FILTER-NOT
+           #:MAKE-QUEUE
            #:EXPOSE
-           #:LOGORC2
            #:MULTIPLE-VALUE-CALL
            #:LEAST-NEGATIVE-NORMALIZED-DOUBLE-FLOAT
            #:DEFINE
            #:REMOVE-IF-NOT
            #:BROADCAST-STREAM
            #:CONCATENATED-STREAM-STREAMS
+           #:LOAD
+           #:REALP
+           #:PPRINT
+           #:REST
+           #:REMOVE
+           #:DISPLAY
            #:COPY-TREE
-           #:UPGRADED-ARRAY-ELEMENT-TYPE
-           #:&ENVIRONMENT
-           #:MAKE-STRING-INPUT-STREAM
            #:ARITHMETIC-ERROR
-           #:LEAST-POSITIVE-NORMALIZED-SINGLE-FLOAT
            #:ACOSH
-           #:DEFCONSTANT
+           #:BASE-STRING
+           #:BYTE-POSITION
            #:FIRST
            #:UNUSE-PACKAGE
            #:STRUCTURE-CLASS
@@ -1094,131 +898,127 @@ into a form ready for EVAL.")
            #:ORMAP
            #:NO-NEXT-METHOD
            #:GENTEMP
-           #:STEP
+           #:ARRAY-RANK-LIMIT
            #:&OPTIONAL
+           #:NUMERATOR
            #:IN-PACKAGE
+           #:ASIN
+           #:BOTH-CASE-P
            #:HANDLER-BIND
            #:*PRINT-PRETTY*
-           #:MINUSP
+           #:CADR
            #:STRING
            #:*THE-EMPTY-STREAM*
            #:STANDARD-GENERIC-FUNCTION
            #:FILE-WRITE-DATE
-           #:NEWLINE
-           #:CAAAAR
+           #:CADAR
+           #:WRITE-SEQUENCE
            #:SIN
+           #:LET
            #:AND-LET*
-           #:MOST-NEGATIVE-DOUBLE-FLOAT
+           #:DESCRIBE-OBJECT
+           #:APPEND-MAP
            #:CADDDR
            #:ELT
            #:FLOAT-PRECISION
-           #:ALIST-SET
-           #:THROW
+           #:ARRAY-RANK
+           #:NAND
            #:ALLOCATE-INSTANCE
-           #:SYNONYM-STREAM-SYMBOL
            #:LAST
            #:NSUBSTITUTE
            #:HASH-TABLE-REHASH-SIZE
            #:MAKE-ARRAY
-           #:BIT-XOR
+           #:BOOLE-ORC1
            #:TAILP
-           #:MOST-POSITIVE-SINGLE-FLOAT
+           #:CONCATENATE
            #:INLINE
-           #:NOTANY
+           #:PROCEDURE-ARGUMENTS-KEY-ARGUMENTS
            #:NAMESTRING
            #:INTERN
-           #:SIGNAL
-           #:DOTIMES
+           #:PRINC-TO-STRING
            #:STRINGP
-           #:ALPHA-CHAR-P
+           #:STRING>
            #:EVERY
            #:TYPECASE
            #:DYNAMIC-EXTENT
+           #:WRITE-LINE
            #:FIFTH
-           #:EVAL
-           #:FUNCTIONP
-           #:NUMBER
-           #:PHASE
-           #:DIGIT-CHAR-P
-           #:EMPTY?
-           #:SUBST
-           #:ASSOC-IF
+           #:LEAST-POSITIVE-SINGLE-FLOAT
+           #:MULTIPLE-VALUES-LIMIT
+           #:NOTINLINE
+           #:SVREF
            #:PPRINT-INDENT
            #:INTEGERP
-           #:FORMAT
            #:MAX
            #:TRANSLATE-LOGICAL-PATHNAME
-           #:SET-UNION
+           #:TYPEP
+           #:OR
            #:COPY-SEQ
-           #:BOOLE-C1
-           #:NUMBER->STRING
            #:CDADAR
+           #:*BREAK-ON-SIGNALS*
            #:BUTLAST
+           #:PACKAGE-USED-BY-LIST
            #:ACONS
-           #:STRING>
-           #:MAKE-QUEUE
+           #:INTEGER
+           #:DO-SYMBOLS
            #:/=
            #:PPRINT-NEWLINE
-           #:COMPUTE-APPLICABLE-METHODS
+           #:PROCLAIM
            #:CATCH
            #:RETURN
            #:MISMATCH
-           #:STREAM-CONS
-           #:DIGIT-CHAR
-           #:OR
+           #:STRUCTURE
            #:GET-PROPERTIES
-           #:DEFINE-METHOD-COMBINATION
+           #:SET-CDR!
            #:CADAAR
-           #:SLOT-MAKUNBOUND
+           #:BIT
            #:ADJUST-ARRAY
-           #:LOAD
            #:UNLESS
            #:CDAR
            #:BUNDLE-PERMISSIONS
            #:FIND-RESTART
            #:FILL
-           #:BOOLE-ORC1
-           #:RASSOC-IF
+           #:SUBSETP
            #:VECTORP
            #:SET-EMPTY?
            #:SWAP-ARGS
-           #:CLASS
+           #:TWO-WAY-STREAM-OUTPUT-STREAM
            #:PATHNAME-NAME
-           #:WRITE-SEQUENCE
+           #:FILE-LENGTH
            #:LAMBDA-PARAMETERS-LIMIT
            #:MAKE-INSTANCES-OBSOLETE
-           #:STRING-LESSP
-           #:WITH-ACCESSORS
-           #:BOOLEAN
+           #:WITH-INPUT-FROM-STRING
+           #:STRING=
            #:LENGTH
-           #:ASSOC-IF-NOT
-           #:BUNDLE
+           #:SET-MACRO-CHARACTER
+           #:READ-BYTE
+           #:PACKAGEP
            #:POSITION-IF-NOT
            #:MAPC
-           #:PARSE-NAMESTRING
+           #:ALIST-VALUES
            #:WARN
            #:CAAAR
            #:LEAST-POSITIVE-LONG-FLOAT
-           #:MAPCAN
+           #:METHOD
            #:FILE-ERROR-PATHNAME
            #:CHARACTER
            #:>=
            #:QUEUE-EMPTY?
            #:WRITE-CHAR
            #:FILTER-MAP
-           #:PROCLAIM
+           #:RATIONAL
            #:MAKE-DISPATCH-MACRO-CHARACTER
-           #:COMPOSE
+           #:ATAN
            #:PACKAGE-SHADOWING-SYMBOLS
-           #:THE
+           #:DEFMACRO
            #:SET-REMOVE
-           #:STREAM-ELEMENT-TYPE
-           #:EXPAND-FUNCTION-BODY
+           #:HASH-TABLE-SIZE
            #:DROP
            #:FILE-AUTHOR
            #:QUEUE-DELETE!
            #:DEFGENERIC
            #:DELETE-PACKAGE
+           #:ADD-METHOD
            #:LOOP-FINISH
            #:RANDOM
            #:TAKE
@@ -1227,17 +1027,19 @@ into a form ready for EVAL.")
            #:OPEN
            #:DEFCLASS
            #:MUFFLE-WARNING
-           #:LDIFF
+           #:PRINT-OBJECT
+           #:NOT
            #:DO
            #:CDDDR
+           #:SIMPLE-ERROR
            #:*DEFAULT-PATHNAME-DEFAULTS*
            #:SIGNUM
            #:POSITION
-           #:GET-INTERNAL-RUN-TIME
+           #:DEFSTRUCT
            #:NRECONC
-           #:REALPART
+           #:UPDATE-INSTANCE-FOR-REDEFINED-CLASS
+           #:USER-HOMEDIR-PATHNAME
            #:STREAMP
-           #:NSET-EXCLUSIVE-OR
            #:DEPOSIT-FIELD
            #:GROUP
            #:STRING-DOWNCASE
@@ -1246,56 +1048,57 @@ into a form ready for EVAL.")
            #:TYPE-ERROR
            #:LEAST-NEGATIVE-LONG-FLOAT
            #:UNBOUND-SLOT-INSTANCE
-           #:NREVERSE
-           #:VARIABLE
-           #:REINITIALIZE-INSTANCE
-           #:UNBOUND-SLOT
-           #:COMPILE-FILE-PATHNAME
+           #:GET-OUTPUT-STREAM-STRING
+           #:LABELS
+           #:READ-DELIMITED-LIST
+           #:CONST
            #:*LOAD-PRINT*
            #:CONJOIN*
            #:WHEN
            #:DELETE-IF-NOT
            #:SHORT-FLOAT-NEGATIVE-EPSILON
-           #:ADJUSTABLE-ARRAY-P
+           #:ABORT
            #:MAKE-STRING-OUTPUT-STREAM
            #:MAKE-PACKAGE
-           #:INITIALIZE-INSTANCE
+           #:FLOAT-DIGITS
            #:EXP
-           #:COMPLEX
-           #:BIT
+           #:LEAST-NEGATIVE-NORMALIZED-LONG-FLOAT
+           #:COMPOSE
+           #:CAAAAR
+           #:DELAY
+           #:DECODE-FLOAT
            #:QUEUE-FRONT
-           #:MAP
            #:RANDOM-STREAM
            #:CONTROL-ERROR
-           #:SBIT
-           #:COPY-READTABLE
+           #:SYMBOL-NAME
+           #:ARRAY-DIMENSIONS
            #:BOOLE-2
            #:LOAD-LOGICAL-PATHNAME-TRANSLATIONS
-           #:INTERSECTION
            #:INTERACTIVE-STREAM-P
            #:ECHO-STREAM-INPUT-STREAM
            #:ASSOC
-           #:MAKUNBOUND
            #:DEFINE-COMPILER-MACRO
            #:CHANGE-CLASS
-           #:STREAM-EXTERNAL-FORMAT
-           #:NINTH
+           #:CDDAR
+           #:MAKE-BROADCAST-STREAM
+           #:MAPCAN
+           #:FMAKUNBOUND
            #:ARRAY-TOTAL-SIZE
            #:ALIST-REF
            #:ENDP
-           #:DO-SYMBOLS
            #:STREAM-CDR
-           #:*LOAD-PATHNAME*
-           #:SUBST-IF-NOT
+           #:COPY-ALIST
+           #:*ERROR-OUTPUT*
+           #:NSTRING-DOWNCASE
            #:STRING-TRIM
            #:SET-DIFFERENCE
-           #:REST
+           #:EVAL
+           #:CHAR-GREATERP
            #:MACHINE-TYPE
-           #:SYMBOL
            #:ACOS
-           #:SHADOW
-           #:STREAM-FOLD
-           #:SPACE
+           #:THROW
+           #:EVAL-WHEN
+           #:PARSE-ERROR
            #:MEMO-PROC
            #:PUSHNEW
            #:*COMPILE-FILE-PATHNAME*
@@ -1303,34 +1106,36 @@ into a form ready for EVAL.")
            #:*PRINT-MISER-WIDTH*
            #:REMPROP
            #:MAKE-INSTANCE
-           #:LABELS
-           #:NSUBSTITUTE-IF
-           #:PRINT-OBJECT
+           #:FLOOR
+           #:PRINT-NOT-READABLE-OBJECT
+           #:NUMBER?
+           #:BOOLE-1
            #:QUOTE
-           #:REALP
+           #:BIT-EQV
            #:POSITION-IF
            #:UPGRADED-COMPLEX-PART-TYPE
+           #:*TERMINAL-IO*
            #:SUBSEQ
            #:STREAM-EMPTY?
+           #:STREAM-LENGTH
            #:FOURTH
            #:CONTINUE
-           #:RASSOC
            #:CDDDDR
            #:MIN
            #:SYMBOL-VALUE
            #:CERROR
-           #:INVOKE-RESTART-INTERACTIVELY
            #:CADADR
-           #:MAP-INTO
            #:BOOLE-NAND
            #:CIS
            #:IF
+           #:RPLACD
            #:APPEND*
            #:WITH-HASH-TABLE-ITERATOR
-           #:DEFMETHOD
+           #:INCF
            #:RASSOC-IF-NOT
            #:PROGV
            #:GETF
+           #:GET-SETF-EXPANSION
            #:GET-UNIVERSAL-TIME
            #:BIGNUM
            #:BUNDLE-LIST
@@ -1338,74 +1143,70 @@ into a form ready for EVAL.")
            #:SHIFTF
            #:AREF
            #:FUNCALL
+           #:UPGRADED-ARRAY-ELEMENT-TYPE
            #:UNREAD-CHAR
-           #:OUTPUT-STREAM-P
-           #:ECASE
-           #:CDDDAR
+           #:PPRINT-FILL
+           #:THERE-EXISTS
+           #:&WHOLE
+           #:HASH-TABLE-REHASH-THRESHOLD
            #:CAAADR
-           #:END-OF-FILE
+           #:MEMBER
            #:FOLDL
            #:PRIN1-TO-STRING
            #:MACHINE-INSTANCE
-           #:BIT-ANDC1
-           #:SVREF
+           #:READTABLE
            #:PROBE-FILE
+           #:MAKE-TWO-WAY-STREAM
            #:REMOVE-DUPLICATES
            #:NSUBST
            #:=
-           #:BIT-EQV
-           #:ARRAY-ELEMENT-TYPE
-           #:DESTRUCTURING-BIND
+           #:STREAM-ERROR
+           #:GENSYM
            #:PRINC
-           #:MULTIPLE-VALUE-BIND
+           #:SINGLE-FLOAT-NEGATIVE-EPSILON
            #:CALL-NEXT-METHOD
            #:RADIANS->DEGREES
-           #:CHAR
-           #:SUBSETP
+           #:CONSTANTP
            #:THERE-EXISTS*
-           #:SET-CDR!
-           #:MAKE-RANDOM-STATE
+           #:PROG
+           #:WITH-CONDITION-RESTARTS
            #:*PRINT-LINES*
            #:SIMPLE-STRING
-           #:LEAST-POSITIVE-SINGLE-FLOAT
            #:FTYPE
            #:CONJOIN
-           #:PRINT-UNREADABLE-OBJECT
+           #:LOGBITP
+           #:FUNCTIONP
            #:ALIST-UPDATE
            #:FILE-NAMESTRING
-           #:GCD
            #:FRESH-LINE
            #:CLOSE
-           #:STREAM-DROP
            #:PATHNAME-DIRECTORY
-           #:NSUBST-IF
            #:LEAST-POSITIVE-SHORT-FLOAT
            #:PROCEDURE-ARGUMENTS-ALLOW-OTHER-KEYS?
            #:<
            #:STRING-GREATERP
-           #:STANDARD-OBJECT
-           #:ARRAY-DIMENSIONS
            #:GET-MACRO-CHARACTER
            #:TYPE-OF
            #:MEMF
            #:DECF
+           #:PROG1
            #:COMPILER-MACRO-FUNCTION
            #:SIMPLE-CONDITION-FORMAT-ARGUMENTS
            #:PROCEDURE-ARGUMENTS-OPTIONAL-ARGUMENTS
-           #:DIRECTORY
+           #:UNINTERN
            #:COUNT-IF
-           #:MAKE-PATHNAME
            #:CAADDR
            #:SET
+           #:FORCE
            #:READER-ERROR
-           #:FLOAT-DIGITS
+           #:LEAST-POSITIVE-NORMALIZED-SHORT-FLOAT
            #:SHORT-FLOAT-EPSILON
-           #:MAKE-BROADCAST-STREAM
+           #:CHAR-EQUAL
            #:READ
-           #:SQR
+           #:SLOT-MAKUNBOUND
            #:LEAST-POSITIVE-NORMALIZED-LONG-FLOAT
            #:LOGANDC1
-           #:CHAR>
+           #:COPY-READTABLE
            #:EQL
            #:*TRACE-OUTPUT*
            #:DISJOIN
@@ -1413,77 +1214,79 @@ into a form ready for EVAL.")
            #:FIND-IF
            #:YES-OR-NO-P
            #:FORMATTER
-           #:LIST?
+           #:>
            #:IGNORABLE
-           #:SYMBOL-NAME
+           #:MOST-NEGATIVE-SINGLE-FLOAT
            #:SIXTH
            #:SIMPLE-CONDITION-FORMAT-CONTROL
-           #:UNINTERN
+           #:IGNORE
            #:SLOT-EXISTS-P
            #:FIND-SYMBOL
            #:DEFUN
            #:DEFINE-SYMBOL-MACRO
            #:LAMBDA-LIST-KEYWORDS
            #:STREAM-FOR-EACH
+           #:SHARED-INITIALIZE
            #:PPRINT-DISPATCH
            #:*READ-EVAL*
            #:STREAM-MAP
            #:CCASE
-           #:TAGBODY
+           #:*PRINT-GENSYM*
            #:*READ-SUPPRESS*
            #:RENAME-FILE
-           #:METHOD
            #:WITH-PACKAGE-ITERATOR
            #:APPLY
            #:CHAR-CODE-LIMIT
-           #:RATIONAL
+           #:INITIALIZE-INSTANCE
            #:STREAM-FLATTEN
            #:STRUCT-COPY
            #:CHAR-LESSP
            #:*PRINT-LENGTH*
-           #:FTRUNCATE
            #:COMPILED-FUNCTION-P
            #:SYMBOLP
            #:HAS-SPECIFIC-ARITY?
            #:VECTOR-PUSH-EXTEND
            #:STRING?
+           #:TAGBODY
            #:REM
            #:PATHNAMEP
-           #:WITH-CONDITION-RESTARTS
+           #:ENSURE-GENERIC-FUNCTION
            #:SETQ
            #:PPRINT-TAB
            #:LOGNOT
+           #:MOD
            #:SUBSTITUTE
-           #:IDENTITY
-           #:INTEGER-DECODE-FLOAT
+           #:BIT-ANDC1
+           #:FIND-ALL-SYMBOLS
+           #:CALL-METHOD
            #:SUBLIS
            #:TERPRI
            #:SETF
            #:UNINSTALL-SYNTAX!
+           #:SAFETY
            #:*LOAD-VERBOSE*
            #:PACKAGE-ERROR-PACKAGE
-           #:NSTRING-CAPITALIZE
-           #:*PRINT-GENSYM*
+           #:GET-INTERNAL-RUN-TIME
            #:SET-DISPATCH-MACRO-CHARACTER
-           #:DEFMACRO
+           #:SYMBOL?
            #:SET-INTERSECT
-           #:HASH-TABLE-REHASH-THRESHOLD
            #:STANDARD-CLASS
            #:PROCEDURE?
            #:SET!
            #:QUOTIENT
            #:ARRAY-HAS-FILL-POINTER-P
-           #:GRAPHIC-CHAR-P
+           #:STORAGE-CONDITION
            #:PROGN
            #:LOGORC1
            #:FIND-CLASS
            #:LCM
-           #:SET-SYNTAX-FROM-CHAR
-           #:SET-MACRO-CHARACTER
+           #:HASH-TABLE-TEST
+           #:ARRAY-IN-BOUNDS-P
+           #:MAKE-SYMBOL
            #:CADDR
            #:COMPLEMENT
            #:PATHNAME-MATCH-P
-           #:STRING=
+           #:STREAM->LIST
            #:BUNDLE?
            #:ETYPECASE
            #:LONG-SITE-NAME
@@ -1491,6 +1294,7 @@ into a form ready for EVAL.")
            #:DEFSETF
            #:CHAR/=
            #:SIGNED-BYTE
+           #:NEXT-METHOD-P
            #:CHARACTERP
            #:PEEK-CHAR
            #:STRING-NOT-LESSP
@@ -1499,38 +1303,34 @@ into a form ready for EVAL.")
            #:STRUCT?
            #:DESCRIBE
            #:NOTEVERY
-           #:EXPAND-TOP-LEVEL-DEFINE
-           #:&KEY
+           #:SINH
            #:*READ-BASE*
            #:XOR
-           #:SXHASH
+           #:BASE-CHAR
+           #:NIL
            #:BIT-NOT
-           #:STRING-NOT-EQUAL
-           #:UNEXPORT
-           #:ROTATEF
+           #:INTEGER-LENGTH
+           #:ALIST-KEYS
            #:FIND-PACKAGE
            #:STREAM-FIRST
            #:ARRAY-TOTAL-SIZE-LIMIT
-           #:USE-VALUE
            #:STRING-CAPITALIZE
-           #:*PRINT-CASE*
            #:SLOT-UNBOUND
            #:MAPHASH
            #:ALPHANUMERICP
-           #:ENCODE-UNIVERSAL-TIME
+           #:SBIT
+           #:BOOLEAN
            #:SLOT-VALUE
            #:*RANDOM-STATE*
            #:LCURRY
            #:LOG
            #:STANDARD-CHAR
            #:PPRINT-LINEAR
-           #:*PRINT-ESCAPE*
-           #:>
            #:BIT-VECTOR
            #:CHAR-NOT-LESSP
+           #:ENOUGH-NAMESTRING
            #:SET-PPRINT-DISPATCH
            #:PROGRAM-ERROR
-           #:CHAR-GREATERP
            #:LIST-SET
            #:PAIRLIS
            #:UNION
@@ -1541,6 +1341,7 @@ into a form ready for EVAL.")
            #:FINDF
            #:GETHASH
            #:ATOM
+           #:DEFINE-METHOD-COMBINATION
            #:TIME
            #:BIT-NOR
            #:ECHO-STREAM
@@ -1550,37 +1351,33 @@ into a form ready for EVAL.")
            #:ODD?
            #:FOR-MACROS
            #:READ-CHAR-NO-HANG
-           #:DIVISION-BY-ZERO
-           #:LOGIOR
+           #:MOST-NEGATIVE-LONG-FLOAT
+           #:FINISH-OUTPUT
            #:FLOAT-SIGN
            #:*READ-DEFAULT-FLOAT-FORMAT*
-           #:CLEAR-OUTPUT
            #:WILD-PATHNAME-P
            #:STANDARD-METHOD
            #:STRING>=
-           #:TWO-WAY-STREAM-OUTPUT-STREAM
            #:ECHO-STREAM-OUTPUT-STREAM
            #:UNBOUND-VARIABLE
-           #:*FEATURES*
            #:TYPE-ERROR-EXPECTED-TYPE
-           #:MEMBER
-           #:PACKAGE-USE-LIST
+           #:LOGANDC2
            #:SEARCH
            #:APROPOS
            #:COPY-STRUCTURE
-           #:EXTENDED-CHAR
+           #:THE
            #:DEFINE-MODIFY-MACRO
            #:RANDOM-STATE
            #:*DEBUG-IO*
            #:CAADR
            #:CLRHASH
            #:BOOLE-ANDC1
-           #:DEFSTRUCT
            #:SOFTWARE-TYPE
            #:DEFVAR
-           #:LIST-TAIL
-           #:MULTIPLE-VALUES-LIMIT
+           #:CLASS
            #:*STANDARD-INPUT*
+           #:SPACE
+           #:MACROEXPAND
            #:DELETE
            #:MAPCON
            #:CEILING
@@ -1597,15 +1394,16 @@ into a form ready for EVAL.")
            #:COMPLEXP
            #:REVERSE
            #:PUSH
-           #:ARRAY-RANK
+           #:NREVERSE
            #:STRING-EQUAL
            #:MAKE-METHOD
            #:LONG-FLOAT-EPSILON
            #:PAIR?
+           #:REDUCE
+           #:CHAR
            #:DEFPARAMETER
-           #:GENERIC-FUNCTION
            #:PATHNAME
-           #:STRUCTURE
+           #:END-OF-FILE
            #:HANDLER-CASE
            #:CAADAR
            #:CONDITION
@@ -1617,86 +1415,105 @@ into a form ready for EVAL.")
            #:NULL?
            #:LOGICAL-PATHNAME-TRANSLATIONS
            #:*STANDARD-OUTPUT*
-           #:PPRINT
            #:FLOATING-POINT-INVALID-OPERATION
            #:MAKE-ECHO-STREAM
-           #:NBUTLAST
+           #:ALPHA-CHAR-P
            #:BYTE-SIZE
-           #:ENSURE-GENERIC-FUNCTION
            #:FLOATING-POINT-UNDERFLOW
            #:APROPOS-LIST
            #:SGN
            #:INVOKE-RESTART
            #:READ-PRESERVING-WHITESPACE
-           #:HASH-TABLE-TEST
-           #:NAND
+           #:TANH
+           #:MAKE-RANDOM-STATE
+           #:UNTRACE
            #:RANGE
+           #:SET-ADD
            #:COMPILE-FILE
+           #:CLASS-OF
+           #:BIT-ORC1
            #:FLET
-           #:MAP-SUCCESSIVE
-           #:HOST-NAMESTRING
+           #:HASH-TABLE-COUNT
            #:NAME-CHAR
            #:SYMBOL-PLIST
+           #:SYNONYM-STREAM
            #:RETURN-FROM
+           #:STRING-NOT-GREATERP
            #:NUMBERP
-           #:ROW-MAJOR-AREF
            #:LDB-TEST
+           #:*PRINT-READABLY*
            #:ABS
-           #:LOGAND
            #:MULTIPLE-VALUE-PROG1
            #:STREAM-MAP-SUCCESSIVE
            #:CHAR<
            #:DECLARATION
            #:COERCE
            #:RANDOM-STATE-P
-           #:ATAN
            #:PRIN1
-           #:EQUAL?
            #:STREAM-COLLECT
            #:NSTRING-UPCASE
            #:HASH-TABLE
-           #:FLOATP
+           #:ARRAY
+           #:DRIBBLE
            #:SYMBOL-FUNCTION
            #:FOR-ALL*
+           #:COS
            #:GO
-           #:READ-DELIMITED-LIST
            #:FILL-POINTER
            #:CDADR
-           #:CHAR>=
-           #:DOUBLE-FLOAT
+           #:*COMPILE-PRINT*
            #:EXPORT
-           #:WRITE-TO-STRING
            #:ADJOIN
            #:BIT-ORC2
            #:LIST
            #:STRUCT-ACCESSORS
-           #:READTABLE
+           #:ASSOC-IF
            #:PROCEDURE-ARGUMENTS-REQUIRED-ARGUMENTS
-           #:CDADDR
+           #:DEGREES->RADIANS
            #:DISJOIN*
            #:LET*
            #:THIRD
+           #:CALL-ARGUMENTS-LIMIT
            #:STRUCTURE-OBJECT
+           #:ARRAYP
            #:REVAPPEND
            #:LOCALLY
-           #:STRING-APPEND
+           #:LDIFF
            #:SIMPLE-BIT-VECTOR-P
            #:CDDADR
-           #:CONSTANTP
-           #:BUNDLE-DOCUMENTATION
            #:SQRT
            #:SERIALIZE
            #:SYMBOL-MACROLET
-           #:LEAST-NEGATIVE-NORMALIZED-LONG-FLOAT
+           #:READTABLE-CASE
+           #:PLUSP
            #:*DEBUGGER-HOOK*
            #:FOR-ALL
+           #:REINITIALIZE-INSTANCE
            #:TRANSLATE-PATHNAME
-           #:PARSE-ERROR
            #:FLOAT-RADIX
            #:VALUES
            #:BOOLE-CLR
-           #:FLOAT
            #:CAR
            #:SUBSTITUTE-IF-NOT
-           #:SET->STREAM)
+           #:SET->STREAM
+           #:MAKE-STRING-INPUT-STREAM)
   (:SHADOW #:++ #:+++ #:// #:/// #:** #:*** #:+ #:/ #:* #:-))
+(DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
+  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
+Provides write-package-file! which writes the current schemeish-packages to a file.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
+                          #://
+                          #:///
+                          #:+++
+                          #:***
+                          #:++
+                          #:*
+                          #:+
+                          #:**
+                          #:-
+                          #:/)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:STREAM #:SORT)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:SCHEMEISH.PACKAGE-UTILS #:SCHEMEISH.SCHEMEISH)
+  (:EXPORT #:SCHEMEISH-PACKAGES #:WRITE-PACKAGE-FILE!))
