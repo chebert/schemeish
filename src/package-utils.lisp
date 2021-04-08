@@ -170,21 +170,32 @@ Package-fns are applied from left to right."
   "List of the (:import-from package-name . symbols) forms for all of the
 imported, non-shadowing symbols in package. Intended for a defpackage form."
   (let ((package (package-find package-designator)))
-    (map (lambda (names)
-	   (cons :import-from (map 'make-symbol names)))
-	 (group-by-package (intersection
-			    (intersection (package-non-shadowing-symbols package)
-					  (package-imported-symbols package))
-			    (package-unused-symbols package))))))
+    (alist-map (sort (group-by-package (intersection
+					(intersection (package-non-shadowing-symbols package)
+						      (package-imported-symbols package))
+					(package-unused-symbols package)))
+		     #'string<
+		     :extract-key 'car)
+	       (lambda (package-name symbol-names)
+		 (list* :import-from
+			(make-symbol package-name)
+			(map 'make-symbol (sort symbol-names #'string<)))))))
 
 (define (package-shadowing-import-froms package-designator)
   "List of the (:shadqowing-import-from package-name . symbols) forms for all of the
 shadowing-imported symbols in package. Intended for a defpackage form."
   (let ((package (package-find package-designator)))
-    (map (lambda (names)
-	   (cons :shadowing-import-from (map 'make-symbol names)))
-	 (group-by-package (intersection (package-imported-symbols package)
-					 (package-shadowing-symbols package))))))
+    (alist-map (sort (group-by-package (intersection (package-imported-symbols package)
+						     (package-shadowing-symbols package)))
+		     #'string<
+		     :extract-key 'car)
+	       (lambda (package-name symbol-names)
+		 (list* :shadowing-import-from
+			(make-symbol package-name)
+			(map 'make-symbol (sort symbol-names #'string<)))))))
+
+(define (symbol< s1 s2)
+  (string< (symbol-name s1) (symbol-name s2)))
 
 (define (defpackage-form package (symbol-name (make-symbol (package-name package))))
   "Construct a defpackage form that constructs an equivalent package."
@@ -198,10 +209,10 @@ shadowing-imported symbols in package. Intended for a defpackage form."
        ,@(WHEN documentation `((:documentation ,documentation)))
        ,@(package-import-froms package)
        ,@(package-shadowing-import-froms package)
-       ,@(when use-list `((:use ,@use-list)))
-       ,@(when exports `((:export ,@exports)))
-       ,@(when shadow `((:shadow ,@shadow)))
-       ,@(when nicknames `((:nicknames ,@nicknames))))))
+       ,@(when use-list `((:use ,@(sort use-list #'symbol<))))
+       ,@(when exports `((:export ,@(sort exports #'symbol<))))
+       ,@(when shadow `((:shadow ,@(sort shadow #'symbol<))))
+       ,@(when nicknames `((:nicknames ,@(sort nicknames #'symbol<)))))))
 
 (defmacro with-temporary-package (package-name &body body)
   "Construct a temporary package name and bind it to PACKAGE-NAME and wrap BODY in an unwind-protect.
@@ -301,7 +312,7 @@ Cyclic dependencies throw an error."
   (with-output-to-string (s)
     (format s ";;;; package.lisp~%~%")
     (for-each (lambda (form)
-		(format s "~&~S~%" form))
+		(format s "~&~S~%~%" form))
 	      (hierarchical-defpackage-forms packages))))
 
 (uninstall-syntax!)
