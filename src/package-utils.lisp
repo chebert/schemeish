@@ -2,164 +2,199 @@
 
 (install-syntax!)
 
+(defparameter *resolve-package-designator* #'identity
+  "Resolves a package designator.")
+
+(define (package? datum) (packagep datum))
+
+(define (package-find unresolved-package-designator)
+  (cond
+    ((package? unresolved-package-designator) unresolved-package-designator)
+    (t (find-package [*resolve-package-designator* unresolved-package-designator]))))
+
 (define (package-symbols package)
   "Returns a list of all symbols internal and external in package."
   (let ((symbols ()))
-    (do-symbols (symbol package)
+    (do-symbols (symbol (package-find package))
       (push symbol symbols))
     (nreverse symbols)))
 (define (package-external-symbols package)
-  "Returns a list of all external symbols in package."
+  "Returns a list of all external/exported symbols in package."
   (let ((symbols ()))
-    (do-external-symbols (symbol package)
+    (do-external-symbols (symbol (package-find package))
       (push symbol symbols))
     (nreverse symbols)))
-
-(define (group key-fn list)
-  "Groups elements of list that have the same key-fn into an alist."
-  (define (rec list result)
-    (cond
-      ((null? list)
-       (alist-map result
-		  (lambda (key list)
-		    (cons key (nreverse list)))))
-      (t (let ((item (first list)))
-	   (let ((key [key-fn item]))
-	     (rec (rest list)
-		  (alist-update result key (lambda (vals) (cons item vals)) ())))))))
-  (rec list ()))
+(define (package-exported-symbols package)
+  "Alias for package-external-symbols."
+  (package-external-symbols package))
 
 (define (symbol-in-package? package symbol)
-  (eq? (symbol-package symbol) package))
+  "True if symbol belongs to package."
+  (eq? (symbol-package symbol) (package-find package)))
 
-(define (package-imported-symbols package-designator)
-  (let ((package (find-package package-designator)))
-    (filter-not (lcurry 'symbol-in-package? package) (package-symbols package-designator))))
+(define (package-imported-symbols package)
+  "Returns all symbols in package-designator that have been imported into package from another package."
+  (filter-not (lcurry 'symbol-in-package? package) (package-symbols package)))
 
 (define (group-by-package symbols)
+  "Return symbols as an alist of (package-name . package-symbols)."
   (alist-map (group (compose 'package-name 'symbol-package) symbols)
 	     (lambda (name symbols)
-	       (cons (make-symbol name)
-		     (map 'uninterned symbols)))))
+	       (cons name (map 'symbol-name symbols)))))
 
-(define (package-unshadowed-symbols package)
-  (set-difference (package-symbols package) (package-shadowing-symbols package)))
-
-(define (package-unshadowed-imported-symbols package)
-  (set-difference (package-imported-symbols package) (package-shadowing-symbols package)))
+(define (package-non-shadowing-symbols package)
+  "List of all of the non-shadowing symbols in package."
+  (set-difference (package-symbols package) (package-shadowing-symbols (package-find package))))
 
 (define (package-used-symbols package)
-  (let ((use-list (package-use-list package)))
+  "List of all of the symbols in package that are from a USE-PACKAGE, and not explicitly imported."
+  (let ((use-list (package-use-list (package-find package))))
     (filter (lambda (symbol) (member (symbol-package symbol) use-list))
 	    (package-symbols package))))
 (define (package-unused-symbols package)
+  "List of all of the explicitly imported symbols, that are not part of a USEd package."
   (set-difference (package-symbols package) (package-used-symbols package)))
 
-(define (package-import-froms package)
-  (map (lambda (list)
-	 (cons :import-from list))
-       (group-by-package (intersection
-			  (intersection (package-unshadowed-symbols package)
-					(package-imported-symbols package))
-			  (package-unused-symbols package)))))
+(define (symbols-interned-in-package symbols package)
+  "Return symbols interned into package."
+  (let ((package (package-find package)))
+    (mapcar (lambda (s) (intern (symbol-name s) package)) symbols)))
 
-(define (package-shadowing-import-froms package)
-  (map (lambda (list)
-	 (cons :shadowing-import-from list))
-       (group-by-package (intersection (package-imported-symbols package)
-				       (package-shadowing-symbols package)))))
+(define (symbols-in-package symbols package)
+  "Return the symbols that already exist in package."
+  (intersection symbols (package-symbols package)))
 
-(define (use-shadowing-package shadowing-package package)
-  "Uses SHADOWING-PACKAGE in PACKAGE, but first shadowing-imports all of the shadowing symbols in shadowing-package.
-Returns the package."
-  (let ((shadowing-symbols (package-shadowing-symbols shadowing-package)))
-    (shadowing-import shadowing-symbols package)
-    (use-package shadowing-package package))
+(define (package-external-symbols-from package from-package)
+  "Return the symbols in package that are exported from from-package."
+  (symbols-in-package (package-exported-symbols from-package) package))
+
+(define ((package-use . packages) package)
+  "Each of packages is used in package.
+Returns a closure that takes and returns the package to modify."
+  (use-package (map 'package-find packages) package)
   package)
 
-(define (re-export-shadowing-package re-exported-package package)
-  "Exports all symbols from re-exported-package from package,
-shadowing any symbols that re-exported-package shadows.
-If a symbol is not part of package it is not exported.
-Returns the package."
-  (let ((package-symbols (package-symbols package)))
-    (let ((shadowing-symbols (package-shadowing-symbols re-exported-package))
-	  (external-symbols (intersection (package-external-symbols re-exported-package)
-					  package-symbols)))
-      (shadow (intersection shadowing-symbols external-symbols) package)
-      (export external-symbols package)))
+(define ((package-use-shadowing . shadowing-packages) package)
+  "Each of shadowing-package's shadowing-symbols is shadowing-imported-from before being used by package.
+Returns a closure that takes/returns the package to modify."
+  (map (lambda (shadowing-package)
+	 (let ((shadowing-symbols (package-shadowing-symbols shadowing-package)))
+	   (shadowing-import shadowing-symbols package)
+	   (use-package shadowing-package package)))
+       (map 'package-find shadowing-packages))
   package)
 
-(define (use-shadowing-packages shadowing-packages package)
-  "Each shadowing package is used in package. See USE-SHADOWING-PACKAGE.
-Returns the package."
-  (mapcar (lambda (p) (use-shadowing-package p package)) shadowing-packages)
-  package)
-(define (re-export-shadowing-packages shadowing-packages package)
-  "Each shadowing package is exported from package. See RE-EXPORT-SHADOWING-PACKAGE.
-Returns the package."
-  (mapcar (lambda (p) (re-export-shadowing-package p package)) shadowing-packages)
+(define ((package-re-export-shadowing . re-exported-packages) package)
+  "Each of the re-exported-package's exported symbols are exported from package if they are already interned in package.
+If the symbol is a shadowing symbol, it is first shadowed in package.
+Returns a closure that takes/returns the package to modify."
+  (map (lambda (re-exported-package)
+	 (let ((external-symbols-in-package (package-external-symbols-from package re-exported-package)))
+	   (when (empty? external-symbols-in-package)
+	     (warn "PACKAGE-RE-EXPORT-SHADOWING: package ~S does not have any symbols internal to ~S.
+This package may need to be USEd before it can be re-exported." (package-name re-exported-package) (package-name package)))
+	   ;; Shadow only the symbols shadowed in re-exported-package
+	   (shadow (intersection (package-shadowing-symbols re-exported-package)
+				 external-symbols-in-package)
+		   package)
+	   ;; Export all external symbols
+	   (export external-symbols-in-package package)))
+       (map 'package-find re-exported-packages))
   package)
 
-(define (document-package documentation package)
-  "Sets the package documentation for package and returns the package."
+(define ((document documentation) package)
+  "Sets the package documentation for package. Returns a closure that takes and returns the package."
   (setf (documentation package t) documentation)
   package)
 
-(define (package-export symbols package)
+(define ((package-export . symbols) package)
   "Interns and exports each symbol-name in symbols.
-Returns the package."
-  (export (mapcar (lambda (s) (intern (symbol-name s) package)) symbols) package)
+Returns a closure that takes and returns the package."
+  (export (symbols-interned-in-package symbols package) (package-find package))
   package)
 
-(define (package-shadow symbols package)
-  "Shadows symbols in package. Returns the package."
-  (shadow symbols package)
+(define ((package-shadow . symbols) package)
+  "Shadows symbols in package.
+Returns a closure that takes and returns the package."
+  (shadow symbols (package-find package))
   package)
 
-(define (package-shadowing-export symbols package)
-  "Shadows and exports each symbol in symbols.
-Returns the package."
-  (package-shadow symbols package)
-  (package-export symbols package)
+(define (package-shadowing-export . symbols)
+  "Shadows and exports symbols in package.
+Returns a closure that takes and returns the package."
+  (compose
+   (apply #'package-export symbols)
+   (apply #'package-shadow symbols)))
+
+(define ((package-import-from from-package . symbols) package)
+  "Imports symbols from from-package into package.
+Returns a closure that takes and returns the package."
+  (import (symbols-interned-in-package symbols (package-find from-package)) package)
   package)
 
-(define (build-package name)
-  "Creates a new package with the given name. If a package with that name exists, it is deleted."
-  (let ((existing (find-package name)))
-    (when existing (delete-package existing)))
-  (make-package name))
+(define ((package-shadowing-import-from from-package . symbols) package)
+  "Shadowing-imports symbols from from-package into package.
+Returns a closure that takes and returns the package."
+  (shadowing-import (symbols-interned-in-package symbols from-package) (package-find package))
+  package)
 
-(define (define-package name documentation
-	  :use-shadowing-packages
-	  :re-export-shadowing-packages
-	  :shadowing-exports
-	  :shadows
-	  :exports)
-  [(compose
-    (lcurry #'re-export-shadowing-packages re-export-shadowing-packages)
-    (lcurry #'package-export exports)
-    (lcurry #'package-shadowing-export shadowing-exports)
-    (lcurry #'package-shadow shadows)
-    (lcurry #'use-shadowing-packages use-shadowing-packages)
-    (lcurry #'document-package documentation))
-   (build-package name)])
+(define ((nickname-package . nicknames) package)
+  "Gives new nicknames to package, in addition to existing nicknames.
+Returns a closure that takes and returns the package."
+  (rename-package package (package-name package)
+		  (remove-duplicates (append nicknames (package-nicknames package))))
+  package)
 
-(define (uninterned symbol)
-  (make-symbol (symbol-name symbol)))
+(define (unique-package-name)
+  "Returns a package-name that is most likely unique."
+  (symbol-name (gensym "SCHEMEISH-TEMPORARY-PACKAGE")))
 
-(define (package-exports package)
-  (map 'uninterned (package-external-symbols package)))
+(define (extend-package* package package-fns)
+  "Applies package-fns to construct a package from base-package package.
+Package-fns are applied from left to right."
+  [(apply 'compose (reverse package-fns)) (package-find package)])
+(define (extend-package package . package-fns)
+  "See EXTEND-PACKAGE*"
+  (extend-package* (package-find package) package-fns))
 
-(define (defpackage-form package-designator)
-  (let* ((package (find-package package-designator))
-	 (documentation (documentation package t))
-	 (use-list (map (compose 'make-symbol 'package-name) (package-use-list package)))
-	 (exports (package-exports package))
-	 (shadow (map 'uninterned (package-shadowing-symbols package)))
-	 (nicknames (package-nicknames package)))
-    `(cl:defpackage ,(make-symbol (package-name package))
-       ,@(when documentation `((:documentation ,documentation)))
+(define (ensure-string symbol-or-string)
+  "Returns the string or the name of the symbol."
+  (if (symbol? symbol-or-string) (symbol-name symbol-or-string) symbol-or-string))
+
+(define (uninterned symbol-or-string)
+  "Return an uninterned symbol with the same name as symbol."
+  (make-symbol (ensure-string symbol-or-string)))
+
+(define (package-import-froms package-designator)
+  "List of the (:import-from package-name . symbols) forms for all of the
+imported, non-shadowing symbols in package. Intended for a defpackage form."
+  (let ((package (package-find package-designator)))
+    (map (lambda (names)
+	   (cons :import-from (map 'make-symbol names)))
+	 (group-by-package (intersection
+			    (intersection (package-non-shadowing-symbols package)
+					  (package-imported-symbols package))
+			    (package-unused-symbols package))))))
+
+(define (package-shadowing-import-froms package-designator)
+  "List of the (:shadqowing-import-from package-name . symbols) forms for all of the
+shadowing-imported symbols in package. Intended for a defpackage form."
+  (let ((package (package-find package-designator)))
+    (map (lambda (names)
+	   (cons :shadowing-import-from (map 'make-symbol names)))
+	 (group-by-package (intersection (package-imported-symbols package)
+					 (package-shadowing-symbols package))))))
+
+(define (defpackage-form package (symbol-name (make-symbol (package-name package))))
+  "Construct a defpackage form that constructs an equivalent package."
+  (let ((documentation (documentation package t))
+	(use-list (map (compose 'make-symbol 'package-name) (package-use-list package)))
+	(exports (map 'uninterned (package-external-symbols package)))
+	(shadow (map 'uninterned (set-difference (package-shadowing-symbols package)
+						 (package-imported-symbols package))))
+	(nicknames (map 'make-symbol (package-nicknames package))))
+    `(cl:defpackage ,(uninterned symbol-name)
+       ,@(WHEN documentation `((:documentation ,documentation)))
        ,@(package-import-froms package)
        ,@(package-shadowing-import-froms package)
        ,@(when use-list `((:use ,@use-list)))
@@ -167,311 +202,105 @@ Returns the package."
        ,@(when shadow `((:shadow ,@shadow)))
        ,@(when nicknames `((:nicknames ,@nicknames))))))
 
-(defpackage #:for-macros
-  (:documentation "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
-  (:use #:cl)
-  (:export #:for-macros))
+(defmacro with-temporary-package (package-name &body body)
+  "Construct a temporary package name and bind it to PACKAGE-NAME and wrap BODY in an unwind-protect.
+The package is deleted in the cleanup form."
+  `(let ((,package-name (make-package (unique-package-name))))
+     (unwind-protect (progn ,@body)
+       (delete-package ,package-name))))
 
-(defpackage #:named-let
-  (:documentation "Provides an optionally named LET which can be used to write a locally recursive form.")
-  (:use #:cl)
-  (:shadow #:let)
-  (:export #:let))
+(define (define-package-form name . package-fns)
+  "Constructs a temporary package using package functions, and returns the DEFPACKAGE form
+for that package with the given name."
+  (with-temporary-package package
+    (defpackage-form (extend-package* package package-fns) [*resolve-package-designator* name])))
 
-(defpackage #:syntax
-  (:documentation "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
-  (:use #:cl)
-  (:export #:install-syntax! #:uninstall-syntax!))
+(define (define-package name . package-fns)
+  "Constructs a temporary package using package functions, and evaluates the DEFPACKAGE form
+for that package with the given name. Returns the DEFPACKAGE form that is evaluted"
+  (let ((form (apply #'define-package-form name package-fns)))
+    (eval form)
+    form))
 
-(defpackage #:arguments
-  (:documentation "Tools to translate scheme style argument lists to CL style argument lists.")
-  (:use #:cl)
-  (:export #:arg-list->lambda-list))
+(define ((continue-with-warning datum . arguments) condition)
+  "Provides a warning before invoking the continue restart."
+  (let ((restart (find-restart 'continue condition)))
+    (apply #'warn datum arguments)
+    (invoke-restart restart)))
 
-(define-package :basic-syntax
-  "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax"
-  :use-shadowing-packages '(:cl
-			    :for-macros
-			    :named-let
-			    :syntax)
-  :re-export-shadowing-packages '(:for-macros
-				  :named-let
-				  :syntax))
+(defmacro handling-error (error-binding &body body)
+  "Establish a handler-bind with ((error error-binding))."
+  `(handler-bind ((error ,error-binding))
+     ,@body))
 
-(define-package :expand-define
-  "Tools to expand define and define-like forms."
-  :use-shadowing-packages '(:cl :basic-syntax :arguments)
-  :exports '(:expand-function-body :expand-top-level-define))
+(define (package-delete package-designator (forcefully? t))
+  "Deletes package. If forcefully? is true, invokes the continue restart if an error occurs.
+Returns the package-name."
+  (let ((package (package-find package-designator)))
+    (cond
+      (package
+       (let ((name (package-name package)))
+	 (cond
+	   (forcefully?
+	    (handling-error (continue-with-warning "Forcefully deleting package ~S ~S" name package)
+	      (delete-package package)))
+	   (t (delete-package package)))
+	 name))
+      (t package-designator))))
 
-(define-package :lambda
-  "Replaces LAMBDA with a scheme style argument list and a body that can have local defines."
-  :use-shadowing-packages '(:cl :basic-syntax :arguments :expand-define)
-  :shadowing-exports '(:lambda))
+(define (package-dependencies package)
+  "Return a list of packages which package has a dependency on."
+  (map (compose 'find-package 'car) (group-by-package (package-symbols package))))
 
-(define-package :define
-  "Provides DEFINE. See DEFINE's docs for more details."
-  :use-shadowing-packages '(:cl :basic-syntax :expand-define)
-  :exports '(:define))
+(define (independent-package? package packages)
+  "True if package does not have any dependencies on packages."
+  (let ((dependencies (package-dependencies package)))
+    (for-all* (lambda (other-package) (not (member other-package dependencies)))
+	      (remove package packages))))
 
-;; Expand define uses define and lambda symbols.
-(use-shadowing-packages :expand-define :define :lambda)
+(define (independent-packages packages)
+  "Return a list of the packages in packages which are not dependent on other packages in packages."
+  (let rec ((packages-to-check packages)
+	    (independent-packages ()))
+    (cond
+      ((empty? packages-to-check) independent-packages)
+      (t
+       (rec (rest packages-to-check)
+	    (if (independent-package? (first packages-to-check) packages)
+		(cons (first packages-to-check) independent-packages)
+		independent-packages))))))
 
-(define-package :base
-  "Provides many core functions and simple macros in addition to basic-syntax, including
-  - symbols
-  - lists
-  - procedures
-  - alists
-  - sets
-  - strings
-  - output
-  - mutation"
-  :use-shadowing-packages '(:cl :basic-syntax :lambda :define)
-  :shadows '(:map :sort :stream)
-  :exports
-  '(;; Symbols
-    :symbol?
-    :symbol->string
-    :make-keyword
+(define (package-hierarchy packages)
+  "Return a package hierarchy as a nested list of ((most-independent-packages...) ... (most-dependent-packages...)).
+Cyclic dependencies throw an error."
+  (let rec ((packages packages)
+	    (result ()))
+    (cond
+      ((empty? packages) (nreverse result))
+      (t (let ((independent-packages (independent-packages packages)))
+	   (if (empty? independent-packages)
+	       (error "Cyclic dependency in package hierarchy.")
+	       (rec (set-difference packages independent-packages)
+		    (cons independent-packages result))))))))
 
-    ;; Lists
-    :map
-    :append*
-    :empty?
-    :for-each
-    :filter
-    :pair?
-    :null?
-    :list?
-    :list-ref
-    :list-tail
-    :foldl
-    :foldr
-    :negative?
-    :positive?
-    :andmap
-    :ormap
-    :remq
-    :remove*
-    :remq*
-    :sort
-    :memf
-    :findf
-    :list-update
-    :list-set
-    :take
-    :drop
-    :split-at
-    :even?
-    :odd?
-    :zero?
-    :compose
-    :filter-map
-    :range
-    :append-map
-    :map-successive
-    :filter-not
-    :partition
-    :flatten
+(define (hierarchical-defpackage-forms packages)
+  "Return a list of defpackage forms which have been hierarchically arranged. Cyclic dependencies throw an error."
+  (map 'defpackage-form (append* (package-hierarchy packages))))
 
-    ;; Procedures
-    :procedure?
-    :rcurry
-    :lcurry
-    :swap-args
-    :memo-proc
-    :document!
-    :has-specific-arity?
-    :procedure-arity
-    :procedure-arguments
-    :procedure-arguments-required-arguments
-    :procedure-arguments-optional-arguments
-    :procedure-arguments-key-arguments
-    :procedure-arguments-rest-argument
-    :procedure-arguments-allow-other-keys?
+(define (filter-packages predicate)
+  "Return all packages that match predicate"
+  (filter predicate (list-all-packages)))
 
-    ;; Alists
-    :alist-ref
-    :alist-remove
-    :alist-set
-    :alist-update
-    :alist-map
-    :alist-keys
-    :alist-values
-    :alist-has-key?
-    :alist-set*
-    :alist
+(define (all-packages-with-string-prefix string-prefix)
+  "Return all packages that match the given string-prefix"
+  (filter-packages (compose (rcurry 'string-starts-with? string-prefix) 'package-name)))
 
-    ;; Booleans
-    :eq?
-    :equal?
-    :disjoin*
-    :disjoin
-    :conjoin*
-    :conjoin
-    :for-all*
-    :for-all
-    :there-exists*
-    :there-exists
-    :const
-    :nand
-    :nor
-    :xor
-
-    ;; Numbers
-    :quotient
-    :number->string
-    :degrees->radians
-    :radians->degrees
-    :sqr
-    :sgn
-    :number?
-
-    ;; Sets
-    :set-member?
-    :set-add
-    :set-remove
-    :set-empty?
-    :set-count
-    :set->stream
-    :set-union
-    :set-intersect
-    :set-subtract
-    :subset?
-    :set=?
-
-    ;; Streams
-    :delay
-    :force
-    :*the-empty-stream*
-    :stream-cons
-    :stream-car
-    :stream-cdr
-    :stream-empty?
-    :stream-for-each
-    :stream-length
-    :stream->list
-    :stream-first
-    :stream-rest
-    :stream?
-    :list->stream
-    :stream
-    :stream-map
-    :stream-fold
-    :stream-filter
-    :stream-drop
-    :stream-take
-    :stream-ref
-    :stream-append
-    :stream-flatten
-    :stream-range
-    :stream-flatmap
-    :stream-map-successive
-    :random-stream
-
-    ;; Strings
-    :string-append
-    :string?
-    :string-starts-with?
-
-    ;; Output
-    :newline
-    :display
-    :displayln
-
-    ;; Mutation
-    :set-car!
-    :set-cdr!
-    :set!)
-  :re-export-shadowing-packages '(:basic-syntax :lambda :define))
-
-(define-package :expand-stream-collect
-  "Provides tools to expand a stream-collect macro form."
-  :use-shadowing-packages '(:cl :base)
-  :exports '(:stream-collect-form))
-
-(define-package :stream-collect
-  "Provides the stream-collect macro."
-  :use-shadowing-packages '(:cl :base :expand-stream-collect)
-  :exports '(:stream-collect))
-
-(define-package :and-let
-  "Provides the and-let* macro."
-  :use-shadowing-packages '(:cl :base)
-  :exports '(:and-let*))
-
-(define-package :struct
-  "Provides the basis and expansions for define-struct."
-  :use-shadowing-packages '(:cl :base :and-let)
-  :exports '(:struct
-	     :struct?
-	     :struct-copy
-	     :struct->list
-	     :struct-accessors
-	     :struct-form))
-
-
-(define-package :define-struct
-  "Provides define-struct."
-  :use-shadowing-packages '(:cl :base :and-let :struct)
-  :exports '(:define-struct))
-
-
-(define-package :bundle
-  "Provides bundle and make-bundle-predicate for creating dispatch-style closures."
-  :use-shadowing-packages '(:cl :base :and-let)
-  :exports '(:bundle
-	     :bundle-documentation
-	     :bundle-permissions
-	     :bundle-list
-	     :bundle?
-	     :make-bundle-predicate))
-
-(define-package :queue
-  "Provides a bundle-based implementation of a queue."
-  :use-shadowing-packages '(:cl :base :and-let :bundle)
-  :exports '(:make-queue
-	     :queue?
-	     :queue-empty?
-	     :queue-front
-	     :queue-insert!
-	     :queue-delete!))
-
-(define-package :expand-lexically
-  "Provides tools to expand lexically/expose macros."
-  :use-shadowing-packages '(:cl :base :and-let)
-  :exports '(:lexical-bindings
-	     :parameter-name->lexical-name
-	     :parameter-name?
-	     :special-form?
-	     :special?
-	     :lexical-name->parameter-name))
-
-(define-package :lexically
-  "Provides the lexically and expose macros."
-  :use-shadowing-packages '(:cl :base :and-let :expand-lexically)
-  :exports '(:lexically :expose))
-
-
-(define-package :serialize
-  "Provides the serialize function which can recursively serialize lisp data, bundles, and structs
-into a form ready for EVAL."
-  :use-shadowing-packages '(:cl :base :and-let :bundle :struct :define-struct :queue)
-  :exports '(:serialize))
-
-
-(define-package :schemeish ; TODO: rename
-  "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)"
-  :use-shadowing-packages '(:cl :base :and-let :stream-collect
-			    :bundle :queue :struct :define-struct
-			    :lexically :serialize)
-  ;; Remove non *EAR-MUFFED* special symbols
-  :shadows '(:++ :+++ :// :/// :** :***)
-  ;; Re-export these symbols as non-special
-  :shadowing-exports '(:+ :/ :* :-) 
-
-  :re-export-shadowing-packages '(:cl :base :and-let :stream-collect
-				  :bundle :queue :struct :define-struct
-				  :lexically :serialize))
+(define (package-file-contents packages)
+  "Returns the package.lisp contents organized hierarchically."
+  (with-output-to-string (s)
+    (format s ";;;; package.lisp~%~%")
+    (for-each (lambda (form)
+		(format s "~&~S~%" form))
+	      (hierarchical-defpackage-forms packages))))
 
 (uninstall-syntax!)
