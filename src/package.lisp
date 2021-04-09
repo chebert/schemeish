@@ -40,7 +40,13 @@
   (:DOCUMENTATION "Provides DEFINE. See DEFINE's docs for more details.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX)
-  (:EXPORT #:DEFINE #:EXPAND-FUNCTION-BODY #:EXPAND-TOP-LEVEL-DEFINE #:LAMBDA)
+  (:EXPORT #:DEFINE
+           #:DROPF
+           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-TOP-LEVEL-DEFINE
+           #:LAMBDA
+           #:SPLITF-AT
+           #:TAKEF)
   (:SHADOW #:LAMBDA))
 
 (DEFPACKAGE #:SCHEMEISH.BASE
@@ -83,6 +89,7 @@
            #:DISPLAYLN
            #:DOCUMENT!
            #:DROP
+           #:DROPF
            #:EMPTY?
            #:EQ?
            #:EQUAL?
@@ -162,6 +169,7 @@
            #:SGN
            #:SORT
            #:SPLIT-AT
+           #:SPLITF-AT
            #:SQR
            #:STREAM
            #:STREAM->LIST
@@ -193,6 +201,7 @@
            #:SYMBOL->STRING
            #:SYMBOL?
            #:TAKE
+           #:TAKEF
            #:THERE-EXISTS
            #:THERE-EXISTS*
            #:UNINSTALL-SYNTAX!
@@ -739,6 +748,7 @@ into a form ready for EVAL.")
            #:DPB
            #:DRIBBLE
            #:DROP
+           #:DROPF
            #:DYNAMIC-EXTENT
            #:ECASE
            #:ECHO-STREAM
@@ -1327,6 +1337,7 @@ into a form ready for EVAL.")
            #:SPECIAL-OPERATOR-P
            #:SPEED
            #:SPLIT-AT
+           #:SPLITF-AT
            #:SQR
            #:SQRT
            #:STABLE-SORT
@@ -1432,6 +1443,7 @@ into a form ready for EVAL.")
            #:TAGBODY
            #:TAILP
            #:TAKE
+           #:TAKEF
            #:TAN
            #:TANH
            #:TENTH

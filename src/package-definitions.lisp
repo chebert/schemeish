@@ -28,4 +28,5 @@ prefix it with the schemish prefix."
 			  :if-exists :supersede)
     (format stream "~A" (package-file-contents (schemeish-packages)))))
 
+
 (uninstall-syntax!)
