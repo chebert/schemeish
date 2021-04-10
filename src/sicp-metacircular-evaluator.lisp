@@ -1,6 +1,6 @@
 (cl:defpackage #:sicp-metacircular-evaluator
-  (:use :schemeish)
-  (:shadow #:apply #:eval))
+  (:use :schemeish.schemeish)
+  (:shadow #:eval #:apply))
 
 (in-package #:sicp-metacircular-evaluator)
 
@@ -234,15 +234,15 @@
   (env-loop env))
 
 (define (define-variable! var val env)
-  (let ((frame (first-frame env)))
-    (define (scan vars vals)
-      (cond ((null? vars)
-             (add-binding-to-frame! var val frame))
-            ((eq? var (car vars))
-             (set-car! vals val))
-            (t (scan (cdr vars) (cdr vals)))))
-    (scan (frame-variables frame)
-          (frame-values frame))))
+  (define frame (first-frame env))
+  (define (scan vars vals)
+    (cond ((null? vars)
+           (add-binding-to-frame! var val frame))
+          ((eq? var (car vars))
+           (set-car! vals val))
+          (t (scan (cdr vars) (cdr vals)))))
+  (scan (frame-variables frame)
+        (frame-values frame)))
 
 (define (setup-environment)
   (let ((initial-env

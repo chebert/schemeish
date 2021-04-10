@@ -261,15 +261,33 @@
 (assert (equal (expand-top-level-define-parameter '*name* '(value "docs"))
 	       '(DEFPARAMETER *NAME* VALUE "docs")))
 
+(for-macros
+  (defun expand-top-level-define-setf-fdefinition (name body)
+    (let ((function-name (unique-symbol 'fn)))
+      `(let ((,function-name (progn ,@body)))
+	 (assert (functionp ,function-name))
+	 ,@(when (stringp (first body))
+	     `((setf (documentation ',name 'function) ,(first body))))
+	 (setf (fdefinition ',name) ,function-name)))))
+
+(assert (equal (with-readable-symbols
+		 (expand-top-level-define-setf-fdefinition '5+ '("returns 5+ a number" (compose 'lcurry + 5))))
+	       '(LET ((FN (PROGN "returns 5+ a number" (COMPOSE 'LCURRY + 5))))
+		 (ASSERT (FUNCTIONP FN))
+		 (SETF (DOCUMENTATION '5+ 'FUNCTION) "returns 5+ a number")
+		 (SETF (FDEFINITION '5+) FN))))
+
 (for-macros (defun expand-top-level-define (name body)
 	      (cond
 		;; name is (name . args)
 		((consp name) (expand-top-level-define-closure-or-function name body))
-		((symbolp name) (expand-top-level-define-parameter name body))
+		((symbolp name) (expand-top-level-define-setf-fdefinition name body))
 		(t (error "Bad thing to define: ~S" name)))))
 
-(assert (equal (expand-top-level-define '*name* '(value))
-	       '(DEFPARAMETER *NAME* VALUE)))
+
+(assert (equal (with-readable-symbols
+		 (expand-top-level-define 'add '('+)))
+	       '(LET ((FN (PROGN '+))) (ASSERT (FUNCTIONP FN)) (SETF (FDEFINITION 'ADD) FN))))
 
 (assert (equal (expand-top-level-define '(test-inner-nested-defines)
 					'("Also returns a thing"
@@ -283,7 +301,6 @@
 			      (LAMBDA (Y) (LIST X Y))))
 		     (SETQ INNER-NESTED #'INNER-NESTED)
 		     INNER-NESTED)))))
-
 
 
 (defmacro lambda (arg-list &body body)
@@ -355,7 +372,6 @@
 		(error "Improperly nested define: ~S in expansion for ~S" inner-whole ',name-or-form)))
      ,(expand-top-level-define name-or-form body)))
 
-(for-macros (install-syntax!))
 (define (((test-nested-defines x) y . yargs) . zargs)
   "Returns a thing"
   `(,x ,y ,@yargs ,@zargs))

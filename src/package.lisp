@@ -3,7 +3,7 @@
 (DEFPACKAGE #:SCHEMEISH.FOR-MACROS
   (:DOCUMENTATION "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
   (:USE #:COMMON-LISP)
-  (:EXPORT #:FOR-MACROS))
+  (:EXPORT #:FOR-MACROS #:UNIQUE-SYMBOL #:WITH-READABLE-SYMBOLS))
 
 (DEFPACKAGE #:SCHEMEISH.NAMED-LET
   (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
@@ -28,7 +28,12 @@
         #:SCHEMEISH.FOR-MACROS
         #:SCHEMEISH.NAMED-LET
         #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:FOR-MACROS #:INSTALL-SYNTAX! #:LET #:UNINSTALL-SYNTAX!))
+  (:EXPORT #:FOR-MACROS
+           #:INSTALL-SYNTAX!
+           #:LET
+           #:UNINSTALL-SYNTAX!
+           #:UNIQUE-SYMBOL
+           #:WITH-READABLE-SYMBOLS))
 
 (DEFPACKAGE #:SCHEMEISH.DEFINE
   (:DOCUMENTATION "Provides DEFINE. See DEFINE's docs for more details.")
@@ -40,7 +45,9 @@
            #:EXPAND-TOP-LEVEL-DEFINE
            #:LAMBDA
            #:SPLITF-AT
-           #:TAKEF)
+           #:TAKEF
+           #:UNIQUE-SYMBOL
+           #:WITH-READABLE-SYMBOLS)
   (:SHADOW #:LAMBDA))
 
 (DEFPACKAGE #:SCHEMEISH.BASE
@@ -199,6 +206,8 @@
            #:THERE-EXISTS
            #:THERE-EXISTS*
            #:UNINSTALL-SYNTAX!
+           #:UNIQUE-SYMBOL
+           #:WITH-READABLE-SYMBOLS
            #:XOR
            #:ZERO?)
   (:SHADOW #:MAP #:SORT #:STREAM))
@@ -218,6 +227,13 @@
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
   (:EXPORT #:STREAM-COLLECT-FORM))
+
+(DEFPACKAGE #:SCHEMEISH.CUT
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
+  (:EXPORT #:CUT))
 
 (DEFPACKAGE #:SCHEMEISH.EXPAND-LEXICALLY
   (:DOCUMENTATION "Provides tools to expand lexically/expose macros.")
@@ -380,6 +396,7 @@ into a form ready for EVAL.")
         #:SCHEMEISH.AND-LET
         #:SCHEMEISH.BASE
         #:SCHEMEISH.BUNDLE
+        #:SCHEMEISH.CUT
         #:SCHEMEISH.DEFINE-STRUCT
         #:SCHEMEISH.LEXICALLY
         #:SCHEMEISH.QUEUE
@@ -677,6 +694,7 @@ into a form ready for EVAL.")
            #:COUNT-IF
            #:COUNT-IF-NOT
            #:CTYPECASE
+           #:CUT
            #:DEBUG
            #:DECF
            #:DECLAIM
@@ -1472,6 +1490,7 @@ into a form ready for EVAL.")
            #:UNINSTALL-SYNTAX!
            #:UNINTERN
            #:UNION
+           #:UNIQUE-SYMBOL
            #:UNLESS
            #:UNREAD-CHAR
            #:UNSIGNED-BYTE
@@ -1507,6 +1526,7 @@ into a form ready for EVAL.")
            #:WITH-OPEN-STREAM
            #:WITH-OUTPUT-TO-STRING
            #:WITH-PACKAGE-ITERATOR
+           #:WITH-READABLE-SYMBOLS
            #:WITH-SIMPLE-RESTART
            #:WITH-SLOTS
            #:WITH-STANDARD-IO-SYNTAX
@@ -1523,6 +1543,23 @@ into a form ready for EVAL.")
            #:ZERO?
            #:ZEROP)
   (:SHADOW #:* #:** #:*** #:+ #:++ #:+++ #:- #:/ #:// #:///))
+
+(DEFPACKAGE #:SCHEMEISH.HTML
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
+                          #:*
+                          #:**
+                          #:***
+                          #:+
+                          #:++
+                          #:+++
+                          #:-
+                          #:/
+                          #://
+                          #:///)
+  (:USE #:SCHEMEISH.SCHEMEISH))
 
 (DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
   (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.

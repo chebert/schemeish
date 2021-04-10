@@ -46,6 +46,16 @@ prefix it with the schemish prefix."
 		    (package-use-and-export-shadowing
 		     :COMMON-LISP
 		     :AND-LET :BASE :BUNDLE :DEFINE-STRUCT :LEXICALLY
-		     :QUEUE :SERIALIZE :STREAM-COLLECT :STRUCT))))
+		     :QUEUE :SERIALIZE :STREAM-COLLECT :STRUCT :cut))))
+
+#+nil
+(progn
+  (sync-compound-packages!)
+  (write-package-file!)
+
+  (with-schemeish-designators
+    (define-package :cut
+	(package-use-shadowing :cl :base)
+      (package-export :cut))))
 
 (uninstall-syntax!)

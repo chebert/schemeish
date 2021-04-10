@@ -1,22 +1,5 @@
 (cl:defpackage #:sicp-constraint-propagators
-  (:use :schemeish)
-  (:export
-   #:make-connector
-   #:has-value?
-   #:get-value
-   #:set-value!
-   #:forget-value!
-   #:connect
-   #:adder
-   #:celsius-fahrenheit-converter
-   #:probe
-   #:constant
-   #:multiplier
-   #:c+
-   #:c*
-   #:c-
-   #:cv
-   #:c/))
+  (:use :schemeish.schemeish))
 
 (in-package #:sicp-constraint-propagators)
 
