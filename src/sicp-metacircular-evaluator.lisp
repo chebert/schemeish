@@ -77,7 +77,7 @@
     env)
   :ok)
 
-(define *false* nil)
+(defparameter *false* nil)
 (define (false? datum) (eq? *false* datum))
 (define (true? datum) (not (false? datum)))
 
@@ -185,7 +185,7 @@
 
 (define (enclosing-environment env) (cdr env))
 (define (first-frame env) (car env))
-(define *the-empty-environment* '())
+(defparameter *the-empty-environment* '())
 
 (define (make-frame variables values)
   (cons variables values))
@@ -259,7 +259,7 @@
 (define (primitive-implementation proc) (cadr proc))
 
 
-(define *primitive-procedures*
+(defparameter *primitive-procedures*
   (list (list 'car #'car)
 	(list 'cdr #'cdr)
 	(list 'cons #'cons)
@@ -283,11 +283,11 @@
   (cl:apply (primitive-implementation proc) args))
 
 
-(define *the-global-environment* (setup-environment))
+(defparameter *the-global-environment* (setup-environment))
 
 
-(define *input-prompt* ";;; M-Eval input:")
-(define *output-prompt* ";;; M-Eval value:")
+(defparameter *input-prompt* ";;; M-Eval input:")
+(defparameter *output-prompt* ";;; M-Eval value:")
 
 (define (driver-loop)
   (prompt-for-input *input-prompt*)
@@ -311,7 +311,7 @@
       (display object)))
 
 
-(define *the-global-environment* (setup-environment))
+(defparameter *the-global-environment* (setup-environment))
 ;; => *THE-GLOBAL-ENVIRONMENT*
 
 ;; Sample run 1: append
@@ -443,13 +443,13 @@ OK
           "Unknown procedure type -- EXECUTE-APPLICATION ~S"
           proc))))
 
-(define *the-global-environment* (setup-environment))
-(define *fib-test* '(begin
-		     (define (fib n)
-		       (cond ((= 0 n) 0)
-			     ((= 1 n) 1)
-			     (t (+ (fib (- n 1)) (fib (- n 2))))))
-		     (fib 30)))
+(defparameter *the-global-environment* (setup-environment))
+(defparameter *fib-test* '(begin
+			   (define (fib n)
+			     (cond ((= 0 n) 0)
+				   ((= 1 n) 1)
+				   (t (+ (fib (- n 1)) (fib (- n 2))))))
+			   (fib 30)))
 
 (time (eval *fib-test* *the-global-environment*))
 ;; => 832040

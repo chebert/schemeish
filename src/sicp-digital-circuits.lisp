@@ -214,16 +214,16 @@
      (format t "~%~S ~S New-value = ~S"
 	     name (current-time *the-agenda*) (get-signal wire)))))
 
-(define *inverter-delay* 2)
-(define *and-gate-delay* 3)
-(define *or-gate-delay* 5)
+(defparameter *inverter-delay* 2)
+(defparameter *and-gate-delay* 3)
+(defparameter *or-gate-delay* 5)
 
-(define *the-agenda* (make-agenda))
+(defparameter *the-agenda* (make-agenda))
 
-(define *input-1* (make-wire))
-(define *input-2* (make-wire))
-(define *sum* (make-wire))
-(define *carry* (make-wire))
+(defparameter *input-1* (make-wire))
+(defparameter *input-2* (make-wire))
+(defparameter *sum* (make-wire))
+(defparameter *carry* (make-wire))
 
 (probe :sum *sum*)
 ;; :SUM 0 New-value = 0
@@ -241,13 +241,13 @@
 ;; :SUM 16 New-value = 0
 
 
-(define *the-agenda* (make-agenda))
+(defparameter *the-agenda* (make-agenda))
 
-(define *input-1* (make-wire))
-(define *input-2* (make-wire))
-(define *carry-in* (make-wire))
-(define *sum* (make-wire))
-(define *carry-out* (make-wire))
+(defparameter *input-1* (make-wire))
+(defparameter *input-2* (make-wire))
+(defparameter *carry-in* (make-wire))
+(defparameter *sum* (make-wire))
+(defparameter *carry-out* (make-wire))
 
 (probe :sum *sum*)
 ;; :SUM 0 New-value = 0

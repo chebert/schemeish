@@ -563,7 +563,7 @@ Applies updater to failure-result if key is not present."
   "Evaluates promise."
   [promise])
 
-(define *the-empty-stream* ())
+(defparameter *the-empty-stream* ())
 (defmacro stream-cons (first rest)
   "Construct a stream from an element and a delayed stream."
   `(cons ,first (delay ,rest)))
@@ -620,7 +620,7 @@ Applies updater to failure-result if key is not present."
   "Constructs a stream from a list of values."
   (list->stream list))
 
-(define *test-stream* (stream 1 2 3))
+(defparameter *test-stream* (stream 1 2 3))
 
 (assert (equal (stream->list *test-stream*)
 	       '(1 2 3)))
@@ -785,7 +785,7 @@ Does not affect the random-state."
 
 
 
-(define *lambda-list-keywords*
+(defparameter *lambda-list-keywords*
   '(&optional &rest &key &allow-other-keys &aux))
 
 (define (parse-lambda-list-arguments argument-list)

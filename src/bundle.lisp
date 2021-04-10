@@ -35,14 +35,14 @@ when given a bundle with this type-predicate"
 
 (defvar *get-bundle-list* (gensym))
 
-(define *get-bundle-permissions* (gensym))
-(define *bundle?* (make-bundle-predicate :bundle))
+(defparameter *get-bundle-permissions* (gensym))
+(defparameter *bundle?* (make-bundle-predicate :bundle))
 
 (defmacro bundle (type-predicate bundle-list-form &rest fn-names)
   "Create a bundle of permissions for closure objects.
 Type-predicate is nil or a predicate created by make-bundle-predicate.
 Example:
-    (define *point?* (make-bundle-predicate :point))
+    (defparameter *point?* (make-bundle-predicate :point))
     (define (make-point x y)
       (define (get-x) x)
       (define (get-y) y)

@@ -210,8 +210,8 @@
     (constant 32 y)
     'ok))
 
-(define *c* (make-connector))
-(define *f* (make-connector))
+(defparameter *c* (make-connector))
+(defparameter *f* (make-connector))
 (celsius-fahrenheit-converter *c* *f*)
 ;; => OK
 
@@ -241,8 +241,8 @@ Probe: Fahrenheit temp = 212
 Probe: Celsius temp = 100
 ||#
 
-(define *sqrt* (make-connector))
-(define *square* (make-connector))
+(defparameter *sqrt* (make-connector))
+(defparameter *square* (make-connector))
 (probe "sqrt" *sqrt*)
 (probe "square" *square*)
 
@@ -296,8 +296,8 @@ Probe: sqrt = 3
 (define (fahrenheit-celsius-converter f)
   (c* (c- f (cv 32)) (c/ (cv 5) (cv 9))))
 
-(define *f* (make-connector))
-(define *c* (fahrenheit-celsius-converter *f*))
+(defparameter *f* (make-connector))
+(defparameter *c* (fahrenheit-celsius-converter *f*))
 
 (probe "Celsius temp" *c*)
 (probe "Fahrenheit temp" *f*)

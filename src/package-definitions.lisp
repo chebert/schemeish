@@ -28,21 +28,24 @@ prefix it with the schemish prefix."
 			  :if-exists :supersede)
     (format stream "~A" (package-file-contents (schemeish-packages)))))
 
+(define ((package-use-and-export-shadowing . packages) package)
+  [(compose
+    (apply 'package-re-export-shadowing packages)
+    (apply 'package-use-shadowing packages))
+   package])
 
 (define (sync-compound-packages!)
   (with-schemeish-designators
     (extend-package :BASIC-SYNTAX
-		    (package-use-shadowing :cl :for-macros :named-let :syntax)
-		    (package-re-export-shadowing :for-macros :named-let :syntax))
+		    (package-use :cl)
+		    (package-use-and-export-shadowing :for-macros :named-let :syntax))
     (extend-package :base
-		    (package-use-shadowing :cl :basic-syntax :define)
-		    (package-re-export-shadowing :basic-syntax :define))
+		    (package-use :cl)
+		    (package-use-and-export-shadowing :basic-syntax :define))
     (extend-package :schemeish
-		    (package-use-shadowing :COMMON-LISP
-					   :AND-LET :BASE :BUNDLE :DEFINE-STRUCT :LEXICALLY
-					   :QUEUE :SERIALIZE :STREAM-COLLECT :STRUCT)
-		    (package-re-export-shadowing :COMMON-LISP
-						 :AND-LET :BASE :BUNDLE :DEFINE-STRUCT :LEXICALLY
-						 :QUEUE :SERIALIZE :STREAM-COLLECT :STRUCT))))
+		    (package-use-and-export-shadowing
+		     :COMMON-LISP
+		     :AND-LET :BASE :BUNDLE :DEFINE-STRUCT :LEXICALLY
+		     :QUEUE :SERIALIZE :STREAM-COLLECT :STRUCT))))
 
 (uninstall-syntax!)
