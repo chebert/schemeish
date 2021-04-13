@@ -367,10 +367,11 @@
         (define (inner2) (list x y z))
         (inner2))
       (inner1)))"
-  `(macrolet ((define (&whole inner-whole &body ignored)
-		(declare (ignore ignored))
-		(error "Improperly nested define: ~S in expansion for ~S" inner-whole ',name-or-form)))
-     ,(expand-top-level-define name-or-form body)))
+  `(for-macros
+     (macrolet ((define (&whole inner-whole &body ignored)
+		  (declare (ignore ignored))
+		  (error "Improperly nested define: ~S in expansion for ~S" inner-whole ',name-or-form)))
+       ,(expand-top-level-define name-or-form body))))
 
 (define (((test-nested-defines x) y . yargs) . zargs)
   "Returns a thing"
