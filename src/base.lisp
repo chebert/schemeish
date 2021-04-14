@@ -552,7 +552,7 @@ Applies updater to failure-result if key is not present."
 
 
 (defmacro set! (id expression)
-  `(setq ',id ,expression))
+  `(setq ,id ,expression))
 (define (set-car! pair value) (setf (car pair) value))
 (define (set-cdr! pair value) (setf (cdr pair) value))
 
