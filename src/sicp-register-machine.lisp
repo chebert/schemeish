@@ -3,6 +3,11 @@
 
 (in-package #:sicp-register-machine)
 
+(define (tagged-list? exp tag)
+  "True if exp is a list that begins with tag."
+  (and (pair? exp)
+       (eq? (first exp) tag)))
+
 (define (make-new-machine)
   ;; Registers
 
@@ -17,22 +22,27 @@
   ;; instructions
   (define the-instruction-sequence '())
 
-  ;; Operations alist (op-name thunk)
+  ;; Operations alist (op-name . thunk)
   (define the-ops
-    (list (list :initialize-stack
-		(lambda () [stack :initialize]))))
+    (alist :initialize-stack (lambda ()
+			       [stack :initialize])))
 
   ;; Alist of (register-name register)
   (define register-table
-    (list (list :pc pc) (list :flag flag)))
+    (alist :pc pc :flag flag))
 
+  (define data-path-unique-insts '())
+  (define data-path-entry-points '())
+  (define data-path-stored-registers '())
+  (define data-path-sources '())
+  
   ;; Creates a register associated with name in register-table
   ;; if it doesn't already exist
   (define (allocate-register name)
     (if (assoc name register-table)
         (error "Multiply defined register: ~S" name)
         (set! register-table
-              (cons (list name (make-register name))
+              (cons (cons name (make-register name))
                     register-table)))
     :register-allocated)
 
@@ -40,7 +50,7 @@
   (define (lookup-register name)
     (let ((val (assoc name register-table)))
       (if val
-          (cadr val)
+          (cdr val)
           (error "Unknown register: ~S" name))))
 
   ;; Execute all instructions.
@@ -64,6 +74,12 @@
   ;; Append new ops to the known ops
   (define (install-operations ops)
     (set! the-ops (append the-ops ops)))
+
+  (define (set-data-paths! unique-insts entry-points stored-registers sources)
+    (set! data-path-unique-insts unique-insts)
+    (set! data-path-entry-points entry-points)
+    (set! data-path-stored-registers stored-registers)
+    (set! data-path-sources sources))
   
   (define (dispatch message)
     (cond
@@ -76,8 +92,23 @@
       ((eq? message :install-operations) install-operations)
       ((eq? message :stack) stack)
       ((eq? message :operations) the-ops)
+      ((eq? message :set-data-paths!) set-data-paths!)
+      ((eq? message :unique-insts) data-path-unique-insts)
+      ((eq? message :entry-points) data-path-entry-points)
+      ((eq? message :stored-registers) data-path-stored-registers)
+      ((eq? message :sources) data-path-sources)
       (t (error "Unknown request -- MACHINE ~S" message))))
   dispatch)
+
+(define (set-data-paths! machine unique-insts entry-points stored-registers sources)
+  [[machine :set-data-paths!] unique-insts entry-points stored-registers sources])
+
+(define (lookup-prim symbol operations)
+  "Lookup the primitive op associated with symbol"
+  (let ((val (assoc symbol operations)))
+    (if val
+        (cdr val)
+        (error "Unknown operation -- ASSEMBLE ~S" symbol))))
 
 (define (get-register machine register-name)
   [[machine :get-register] register-name])
@@ -90,22 +121,18 @@
   (set-contents! (get-register machine register-name) value)
   :done)
 
-(define (make-machine register-names ops controller-text)
+(define (make-machine ops controller-text)
   (let ((machine (make-new-machine)))
-    (for-each (lambda (register-name)
-                [[machine :allocate-register] register-name])
-              register-names)
     [[machine :install-operations] ops]    
     [[machine :install-instruction-sequence]
      (assemble controller-text machine)]
     machine))
 
-(define (make-register name)
-  (define contents :unassigned)
+(define (make-register name (contents :unassigned))
   (define (get-contents) contents)
   (define (set-contents! value) (set! contents value))
 
-  (bundle nil (make-register name)
+  (bundle nil (make-register name contents)
 	  get-contents set-contents!))
 
 (define (get-contents register)
@@ -114,64 +141,167 @@
   [[register :set-contents!] value])
 
 (define (make-stack)
-  (define s ())
-  (define (pushv x)
-    (set! s (cons x s)))
-  (define (popv)
-    (if (empty? s)
-	(error "POPV: Empty stack")
-	(let ((top (first s)))
-	  (set! s (rest s))
-	  top)))
+  (define stacks ())
+  (define (stack-push reg-name x)
+    (set! stacks (alist-update stacks reg-name (lambda (stack) (cons x stack)))))
+  (define (stack-pop reg-name)
+    (let ((stack (alist-ref stacks reg-name)))
+      (if (empty? stack)
+	  (error "STACK-POP: Empty stack")
+	  (progn
+	    (set! stacks (alist-update stacks reg-name #'rest))
+	    (first stack)))))
+
   (define (initialize)
-    (set! s '())
+    (set! stacks '())
     :done)
-  (bundle nil ()
-	  pushv
-	  popv
+  (bundle nil (make-stack)
+	  stack-push
+	  stack-pop
 	  initialize))
 
-(define (pushv stack value)
-  [[stack :pushv] value])
-(define (popv stack)
-  [[stack :popv]])
+(define (stack-push stack reg-name value)
+  [[stack :stack-push] reg-name value])
+(define (stack-pop stack reg-name)
+  [[stack :stack-pop] reg-name])
+
+(define (symbol< s1 s2)
+  (string< (symbol->string s1) (symbol->string s2)))
+
+(define (unique-instructions insts)
+  (sort (remove-duplicates insts :test #'equal?) #'symbol< :extract-key #'car))
+
+(define (extract-data-paths texts receive)
+  "calls [receive unique entry-points saved/restored-registers register-sources] with the results."
+  (cond
+    ((null? texts) [receive () () () ()])
+    (t (extract-data-paths
+	(rest texts)
+	(let ((text (first texts)))
+	  (lambda (unique entry-points saved/restored-registers register-sources)
+	    (let ((unique (adjoin text unique :test #'equal?)))
+	      (cond
+		((tagged-list? text 'goto)
+		 [receive unique
+			  (let ((dest (goto-dest text)))
+			    (if (register-exp? dest)
+				(adjoin (register-exp-reg dest) entry-points)
+				entry-points))
+			  saved/restored-registers
+			  register-sources])
+		((tagged-list? text 'branch)
+		 [receive unique
+			  (let ((dest (branch-dest text)))
+			    (if (register-exp? dest)
+				(adjoin (register-exp-reg (branch-dest text)) entry-points)
+				entry-points))
+			  saved/restored-registers
+			  register-sources])
+		((or (tagged-list? text 'save)
+		     (tagged-list? text 'restore))
+		 [receive unique
+			  entry-points
+			  (adjoin (stack-inst-reg-name text) saved/restored-registers)
+			  register-sources])
+		((tagged-list? text 'assign)
+		 (let ((reg-name (assign-reg-name text))
+		       (value-exp (assign-value-exp text)))
+		   [receive unique
+			    entry-points
+			    saved/restored-registers
+			    (alist-update register-sources
+					  reg-name
+					  (lambda (sources)
+					    (adjoin value-exp sources :test #'equal?)))]))
+		(t [receive unique
+			    entry-points
+			    saved/restored-registers
+			    register-sources])))))))))
+
+(define (referenced-registers-in-exp exp)
+  (cond ((operation-exp? exp)
+	 (let ((operands (operation-exp-operands exp)))
+	   (map #'register-exp-reg (filter #'register-exp? operands))))
+	((register-exp? exp)
+	 (list (register-exp-reg exp)))
+	(t ())))
+
+(define (allocate-new-registers old-regs new-regs allocate)
+  (let ((new (set-difference new-regs old-regs)))
+    (for-each allocate new)
+    (append new old-regs)))
+
+(define (extract-register-names texts)
+  (foldl
+   (lambda (inst regs)
+     (cond
+       ((tagged-list? inst 'assign)
+	(union regs
+	       (cons (assign-reg-name inst)
+		     (referenced-registers-in-exp (assign-value-exp inst)))))
+       ((tagged-list? inst 'test)
+	(union regs (referenced-registers-in-exp (test-condition inst))))
+       ((tagged-list? inst 'goto)
+	(union regs (referenced-registers-in-exp (goto-dest inst))))
+       ((or (tagged-list? inst 'restore)
+	    (tagged-list? inst 'save))
+	(union regs (list (stack-inst-reg-name inst))))
+       ((tagged-list? inst 'perform)
+	(union regs (perform-action inst)))
+       (t regs)))
+   ()
+   texts))
 
 (define (assemble controller-text machine)
+  "Assembles instructions replacing labels with hard-coded jumps."
+  (map [machine :allocate-register] (extract-register-names controller-text))
   (extract-labels controller-text
 		  (lambda (insts labels)
+		    ;; insts and labels are the result of extracting labels from
+		    ;; controller-text
+		    (extract-data-paths
+		     (map #'instruction-text insts)
+		     (lambda (unique-instructions entry-points saved/restored-registers register-sources)
+		       (set-data-paths! machine
+					unique-instructions
+					entry-points
+					saved/restored-registers
+					register-sources)))
 		    (update-insts! insts labels machine)
 		    insts)))
 
 (define (extract-labels text receive)
-  (if (null? text)
-      [receive '() '()]
-      (extract-labels (cdr text)
-		      (lambda (insts labels)
-			(let ((next-inst (car text)))
-			  ;; If next-instr is a symbol, then it is a label
-			  ;; associated with the rest of the instructions
-			  (if (symbol? next-inst)
-			      [receive insts
-				       (cons (make-label-entry next-inst
-							       insts)
-					     labels)]
-			      ;; otherwise, next-instr is an instruction
-			      [receive (cons (make-instruction next-inst)
-					     insts)
-				       labels]))))))
+  "Calls [receive instrs labels]"
+  (cond
+    ((null? text) [receive '() '()])
+    (t
+     (extract-labels (cdr text)
+		     (lambda (insts labels)
+		       (let ((next-inst (car text)))
+			 ;; If next-instr is a symbol, then it is a label
+			 ;; associated with the rest of the instructions
+			 (if (symbol? next-inst)
+			     [receive insts
+				      (cons (make-label-entry next-inst insts)
+					    labels)]
+			     ;; otherwise, next-instr is an instruction
+			     [receive (cons (make-instruction next-inst)
+					    insts)
+				      labels])))))))
 
 (define (update-insts! insts labels machine)
+  "Set all the instruction-execution-procedures for insts."
   (let ((pc (get-register machine :pc))
         (flag (get-register machine :flag))
         (stack [machine :stack])
-        (ops [machine :operations]))    
+        (ops [machine :operations]))
     (for-each
      (lambda (inst)
-       (set-instruction-execution-proc! 
-        inst
-        (make-execution-procedure
-         (instruction-text inst) labels machine
-         pc flag stack ops)))
+       (set-instruction-execution-proc!
+	inst
+	(make-execution-procedure
+	 (instruction-text inst) labels machine
+	 pc flag stack ops)))
      insts)))
 
 (define (make-instruction text)
@@ -195,34 +325,34 @@
 ;; Dispatch based on the type of instruction 
 (define (make-execution-procedure inst labels machine
                                   pc flag stack ops)
-  (cond ((eq? (car inst) 'assign)
-         (make-assign inst machine labels ops pc))
-        ((eq? (car inst) 'test)
+  (cond ((tagged-list? inst 'assign)
+	 ;; (assign reg-name . value-exp)
+	 (make-assign inst machine labels ops pc))
+        ((tagged-list? inst 'test)
          (make-test inst machine labels ops flag pc))
-        ((eq? (car inst) 'branch)
+        ((tagged-list? inst 'branch)
          (make-branch inst machine labels flag pc))
-        ((eq? (car inst) 'goto)
+        ((tagged-list? inst 'goto)
          (make-goto inst machine labels pc))
-        ((eq? (car inst) 'save)
+        ((tagged-list? inst 'save)
          (make-save inst machine stack pc))
-        ((eq? (car inst) 'restore)
+        ((tagged-list? inst 'restore)
          (make-restore inst machine stack pc))
-        ((eq? (car inst) 'perform)
+        ((tagged-list? inst 'perform)
          (make-perform inst machine labels ops pc))
-        (t (error "Unknown instruction type -- ASSEMBLE ~S"
-                  inst))))
+        (t (error "Unknown instruction type -- ASSEMBLE ~S" inst))))
 
 (define (make-assign inst machine labels operations pc)
-  (let ((target
-          (get-register machine (assign-reg-name inst)))
+  "(assign reg-name value-exp)"
+  (let ((target (get-register machine (assign-reg-name inst)))
         (value-exp (assign-value-exp inst)))
     (let ((value-proc
-            (if (operation-exp? value-exp)
-		(make-operation-exp
-                 value-exp machine labels operations)
-		(make-primitive-exp
-                 (car value-exp) machine labels))))
-      (lambda ()                ; execution procedure for assign
+            (cond
+	      ((operation-exp? value-exp)
+	       ;; value-exp := ((op op-name) . operands)
+	       (make-operation-exp value-exp machine labels operations))
+	      (t (make-primitive-exp (car value-exp) machine labels)))))
+      (lambda () ; execution procedure for assign
         (set-contents! target [value-proc])
         (advance-pc pc)))))
 
@@ -246,6 +376,7 @@
   (cdr test-instruction))
 
 (define (make-branch inst machine labels flag pc)
+  (declare (ignore machine))
   (let ((dest (branch-dest inst)))
     (if (label-exp? dest)
         (let ((insts
@@ -277,17 +408,17 @@
   (cadr goto-instruction))
 
 (define (make-save inst machine stack pc)
-  (let ((reg (get-register machine
-                           (stack-inst-reg-name inst))))
-    (lambda ()
-      (pushv stack (get-contents reg))
-      (advance-pc pc))))
+  (let ((name (stack-inst-reg-name inst)))
+    (let ((reg (get-register machine name)))
+      (lambda ()
+	(stack-push stack name (get-contents reg))
+	(advance-pc pc)))))
 (define (make-restore inst machine stack pc)
-  (let ((reg (get-register machine
-                           (stack-inst-reg-name inst))))
-    (lambda ()
-      (set-contents! reg (popv stack))    
-      (advance-pc pc))))
+  (let ((name (stack-inst-reg-name inst)))
+    (let ((reg (get-register machine name)))
+      (lambda ()
+	(set-contents! reg (stack-pop stack name))
+	(advance-pc pc)))))
 (define (stack-inst-reg-name stack-instruction)
   (cadr stack-instruction))
 
@@ -323,27 +454,20 @@
   (let ((op (lookup-prim (operation-exp-op exp) operations))
         (aprocs
           (map (lambda (e)
-                 (make-primitive-exp e machine labels))
+		 (cond
+		   ((label-exp? e) (error "Cannot apply operation to label"))
+		   (t (make-primitive-exp e machine labels))))
                (operation-exp-operands exp))))
     (lambda ()
       (apply op (map (lambda (p) [p]) aprocs)))))
 
-(define (lookup-prim symbol operations)
-  (let ((val (assoc symbol operations)))
-    (if val
-        (cadr val)
-        (error "Unknown operation -- ASSEMBLE ~S" symbol))))
-
 (define (operation-exp? exp)
-  (and (pair? exp) (tagged-list? (car exp) 'op)))
+  (tagged-list? (car exp) 'op))
 (define (operation-exp-op operation-exp)
   (cadr (car operation-exp)))
 (define (operation-exp-operands operation-exp)
   (cdr operation-exp))
 
-(define (tagged-list? exp tag)
-  (and (pair? exp)
-       (eq? (first exp) tag)))
 (define (register-exp? exp) (tagged-list? exp 'reg))
 (define (register-exp-reg exp) (cadr exp))
 (define (constant-exp? exp) (tagged-list? exp 'const))
@@ -356,8 +480,8 @@
 
 (define gcd-machine
   (make-machine
-   '(a b t)
-   (list (list 'rem #'rem) (list '= #'=))
+   (alist 'rem #'rem
+	  '= #'=)
    '(test-b
      (test (op =) (reg b) (const 0))
      (branch (label gcd-done))
@@ -376,8 +500,54 @@
 (get-register-contents 'gcd-machine 'a)
 ;; => 2
 
+(define fib-machine
+  (make-machine
+   (alist '< #'<
+	  '- #'-
+	  '+ #'+)
+   '((assign continue (label fib-done))
+     fib-loop
+     (test (op <) (reg n) (const 2))
+     (branch (label immediate-answer))
+     ;; set up to compute Fib(n - 1)
+     (save continue)
+     (assign continue (label afterfib-n-1))
+     (save n)				 ; save old value of n
+     (assign n (op -) (reg n) (const 1)) ; clobber n to n - 1
+     (goto (label fib-loop))		 ; perform recursive call
+     afterfib-n-1		; upon return, val contains Fib(n - 1)
+     (restore n)
+     (restore continue)
+     ;; set up to compute Fib(n - 2)
+     (assign n (op -) (reg n) (const 2))
+     (save continue)
+     (assign continue (label afterfib-n-2))
+     (save val)                         ; save Fib(n - 1)
+     (goto (label fib-loop))
+     afterfib-n-2		; upon return, val contains Fib(n - 2)
+     (assign n (reg val))	; n now contains Fib(n - 2)
+     (restore val)		; val now contains Fib(n - 1)
+     (restore continue)
+     (assign val                        ;  Fib(n - 1) +  Fib(n - 2)
+      (op +) (reg val) (reg n)) 
+     (goto (reg continue))	  ; return to caller, answer is in val
+     immediate-answer
+     (assign val (reg n))               ; base case:  Fib(n) = n
+     (goto (reg continue))
+     fib-done)))
+
+;; 0 1 2 3 4 5 6 7
+;; 0 1 1 2 3 5 8 13
 
 
+(set-register-contents! 'fib-machine 'n 7)
+;; => :DONE
+(set-register-contents! 'fib-machine 'val 0)
+;; => :DONE
+(start 'fib-machine)
+;; => :DONE
+
+(get-register-contents 'fib-machine 'val)
 
 (define (vector-ref v index)
   (aref v index))
