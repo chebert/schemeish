@@ -111,6 +111,10 @@
            #:FORCE
            #:GROUP
            #:HAS-SPECIFIC-ARITY?
+           #:HASH-FIND-KEYF
+           #:HASH-REF
+           #:HASH-SET!
+           #:IGNORE-ARGS
            #:INSTALL-SYNTAX!
            #:LAMBDA
            #:LCURRY
@@ -154,6 +158,7 @@
            #:REMOVE*
            #:REMQ
            #:REMQ*
+           #:SAFE-VECTOR-REF
            #:SET!
            #:SET->STREAM
            #:SET-ADD
@@ -207,6 +212,8 @@
            #:THERE-EXISTS*
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
+           #:VECTOR-REF
+           #:VECTOR-SET!
            #:WITH-READABLE-SYMBOLS
            #:XOR
            #:ZERO?)
@@ -399,6 +406,7 @@ into a form ready for EVAL.")
         #:SCHEMEISH.CUT
         #:SCHEMEISH.DEFINE-STRUCT
         #:SCHEMEISH.LEXICALLY
+        #:SCHEMEISH.PACKAGE-UTILS
         #:SCHEMEISH.QUEUE
         #:SCHEMEISH.SERIALIZE
         #:SCHEMEISH.STREAM-COLLECT
@@ -452,6 +460,7 @@ into a form ready for EVAL.")
            #:*READ-EVAL*
            #:*READ-SUPPRESS*
            #:*READTABLE*
+           #:*RESOLVE-PACKAGE-DESIGNATOR*
            #:*STANDARD-INPUT*
            #:*STANDARD-OUTPUT*
            #:*TERMINAL-IO*
@@ -487,6 +496,7 @@ into a form ready for EVAL.")
            #:ALIST-SET*
            #:ALIST-UPDATE
            #:ALIST-VALUES
+           #:ALL-PACKAGES-WITH-STRING-PREFIX
            #:ALLOCATE-INSTANCE
            #:ALPHA-CHAR-P
            #:ALPHANUMERICP
@@ -710,12 +720,15 @@ into a form ready for EVAL.")
            #:DEFINE-CONDITION
            #:DEFINE-METHOD-COMBINATION
            #:DEFINE-MODIFY-MACRO
+           #:DEFINE-PACKAGE
+           #:DEFINE-PACKAGE-FORM
            #:DEFINE-SETF-EXPANDER
            #:DEFINE-STRUCT
            #:DEFINE-SYMBOL-MACRO
            #:DEFMACRO
            #:DEFMETHOD
            #:DEFPACKAGE
+           #:DEFPACKAGE-FORM
            #:DEFPARAMETER
            #:DEFSETF
            #:DEFSTRUCT
@@ -750,6 +763,7 @@ into a form ready for EVAL.")
            #:DO-ALL-SYMBOLS
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
+           #:DOCUMENT
            #:DOCUMENT!
            #:DOCUMENTATION
            #:DOLIST
@@ -776,6 +790,7 @@ into a form ready for EVAL.")
            #:ENOUGH-NAMESTRING
            #:ENSURE-DIRECTORIES-EXIST
            #:ENSURE-GENERIC-FUNCTION
+           #:ENSURE-STRING
            #:EQ
            #:EQ?
            #:EQL
@@ -795,6 +810,8 @@ into a form ready for EVAL.")
            #:EXPORT
            #:EXPOSE
            #:EXPT
+           #:EXTEND-PACKAGE
+           #:EXTEND-PACKAGE*
            #:EXTENDED-CHAR
            #:FBOUNDP
            #:FCEILING
@@ -815,6 +832,7 @@ into a form ready for EVAL.")
            #:FILTER
            #:FILTER-MAP
            #:FILTER-NOT
+           #:FILTER-PACKAGES
            #:FIND
            #:FIND-ALL-SYMBOLS
            #:FIND-CLASS
@@ -881,9 +899,13 @@ into a form ready for EVAL.")
            #:GO
            #:GRAPHIC-CHAR-P
            #:GROUP
+           #:GROUP-BY-PACKAGE
            #:HANDLER-BIND
            #:HANDLER-CASE
            #:HAS-SPECIFIC-ARITY?
+           #:HASH-FIND-KEYF
+           #:HASH-REF
+           #:HASH-SET!
            #:HASH-TABLE
            #:HASH-TABLE-COUNT
            #:HASH-TABLE-P
@@ -891,16 +913,20 @@ into a form ready for EVAL.")
            #:HASH-TABLE-REHASH-THRESHOLD
            #:HASH-TABLE-SIZE
            #:HASH-TABLE-TEST
+           #:HIERARCHICAL-DEFPACKAGE-FORMS
            #:HOST-NAMESTRING
            #:IDENTITY
            #:IF
            #:IGNORABLE
            #:IGNORE
+           #:IGNORE-ARGS
            #:IGNORE-ERRORS
            #:IMAGPART
            #:IMPORT
            #:IN-PACKAGE
            #:INCF
+           #:INDEPENDENT-PACKAGE?
+           #:INDEPENDENT-PACKAGES
            #:INITIALIZE-INSTANCE
            #:INLINE
            #:INPUT-STREAM-P
@@ -1079,6 +1105,7 @@ into a form ready for EVAL.")
            #:NEGATIVE?
            #:NEWLINE
            #:NEXT-METHOD-P
+           #:NICKNAME-PACKAGE
            #:NIL
            #:NINTERSECTION
            #:NINTH
@@ -1124,13 +1151,37 @@ into a form ready for EVAL.")
            #:OTHERWISE
            #:OUTPUT-STREAM-P
            #:PACKAGE
+           #:PACKAGE-DELETE
+           #:PACKAGE-DEPENDENCIES
            #:PACKAGE-ERROR
            #:PACKAGE-ERROR-PACKAGE
+           #:PACKAGE-EXPORT
+           #:PACKAGE-EXPORTED-SYMBOLS
+           #:PACKAGE-EXTERNAL-SYMBOLS
+           #:PACKAGE-EXTERNAL-SYMBOLS-FROM
+           #:PACKAGE-FILE-CONTENTS
+           #:PACKAGE-FIND
+           #:PACKAGE-HIERARCHY
+           #:PACKAGE-IMPORT-FROM
+           #:PACKAGE-IMPORT-FROMS
+           #:PACKAGE-IMPORTED-SYMBOLS
            #:PACKAGE-NAME
            #:PACKAGE-NICKNAMES
+           #:PACKAGE-NON-SHADOWING-SYMBOLS
+           #:PACKAGE-RE-EXPORT-SHADOWING
+           #:PACKAGE-SHADOW
+           #:PACKAGE-SHADOWING-EXPORT
+           #:PACKAGE-SHADOWING-IMPORT-FROM
+           #:PACKAGE-SHADOWING-IMPORT-FROMS
            #:PACKAGE-SHADOWING-SYMBOLS
+           #:PACKAGE-SYMBOLS
+           #:PACKAGE-UNUSED-SYMBOLS
+           #:PACKAGE-USE
            #:PACKAGE-USE-LIST
+           #:PACKAGE-USE-SHADOWING
            #:PACKAGE-USED-BY-LIST
+           #:PACKAGE-USED-SYMBOLS
+           #:PACKAGE?
            #:PACKAGEP
            #:PAIR?
            #:PAIRLIS
@@ -1268,6 +1319,7 @@ into a form ready for EVAL.")
            #:ROW-MAJOR-AREF
            #:RPLACA
            #:RPLACD
+           #:SAFE-VECTOR-REF
            #:SAFETY
            #:SATISFIES
            #:SBIT
@@ -1442,6 +1494,7 @@ into a form ready for EVAL.")
            #:SYMBOL
            #:SYMBOL->STRING
            #:SYMBOL-FUNCTION
+           #:SYMBOL-IN-PACKAGE?
            #:SYMBOL-MACROLET
            #:SYMBOL-NAME
            #:SYMBOL-PACKAGE
@@ -1449,6 +1502,8 @@ into a form ready for EVAL.")
            #:SYMBOL-VALUE
            #:SYMBOL?
            #:SYMBOLP
+           #:SYMBOLS-IN-PACKAGE
+           #:SYMBOLS-INTERNED-IN-PACKAGE
            #:SYNONYM-STREAM
            #:SYNONYM-STREAM-SYMBOL
            #:T
@@ -1489,7 +1544,9 @@ into a form ready for EVAL.")
            #:UNEXPORT
            #:UNINSTALL-SYNTAX!
            #:UNINTERN
+           #:UNINTERNED
            #:UNION
+           #:UNIQUE-PACKAGE-NAME
            #:UNIQUE-SYMBOL
            #:UNLESS
            #:UNREAD-CHAR
@@ -1512,6 +1569,8 @@ into a form ready for EVAL.")
            #:VECTOR-POP
            #:VECTOR-PUSH
            #:VECTOR-PUSH-EXTEND
+           #:VECTOR-REF
+           #:VECTOR-SET!
            #:VECTORP
            #:WARN
            #:WARNING
@@ -1530,6 +1589,7 @@ into a form ready for EVAL.")
            #:WITH-SIMPLE-RESTART
            #:WITH-SLOTS
            #:WITH-STANDARD-IO-SYNTAX
+           #:WITH-TEMPORARY-PACKAGE
            #:WRITE
            #:WRITE-BYTE
            #:WRITE-CHAR

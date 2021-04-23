@@ -25,7 +25,9 @@ If transparent is provided:
 - (struct-accessors p) returns a list of all of the accessors associated with transparent structure p. 
 
 If a super-type symbol is specified, this structure will inherit all of the accessors, setters, and predicates from
-the super classes in addition to the fields provided by field-specs."
+the super classes in addition to the fields provided by field-specs.
+
+Returns a list of newly defined symbols."
   ;; TODO: issue when a transparent object inherits from an opaque object
   ;; TODO: guard clauses
   `(for-macros

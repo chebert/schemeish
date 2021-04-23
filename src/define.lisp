@@ -268,14 +268,15 @@
 	 (assert (functionp ,function-name))
 	 ,@(when (stringp (first body))
 	     `((setf (documentation ',name 'function) ,(first body))))
-	 (setf (fdefinition ',name) ,function-name)))))
+	 (setf (fdefinition ',name) ,function-name)
+	 ',name))))
 
 (assert (equal (with-readable-symbols
 		 (expand-top-level-define-setf-fdefinition '5+ '("returns 5+ a number" (compose 'lcurry + 5))))
 	       '(LET ((FN (PROGN "returns 5+ a number" (COMPOSE 'LCURRY + 5))))
 		 (ASSERT (FUNCTIONP FN))
 		 (SETF (DOCUMENTATION '5+ 'FUNCTION) "returns 5+ a number")
-		 (SETF (FDEFINITION '5+) FN))))
+		 (SETF (FDEFINITION '5+) FN) '5+)))
 
 (for-macros (defun expand-top-level-define (name body)
 	      (cond
@@ -287,7 +288,7 @@
 
 (assert (equal (with-readable-symbols
 		 (expand-top-level-define 'add '('+)))
-	       '(LET ((FN (PROGN '+))) (ASSERT (FUNCTIONP FN)) (SETF (FDEFINITION 'ADD) FN))))
+	       '(LET ((FN (PROGN '+))) (ASSERT (FUNCTIONP FN)) (SETF (FDEFINITION 'ADD) FN) 'add)))
 
 (assert (equal (expand-top-level-define '(test-inner-nested-defines)
 					'("Also returns a thing"

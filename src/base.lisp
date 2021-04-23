@@ -267,6 +267,29 @@
       (loop for i from start below end by step collecting i)
       (loop for i from start downto end by step collecting i)))
 
+
+(define (remove-indices indices list)
+  "Remove all 0-based indices from list."
+  (nreverse (foldl (lambda (arg index result)
+		     (if (member index indices)
+			 result
+			 (cons arg result)))
+		   ()
+		   list
+		   (range (length list)))))
+
+(assert (equal (remove-indices '(1 3) '(a b c d e f)) '(a c e f)))
+
+(define ((ignore-args . indices) f)
+  "Return a function, which when applied to a function F ignores positional arguments matching the 0-based indices."
+  (lambda args
+    (apply f (remove-indices indices args))))
+
+(assert (equal [[(ignore-args 1 4) (lambda (a c d) (list a c d))]
+		:a :b :c :d :e]
+	       '(:A :C :D)))
+
+
 (define (append-map proc . lists)
   "Append the results of mapping procedure across lists."
   (append* (apply 'map proc lists)))
@@ -459,7 +482,7 @@ Applies updater to failure-result if key is not present."
   (let ((*print-base* radix))
     (format nil "~S" number)))
 
-(define (degr1ees->radians deg)
+(define (degrees->radians deg)
   "convert degrees to radians"
   (/ (* pi deg) 180))
 (define (radians->degrees rads)
@@ -1019,5 +1042,35 @@ Does not affect the random-state."
 			      (2 a b c)
 			      (1 d e f)))
 		'((1 (1 A B C) (1 D E F)) (2 (2 A B C)) (0 (0 A B C) (0 D E F)))))
+
+(define (hash-ref table key (failure-result))
+  "Returns the value associated with key in the hash-table table or failure-result."
+  (multiple-value-bind (value present?) (gethash key table)
+    (if present?
+	value
+	failure-result)))
+(define (hash-set! table key value)
+  "Sets the value associated with key in hash-table table to value."
+  (setf (gethash key table) value))
+(define (hash-find-keyf table predicate (failure-result))
+  "Returns the first key that satisfies [predicate key] in table."
+  (loop for key being the hash-keys in table
+	do (when [predicate key]
+	     (return-from hash-find-keyf key)))
+  failure-result)
+
+(define (vector-ref vector index)
+  (aref vector index))
+(define (vector-set! vector index value)
+  (setf (aref vector index) value))
+
+(define (safe-vector-ref vector index out-of-bounds-result)
+  "Returns the out-of-bounds-result if index is out of bounds."
+  (if (>= index (length vector))
+      out-of-bounds-result
+      (aref vector index)))
+
+
+
 
 (for-macros (uninstall-syntax!))

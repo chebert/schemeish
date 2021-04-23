@@ -12,24 +12,26 @@
   ;; Registers
 
   ;; Points to the remaining instructions to run
-  (define pc (make-register :pc))
+  (define pc (make-register 'pc))
   ;; True/false based on the previous test
-  (define flag (make-register :flag))
+  (define flag (make-register 'flag))
 
   ;; Stack
   (define stack (make-stack))
 
   ;; instructions
   (define the-instruction-sequence '())
-
+  (define instruction-count 0)
+  (define trace? nil)
+  
   ;; Operations alist (op-name . thunk)
   (define the-ops
-    (alist :initialize-stack (lambda ()
-			       [stack :initialize])))
+    (alist 'initialize-stack [stack :initialize]
+	   'print-stack-statistics [stack :print-statistics]))
 
   ;; Alist of (register-name register)
   (define register-table
-    (alist :pc pc :flag flag))
+    (alist 'pc pc 'flag flag))
 
   (define data-path-unique-insts '())
   (define data-path-entry-points '())
@@ -59,7 +61,10 @@
       (if (null? insts)
           :done
           (progn
+	    (when trace?
+	      (display (list 'trace (instruction-text (car insts)))))
             [(instruction-execution-proc (car insts))]
+	    (set! instruction-count (1+ instruction-count))
             (execute)))))
 
   ;; Set pc to point to the instruction sequence and execute
@@ -80,6 +85,11 @@
     (set! data-path-entry-points entry-points)
     (set! data-path-stored-registers stored-registers)
     (set! data-path-sources sources))
+
+  (define (reset-instruction-count!)
+    (set! instruction-count 0))
+  (define (print-instruction-count)
+    (display (list 'executed instruction-count 'instructions)))
   
   (define (dispatch message)
     (cond
@@ -97,6 +107,10 @@
       ((eq? message :entry-points) data-path-entry-points)
       ((eq? message :stored-registers) data-path-stored-registers)
       ((eq? message :sources) data-path-sources)
+      ((eq? message :reset-instruction-count!) (reset-instruction-count!))
+      ((eq? message :print-instruction-count) (print-instruction-count))
+      ((eq? message :trace-on) (set! trace? t))
+      ((eq? message :trace-off) (set! trace? nil))
       (t (error "Unknown request -- MACHINE ~S" message))))
   dispatch)
 
@@ -142,23 +156,39 @@
 
 (define (make-stack)
   (define stacks ())
+  (define num-pushes 0)
+  (define max-depth 0)
+  (define current-depth 0)
+
   (define (stack-push reg-name x)
+    (set! num-pushes (1+ num-pushes))
+    (set! current-depth (1+ current-depth))
+    (set! max-depth (max max-depth num-pushes))
     (set! stacks (alist-update stacks reg-name (lambda (stack) (cons x stack)))))
   (define (stack-pop reg-name)
     (let ((stack (alist-ref stacks reg-name)))
       (if (empty? stack)
 	  (error "STACK-POP: Empty stack")
 	  (progn
+	    (set! current-depth (1- current-depth))
 	    (set! stacks (alist-update stacks reg-name #'rest))
 	    (first stack)))))
 
   (define (initialize)
     (set! stacks '())
+    (set! num-pushes 0)
+    (set! max-depth 0)
+    (set! current-depth 0)
     :done)
+  (define (print-statistics)
+    (newline)
+    (display (list 'total-pushes  '= num-pushes
+                   'maximum-depth '= max-depth)))
   (bundle nil (make-stack)
 	  stack-push
 	  stack-pop
-	  initialize))
+	  initialize
+	  print-statistics))
 
 (define (stack-push stack reg-name value)
   [[stack :stack-push] reg-name value])
@@ -291,8 +321,8 @@
 
 (define (update-insts! insts labels machine)
   "Set all the instruction-execution-procedures for insts."
-  (let ((pc (get-register machine :pc))
-        (flag (get-register machine :flag))
+  (let ((pc (get-register machine 'pc))
+        (flag (get-register machine 'flag))
         (stack [machine :stack])
         (ops [machine :operations]))
     (for-each
@@ -548,6 +578,76 @@
 ;; => :DONE
 
 (get-register-contents 'fib-machine 'val)
+
+(define fact-machine
+  (make-machine
+   (alist '= '=
+	  '- '-
+	  '* '*)
+   '((perform (op initialize-stack))
+     (assign continue (label fact-done)) ; set up final return address
+     fact-loop
+     (test (op =) (reg n) (const 1))
+     (branch (label base-case))
+     ;; Set up for the recursive call by saving n and continue.
+     ;; Set up continue so that the computation will continue
+     ;; at after-fact when the subroutine returns.
+     (save continue)
+     (save n)
+     (assign n (op -) (reg n) (const 1))
+     (assign continue (label after-fact))
+     (goto (label fact-loop))
+     after-fact
+     (restore n)
+     (restore continue)
+     (assign val (op *) (reg n) (reg val)) ; val now contains n(n - 1)!
+     (goto (reg continue))		   ; return to caller
+     base-case
+     (assign val (const 1))		; base case: 1! = 1
+     (goto (reg continue))		; return to caller
+     fact-done
+     (perform (op print-stack-statistics)))))
+
+(set-register-contents! 'fact-machine 'n 5)
+;; => :DONE
+(start 'fact-machine)
+;; => :DONE
+(get-register-contents 'fact-machine 'val)
+;; => 120
+[[(fact-machine :stack) :print-statistics]]
+#||
+Output:
+
+(TOTAL-PUSHES = 8 MAXIMUM-DEPTH = 8)
+||#
+;; => NIL
+
+(define (run-fact! n)
+  (set-register-contents! 'fact-machine 'n n)
+  (start 'fact-machine))
+(run-fact! 5)
+#||
+Output:
+
+(TOTAL-PUSHES = 8 MAXIMUM-DEPTH = 8)
+||#
+;; => :DONE
+
+(run-fact! 4)
+#||
+Output:
+
+(TOTAL-PUSHES = 6 MAXIMUM-DEPTH = 6)
+||#
+;; => :DONE
+(run-fact! 6)
+#||
+Output:
+
+(TOTAL-PUSHES = 10 MAXIMUM-DEPTH = 10)
+||#
+;; => :DONE
+
 
 (define (vector-ref v index)
   (aref v index))

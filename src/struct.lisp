@@ -250,12 +250,11 @@
      (print-object (struct->list struct) stream)))
 
 
-(define (struct-define-type-predicate-form type-name)
-  (let ((predicate-name (intern (string-append (symbol->string type-name) "?"))))
-    `(define (,predicate-name datum)
-       (typep datum ',type-name))))
+(define (struct-define-type-predicate-form type-name predicate-name)
+  `(define (,predicate-name datum)
+     (typep datum ',type-name)))
 
-(assert (equal? (struct-define-type-predicate-form 'point)
+(assert (equal? (struct-define-type-predicate-form 'point 'point?)
 		'(DEFINE (POINT? DATUM)
 		  (TYPEP DATUM 'POINT))))
 
@@ -264,7 +263,9 @@
 	 (field-names (map 'car parsed-field-specs))
 	 (slot-names (struct-defclass-slot-names type-name field-names))
 	 (parsed-struct-options (parse-struct-options struct-options))
-	 (super-type-name (alist-ref parsed-struct-options :super nil)))
+	 (super-type-name (alist-ref parsed-struct-options :super nil))
+	 (constructor-name (struct-constructor-name type-name))
+	 (predicate-name (intern (string-append (symbol->string type-name) "?"))))
     `(progn
        (set-struct-info! (make-struct-info ',type-name ',super-type-name ',field-names))
        ,(struct-defclass-form type-name field-names super-type-name)
@@ -285,12 +286,13 @@
 		       (struct-define-field-setter-forms type-name (car field-spec)))
 		     (filter (lambda (field-spec) (eq? (cdr field-spec) :mutable))
 			     parsed-field-specs))))
-       ,(struct-define-constructor-form type-name (struct-constructor-name type-name)
+       ,(struct-define-constructor-form type-name constructor-name
 					field-names
 					super-type-name)
        ,@(map (lambda (slot-name) (struct-define-accessor-form type-name slot-name))
 	      slot-names)
-       ,(struct-define-type-predicate-form type-name))))
+       ,(struct-define-type-predicate-form type-name predicate-name)
+       '(,type-name ,constructor-name ,predicate-name ,@slot-names))))
 
 (struct-form 'point '(x y) '())
 (struct-form 'point3 '(z) '(:super 'point))
