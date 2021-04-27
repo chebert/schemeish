@@ -16,6 +16,7 @@
 	       (:file "define")
 	       (:file "base")
 	       (:file "expand-stream-collect")
+	       (:file "stream-collect")
 	       (:file "and-let")
 	       (:file "bundle")
 	       (:file "struct")

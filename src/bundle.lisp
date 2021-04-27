@@ -38,6 +38,7 @@ when given a bundle with this type-predicate"
 (defparameter *get-bundle-permissions* (gensym))
 (defparameter *bundle?* (make-bundle-predicate :bundle))
 
+;; TODO: Remove bundle-list-form
 (defmacro bundle (type-predicate bundle-list-form &rest fn-names)
   "Create a bundle of permissions for closure objects.
 Type-predicate is nil or a predicate created by make-bundle-predicate.

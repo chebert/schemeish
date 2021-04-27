@@ -437,15 +437,15 @@ Applies updater to failure-result if key is not present."
   "Return a predicate equivalent to predicates joined together with and."
   (conjoin* predicates))
 
-(define (for-all* predicate list)
-  (every predicate list))
-(define (for-all predicate . list)
-  (every predicate list))
+(define (for-all* predicate lists)
+  (apply #'every predicate lists))
+(define (for-all predicate . lists)
+  (for-all* predicate lists))
 
-(define (there-exists* predicate list)
-  (some predicate list))
-(define (there-exists predicate . list)
-  (some predicate list))
+(define (there-exists* predicate lists)
+  (apply #'some predicate lists))
+(define (there-exists predicate . lists)
+  (there-exists* predicate lists))
 
 (assert (equal (map (conjoin 'negative? 'even?)
 		    '(-1 -2 1 2))
