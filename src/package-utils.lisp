@@ -298,7 +298,7 @@ Cyclic dependencies throw an error."
 
 (define (hierarchical-defpackage-forms packages)
   "Return a list of defpackage forms which have been hierarchically arranged. Cyclic dependencies throw an error."
-  (nreverse (map 'defpackage-form (append* (package-hierarchy packages)))))
+  (map 'defpackage-form (append* (package-hierarchy packages))))
 
 (define (filter-packages predicate)
   "Return all packages that match predicate"
@@ -315,5 +315,7 @@ Cyclic dependencies throw an error."
     (for-each (lambda (form)
 		(format s "~&~S~%~%" form))
 	      (hierarchical-defpackage-forms packages))))
+
+
 
 (uninstall-syntax!)

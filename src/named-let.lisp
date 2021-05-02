@@ -10,7 +10,7 @@
         (rec (1- n) (cons n result))))
   ;; => '(1 2 3 4 5 6 7 8 9 10)"
   (declare (ignore rest))
-  (if (symbolp (second whole))
+  (if (and (not (null (second whole))) (symbolp (second whole)))
       (destructuring-bind (name bindings &rest body) (rest whole)
 	`(labels ((,name ,(mapcar #'car bindings)
 		    ,@body))
