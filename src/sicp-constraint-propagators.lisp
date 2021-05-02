@@ -42,7 +42,7 @@
     (when (has-value?)
       (inform-about-value new-constraint)))
 
-  (bundle *connector?* (make-connector value informant constraints)
+  (bundle *connector?*
 	  has-value?
 	  get-value
 	  set-value!

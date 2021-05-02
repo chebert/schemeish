@@ -146,7 +146,7 @@
   (define (get-contents) contents)
   (define (set-contents! value) (set! contents value))
 
-  (bundle nil (make-register name contents)
+  (bundle nil
 	  get-contents set-contents!))
 
 (define (get-contents register)
@@ -184,7 +184,7 @@
     (newline)
     (display (list 'total-pushes  '= num-pushes
                    'maximum-depth '= max-depth)))
-  (bundle nil (make-stack)
+  (bundle nil
 	  stack-push
 	  stack-pop
 	  initialize

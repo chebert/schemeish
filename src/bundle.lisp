@@ -1,7 +1,6 @@
 (in-package #:schemeish.bundle)
 
-(for-macros
-  (install-syntax!))
+(install-syntax!)
 
 (defvar *get-bundle-type-predicate* (gensym))
 (defvar *get-bundle-predicate-symbol* (gensym))
@@ -33,13 +32,10 @@ when given a bundle with this type-predicate"
 		   (cond
 		     ((eq *get-bundle-type-predicate* arg) *name?*)))])
 
-(defvar *get-bundle-list* (gensym))
-
 (defparameter *get-bundle-permissions* (gensym))
 (defparameter *bundle?* (make-bundle-predicate :bundle))
 
-;; TODO: Remove bundle-list-form
-(defmacro bundle (type-predicate bundle-list-form &rest fn-names)
+(defmacro bundle (type-predicate &rest fn-names)
   "Create a bundle of permissions for closure objects.
 Type-predicate is nil or a predicate created by make-bundle-predicate.
 Example:
@@ -50,7 +46,7 @@ Example:
       (define (set-x! new-x) (setq x new-x))
       (define (set-y! new-y) (setq y new-y))
     
-      (bundle *point?* (make-point x y) get-x get-y set-x! set-y!))
+      (bundle *point?* get-x get-y set-x! set-y!))
     
     (let ((point (make-point 3 4)))
       [point :get-x] ;; => closure of 0 arguments
@@ -60,23 +56,23 @@ Example:
       (assert (= 32 [[point :get-x]]))
       (assert [*point?* point])
       (bundle-permissions bundle) ; => '(:get-x :get-y :set-x! :set-y!)
-      (bundle-list bundle) ; => '(make-point 32 4)
       )"
-  `(lambda (arg)
-     (cond
-       ((eq *get-bundle-type-predicate* arg)
-	(or ,type-predicate *bundle?*))
-       ((eq *get-bundle-list* arg)
-	,(if bundle-list-form
-	     `(list ',(first bundle-list-form) ,@(rest bundle-list-form))
-	     '()))
-       ((eq *get-bundle-permissions* arg) ',(map (lambda (name) (make-keyword name)) fn-names))
-       ,@ (map (lambda (name) `((eq ,(make-keyword name) arg) ,name)) fn-names))))
+  `(progn
+     (lambda (arg)
+       (cond
+	 ((eq *get-bundle-type-predicate* arg)
+	  (cond
+	    ((null? ,type-predicate) *bundle?*)
+	    ((symbolp ,type-predicate) (symbol-function ,type-predicate))
+	    (t ,type-predicate))
+	  (or ,type-predicate *bundle?*))
+	 ((eq *get-bundle-permissions* arg) ',(map (lambda (name) (make-keyword name)) fn-names))
+	 ,@ (map (lambda (name) `((eq ,(make-keyword name) arg) ,name)) fn-names)))))
 
 (define (bundle-documentation bundle)
   "Generates documentation for bundle and all of its permissions."
   (with-output-to-string (s)
-    (format s "~S~%A bundle of type ~S with permissions:" (bundle-list bundle) (bundle-predicate-symbol [bundle *get-bundle-type-predicate*]))
+    (format s "~%A bundle of type ~S with permissions:" (bundle-predicate-symbol [bundle *get-bundle-type-predicate*]))
     (for-each (lambda (permission)
 		(let ((fn [bundle permission]))
 		  (format s "~&  ~S: ~A" (cons (list 'bundle permission) (arg:arglist fn)) (documentation fn 'function))))
@@ -85,9 +81,6 @@ Example:
 (define (bundle-permissions bundle)
   "Return a list of permissions to the bundle."
   [bundle *get-bundle-permissions*])
-(define (bundle-list bundle)
-  "Return the bundle as a '(constructor-name arg-values...)"
-  [bundle *get-bundle-list*])
 (define (bundle? bundle)
   (and (procedure? bundle)
        (bundle-predicate? (ignore-errors [bundle *get-bundle-type-predicate*]))))
@@ -99,7 +92,7 @@ Example:
   (define (set-x! new-x) "set x-coord to new-x" (setq x new-x))
   (define (set-y! new-y) "set y-coord to new-y" (setq y new-y))
 
-  (bundle *point?* (make-bundle-point x y) get-x get-y set-x! set-y!))
+  (bundle *point?* get-x get-y set-x! set-y!))
 
 
 (bundle-documentation (make-bundle-point 3 4))
@@ -121,5 +114,4 @@ A bundle of type :POINT with permissions:
 ;; => (NEW-X)
 
 
-(for-macros
-  (uninstall-syntax!))
+(uninstall-syntax!)

@@ -235,14 +235,19 @@
 (define (odd? x) (oddp x))
 (define (zero? x) (zerop x))
 
-
-(define (compose . procs)
+(define (compose* procs)
   "Function compositions. Mulitple values of one function are used as arguments to the next."
   (foldr (lambda (proc result)
 	   (lambda args
 	     (multiple-value-call proc (apply result args))))
 	 (lambda args (values-list args))
 	 procs))
+
+(define (compose . procs)
+  "Function compositions. Mulitple values of one function are used as arguments to the next."
+  (compose* procs))
+
+
 
 (assert (equal (multiple-value-list [(compose) :x :y :z])
 	       '(:x :y :z)))

@@ -1,398 +1,41 @@
 ;;;; package.lisp
 
-(DEFPACKAGE #:SCHEMEISH.FOR-MACROS
-  (:DOCUMENTATION "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
-  (:USE #:COMMON-LISP)
-  (:EXPORT #:FOR-MACROS #:UNIQUE-SYMBOL #:WITH-READABLE-SYMBOLS))
-
-(DEFPACKAGE #:SCHEMEISH.NAMED-LET
-  (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:LET)
-  (:SHADOW #:LET))
-
-(DEFPACKAGE #:SCHEMEISH.ARGUMENTS
-  (:DOCUMENTATION "Tools to translate scheme style argument lists to CL style argument lists.")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:ARG-LIST->LAMBDA-LIST))
-
-(DEFPACKAGE #:SCHEMEISH.SYNTAX
-  (:DOCUMENTATION "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:INSTALL-SYNTAX! #:UNINSTALL-SYNTAX!))
-
-(DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
-  (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.FOR-MACROS
-        #:SCHEMEISH.NAMED-LET
-        #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:FOR-MACROS
-           #:INSTALL-SYNTAX!
-           #:LET
-           #:UNINSTALL-SYNTAX!
-           #:UNIQUE-SYMBOL
-           #:WITH-READABLE-SYMBOLS))
-
-(DEFPACKAGE #:SCHEMEISH.DEFINE
-  (:DOCUMENTATION "Provides DEFINE. See DEFINE's docs for more details.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX)
-  (:EXPORT #:DEFINE
-           #:DROPF
-           #:EXPAND-FUNCTION-BODY
-           #:EXPAND-TOP-LEVEL-DEFINE
-           #:LAMBDA
-           #:SPLITF-AT
-           #:TAKEF
-           #:UNIQUE-SYMBOL
-           #:WITH-READABLE-SYMBOLS)
-  (:SHADOW #:LAMBDA))
-
-(DEFPACKAGE #:SCHEMEISH.BASE
-  (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
-  - symbols
-  - lists
-  - procedures
-  - alists
-  - sets
-  - strings
-  - output
-  - mutation")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.DEFINE)
-  (:EXPORT #:*THE-EMPTY-STREAM*
-           #:ALIST
-           #:ALIST-HAS-KEY?
-           #:ALIST-KEYS
-           #:ALIST-MAP
-           #:ALIST-REF
-           #:ALIST-REMOVE
-           #:ALIST-SET
-           #:ALIST-SET*
-           #:ALIST-UPDATE
-           #:ALIST-VALUES
-           #:ANDMAP
-           #:APPEND*
-           #:APPEND-MAP
-           #:COMPOSE
-           #:CONJOIN
-           #:CONJOIN*
-           #:CONST
-           #:DEFINE
-           #:DEGREES->RADIANS
-           #:DELAY
-           #:DISJOIN
-           #:DISJOIN*
-           #:DISPLAY
-           #:DISPLAYLN
-           #:DOCUMENT!
-           #:DROP
-           #:DROPF
-           #:EMPTY?
-           #:EQ?
-           #:EQUAL?
-           #:EVEN?
-           #:EXPAND-FUNCTION-BODY
-           #:EXPAND-TOP-LEVEL-DEFINE
-           #:FILTER
-           #:FILTER-MAP
-           #:FILTER-NOT
-           #:FINDF
-           #:FLATTEN
-           #:FOLDL
-           #:FOLDR
-           #:FOR-ALL
-           #:FOR-ALL*
-           #:FOR-EACH
-           #:FOR-MACROS
-           #:FORCE
-           #:GROUP
-           #:HAS-SPECIFIC-ARITY?
-           #:HASH-FIND-KEYF
-           #:HASH-REF
-           #:HASH-SET!
-           #:IGNORE-ARGS
-           #:INSTALL-SYNTAX!
-           #:LAMBDA
-           #:LCURRY
-           #:LET
-           #:LIST->STREAM
-           #:LIST-REF
-           #:LIST-SET
-           #:LIST-TAIL
-           #:LIST-UPDATE
-           #:LIST?
-           #:MAKE-KEYWORD
-           #:MAP
-           #:MAP-SUCCESSIVE
-           #:MEMF
-           #:MEMO-PROC
-           #:NAND
-           #:NEGATIVE?
-           #:NEWLINE
-           #:NOR
-           #:NULL?
-           #:NUMBER->STRING
-           #:NUMBER?
-           #:ODD?
-           #:ORMAP
-           #:PAIR?
-           #:PARTITION
-           #:POSITIVE?
-           #:PROCEDURE-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-ALLOW-OTHER-KEYS?
-           #:PROCEDURE-ARGUMENTS-KEY-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-OPTIONAL-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-REQUIRED-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
-           #:PROCEDURE-ARITY
-           #:PROCEDURE?
-           #:QUOTIENT
-           #:RADIANS->DEGREES
-           #:RANDOM-STREAM
-           #:RANGE
-           #:RCURRY
-           #:REMOVE*
-           #:REMQ
-           #:REMQ*
-           #:SAFE-VECTOR-REF
-           #:SET!
-           #:SET->STREAM
-           #:SET-ADD
-           #:SET-CAR!
-           #:SET-CDR!
-           #:SET-COUNT
-           #:SET-EMPTY?
-           #:SET-INTERSECT
-           #:SET-MEMBER?
-           #:SET-REMOVE
-           #:SET-SUBTRACT
-           #:SET-UNION
-           #:SET=?
-           #:SGN
-           #:SORT
-           #:SPLIT-AT
-           #:SPLITF-AT
-           #:SQR
-           #:STREAM
-           #:STREAM->LIST
-           #:STREAM-APPEND
-           #:STREAM-CAR
-           #:STREAM-CDR
-           #:STREAM-CONS
-           #:STREAM-DROP
-           #:STREAM-EMPTY?
-           #:STREAM-FILTER
-           #:STREAM-FIRST
-           #:STREAM-FLATMAP
-           #:STREAM-FLATTEN
-           #:STREAM-FOLD
-           #:STREAM-FOR-EACH
-           #:STREAM-LENGTH
-           #:STREAM-MAP
-           #:STREAM-MAP-SUCCESSIVE
-           #:STREAM-RANGE
-           #:STREAM-REF
-           #:STREAM-REST
-           #:STREAM-TAKE
-           #:STREAM?
-           #:STRING-APPEND
-           #:STRING-STARTS-WITH?
-           #:STRING?
-           #:SUBSET?
-           #:SWAP-ARGS
-           #:SYMBOL->STRING
-           #:SYMBOL?
-           #:TAKE
-           #:TAKEF
-           #:THERE-EXISTS
-           #:THERE-EXISTS*
-           #:UNINSTALL-SYNTAX!
-           #:UNIQUE-SYMBOL
-           #:VECTOR-REF
-           #:VECTOR-SET!
-           #:WITH-READABLE-SYMBOLS
-           #:XOR
-           #:ZERO?)
-  (:SHADOW #:MAP #:SORT #:STREAM))
-
-(DEFPACKAGE #:SCHEMEISH.AND-LET
-  (:DOCUMENTATION "Provides the and-let* macro.")
+(DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
+  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
+Provides write-package-file! which writes the current schemeish-packages to a file.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:AND-LET*))
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
+                          #:*
+                          #:**
+                          #:***
+                          #:+
+                          #:++
+                          #:+++
+                          #:-
+                          #:/
+                          #://
+                          #:///)
+  (:USE #:SCHEMEISH.PACKAGE-UTILS #:SCHEMEISH.SCHEMEISH)
+  (:EXPORT #:SCHEMEISH-PACKAGES #:WRITE-PACKAGE-FILE!))
 
-(DEFPACKAGE #:SCHEMEISH.EXPAND-STREAM-COLLECT
-  (:DOCUMENTATION "Provides tools to expand a stream-collect macro form.")
+(DEFPACKAGE #:SCHEMEISH.HTML
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:STREAM-COLLECT-FORM))
-
-(DEFPACKAGE #:SCHEMEISH.CUT
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:CUT))
-
-(DEFPACKAGE #:SCHEMEISH.EXPAND-LEXICALLY
-  (:DOCUMENTATION "Provides tools to expand lexically/expose macros.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
-  (:EXPORT #:LEXICAL-BINDINGS
-           #:LEXICAL-NAME->PARAMETER-NAME
-           #:PARAMETER-NAME->LEXICAL-NAME
-           #:PARAMETER-NAME?
-           #:SPECIAL-FORM?
-           #:SPECIAL?))
-
-(DEFPACKAGE #:SCHEMEISH.BUNDLE
-  (:DOCUMENTATION "Provides bundle and make-bundle-predicate for creating dispatch-style closures.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
-  (:EXPORT #:BUNDLE
-           #:BUNDLE-DOCUMENTATION
-           #:BUNDLE-LIST
-           #:BUNDLE-PERMISSIONS
-           #:BUNDLE?
-           #:MAKE-BUNDLE-PREDICATE))
-
-(DEFPACKAGE #:SCHEMEISH.STRUCT
-  (:DOCUMENTATION "Provides the basis and expansions for define-struct.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
-  (:EXPORT #:STRUCT
-           #:STRUCT->LIST
-           #:STRUCT-ACCESSORS
-           #:STRUCT-COPY
-           #:STRUCT-FORM
-           #:STRUCT?))
-
-(DEFPACKAGE #:SCHEMEISH.STREAM-COLLECT
-  (:DOCUMENTATION "Provides the stream-collect macro.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.EXPAND-STREAM-COLLECT)
-  (:EXPORT #:STREAM-COLLECT))
-
-(DEFPACKAGE #:SCHEMEISH.DEFINE-STRUCT
-  (:DOCUMENTATION "Provides define-struct.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:SCHEMEISH.STRUCT)
-  (:EXPORT #:DEFINE-STRUCT))
-
-(DEFPACKAGE #:SCHEMEISH.LEXICALLY
-  (:DOCUMENTATION "Provides the lexically and expose macros.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BASE
-        #:SCHEMEISH.EXPAND-LEXICALLY)
-  (:EXPORT #:EXPOSE #:LEXICALLY))
-
-(DEFPACKAGE #:SCHEMEISH.QUEUE
-  (:DOCUMENTATION "Provides a bundle-based implementation of a queue.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:SCHEMEISH.BUNDLE)
-  (:EXPORT #:MAKE-QUEUE
-           #:QUEUE-DELETE!
-           #:QUEUE-EMPTY?
-           #:QUEUE-FRONT
-           #:QUEUE-INSERT!
-           #:QUEUE?))
-
-(DEFPACKAGE #:SCHEMEISH.SERIALIZE
-  (:DOCUMENTATION "Provides the serialize function which can recursively serialize lisp data, bundles, and structs
-into a form ready for EVAL.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BASE
-        #:SCHEMEISH.BUNDLE
-        #:SCHEMEISH.DEFINE-STRUCT
-        #:SCHEMEISH.QUEUE
-        #:SCHEMEISH.STRUCT)
-  (:EXPORT #:SERIALIZE))
-
-(DEFPACKAGE #:SCHEMEISH.PACKAGE-UTILS
-  (:DOCUMENTATION "Provides tools for dealing with CL packages.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BASE
-        #:SCHEMEISH.BUNDLE
-        #:SCHEMEISH.DEFINE-STRUCT
-        #:SCHEMEISH.QUEUE
-        #:SCHEMEISH.STRUCT)
-  (:EXPORT #:*RESOLVE-PACKAGE-DESIGNATOR*
-           #:ALL-PACKAGES-WITH-STRING-PREFIX
-           #:DEFINE-PACKAGE
-           #:DEFINE-PACKAGE-FORM
-           #:DEFPACKAGE-FORM
-           #:DOCUMENT
-           #:ENSURE-STRING
-           #:EXTEND-PACKAGE
-           #:EXTEND-PACKAGE*
-           #:FILTER-PACKAGES
-           #:GROUP-BY-PACKAGE
-           #:HIERARCHICAL-DEFPACKAGE-FORMS
-           #:INDEPENDENT-PACKAGE?
-           #:INDEPENDENT-PACKAGES
-           #:NICKNAME-PACKAGE
-           #:PACKAGE-DELETE
-           #:PACKAGE-DEPENDENCIES
-           #:PACKAGE-EXPORT
-           #:PACKAGE-EXPORTED-SYMBOLS
-           #:PACKAGE-EXTERNAL-SYMBOLS
-           #:PACKAGE-EXTERNAL-SYMBOLS-FROM
-           #:PACKAGE-FILE-CONTENTS
-           #:PACKAGE-FIND
-           #:PACKAGE-HIERARCHY
-           #:PACKAGE-IMPORT-FROM
-           #:PACKAGE-IMPORT-FROMS
-           #:PACKAGE-IMPORTED-SYMBOLS
-           #:PACKAGE-NON-SHADOWING-SYMBOLS
-           #:PACKAGE-RE-EXPORT-SHADOWING
-           #:PACKAGE-SHADOW
-           #:PACKAGE-SHADOWING-EXPORT
-           #:PACKAGE-SHADOWING-IMPORT-FROM
-           #:PACKAGE-SHADOWING-IMPORT-FROMS
-           #:PACKAGE-SYMBOLS
-           #:PACKAGE-UNUSED-SYMBOLS
-           #:PACKAGE-USE
-           #:PACKAGE-USE-SHADOWING
-           #:PACKAGE-USED-SYMBOLS
-           #:PACKAGE?
-           #:SYMBOL-IN-PACKAGE?
-           #:SYMBOLS-IN-PACKAGE
-           #:SYMBOLS-INTERNED-IN-PACKAGE
-           #:UNINTERNED
-           #:UNIQUE-PACKAGE-NAME
-           #:WITH-TEMPORARY-PACKAGE))
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
+                          #:*
+                          #:**
+                          #:***
+                          #:+
+                          #:++
+                          #:+++
+                          #:-
+                          #:/
+                          #://
+                          #:///)
+  (:USE #:SCHEMEISH.SCHEMEISH))
 
 (DEFPACKAGE #:SCHEMEISH.SCHEMEISH
   (:DOCUMENTATION "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
@@ -408,7 +51,6 @@ into a form ready for EVAL.")
         #:SCHEMEISH.LEXICALLY
         #:SCHEMEISH.PACKAGE-UTILS
         #:SCHEMEISH.QUEUE
-        #:SCHEMEISH.SERIALIZE
         #:SCHEMEISH.STREAM-COLLECT
         #:SCHEMEISH.STRUCT)
   (:EXPORT #:&ALLOW-OTHER-KEYS
@@ -581,7 +223,6 @@ into a form ready for EVAL.")
            #:BUILT-IN-CLASS
            #:BUNDLE
            #:BUNDLE-DOCUMENTATION
-           #:BUNDLE-LIST
            #:BUNDLE-PERMISSIONS
            #:BUNDLE?
            #:BUTLAST
@@ -673,6 +314,7 @@ into a form ready for EVAL.")
            #:COMPLEX
            #:COMPLEXP
            #:COMPOSE
+           #:COMPOSE*
            #:COMPUTE-APPLICABLE-METHODS
            #:COMPUTE-RESTARTS
            #:CONCATENATE
@@ -1328,7 +970,6 @@ into a form ready for EVAL.")
            #:SEARCH
            #:SECOND
            #:SEQUENCE
-           #:SERIALIZE
            #:SERIOUS-CONDITION
            #:SET
            #:SET!
@@ -1604,40 +1245,382 @@ into a form ready for EVAL.")
            #:ZEROP)
   (:SHADOW #:* #:** #:*** #:+ #:++ #:+++ #:- #:/ #:// #:///))
 
-(DEFPACKAGE #:SCHEMEISH.HTML
+(DEFPACKAGE #:SCHEMEISH.PACKAGE-UTILS
+  (:DOCUMENTATION "Provides tools for dealing with CL packages.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
-                          #:*
-                          #:**
-                          #:***
-                          #:+
-                          #:++
-                          #:+++
-                          #:-
-                          #:/
-                          #://
-                          #:///)
-  (:USE #:SCHEMEISH.SCHEMEISH))
+  (:USE #:COMMON-LISP
+        #:SCHEMEISH.AND-LET
+        #:SCHEMEISH.BASE
+        #:SCHEMEISH.BUNDLE
+        #:SCHEMEISH.DEFINE-STRUCT
+        #:SCHEMEISH.QUEUE
+        #:SCHEMEISH.STRUCT)
+  (:EXPORT #:*RESOLVE-PACKAGE-DESIGNATOR*
+           #:ALL-PACKAGES-WITH-STRING-PREFIX
+           #:DEFINE-PACKAGE
+           #:DEFINE-PACKAGE-FORM
+           #:DEFPACKAGE-FORM
+           #:DOCUMENT
+           #:ENSURE-STRING
+           #:EXTEND-PACKAGE
+           #:EXTEND-PACKAGE*
+           #:FILTER-PACKAGES
+           #:GROUP-BY-PACKAGE
+           #:HIERARCHICAL-DEFPACKAGE-FORMS
+           #:INDEPENDENT-PACKAGE?
+           #:INDEPENDENT-PACKAGES
+           #:NICKNAME-PACKAGE
+           #:PACKAGE-DELETE
+           #:PACKAGE-DEPENDENCIES
+           #:PACKAGE-EXPORT
+           #:PACKAGE-EXPORTED-SYMBOLS
+           #:PACKAGE-EXTERNAL-SYMBOLS
+           #:PACKAGE-EXTERNAL-SYMBOLS-FROM
+           #:PACKAGE-FILE-CONTENTS
+           #:PACKAGE-FIND
+           #:PACKAGE-HIERARCHY
+           #:PACKAGE-IMPORT-FROM
+           #:PACKAGE-IMPORT-FROMS
+           #:PACKAGE-IMPORTED-SYMBOLS
+           #:PACKAGE-NON-SHADOWING-SYMBOLS
+           #:PACKAGE-RE-EXPORT-SHADOWING
+           #:PACKAGE-SHADOW
+           #:PACKAGE-SHADOWING-EXPORT
+           #:PACKAGE-SHADOWING-IMPORT-FROM
+           #:PACKAGE-SHADOWING-IMPORT-FROMS
+           #:PACKAGE-SYMBOLS
+           #:PACKAGE-UNUSED-SYMBOLS
+           #:PACKAGE-USE
+           #:PACKAGE-USE-SHADOWING
+           #:PACKAGE-USED-SYMBOLS
+           #:PACKAGE?
+           #:SYMBOL-IN-PACKAGE?
+           #:SYMBOLS-IN-PACKAGE
+           #:SYMBOLS-INTERNED-IN-PACKAGE
+           #:UNINTERNED
+           #:UNIQUE-PACKAGE-NAME
+           #:WITH-TEMPORARY-PACKAGE))
 
-(DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
-  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
-Provides write-package-file! which writes the current schemeish-packages to a file.")
+(DEFPACKAGE #:SCHEMEISH.QUEUE
+  (:DOCUMENTATION "Provides a bundle-based implementation of a queue.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
-                          #:*
-                          #:**
-                          #:***
-                          #:+
-                          #:++
-                          #:+++
-                          #:-
-                          #:/
-                          #://
-                          #:///)
-  (:USE #:SCHEMEISH.PACKAGE-UTILS #:SCHEMEISH.SCHEMEISH)
-  (:EXPORT #:SCHEMEISH-PACKAGES #:WRITE-PACKAGE-FILE!))
+  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:SCHEMEISH.BUNDLE)
+  (:EXPORT #:MAKE-QUEUE
+           #:QUEUE-DELETE!
+           #:QUEUE-EMPTY?
+           #:QUEUE-FRONT
+           #:QUEUE-INSERT!
+           #:QUEUE?))
+
+(DEFPACKAGE #:SCHEMEISH.LEXICALLY
+  (:DOCUMENTATION "Provides the lexically and expose macros.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP
+        #:SCHEMEISH.AND-LET
+        #:SCHEMEISH.BASE
+        #:SCHEMEISH.EXPAND-LEXICALLY)
+  (:EXPORT #:EXPOSE #:LEXICALLY))
+
+(DEFPACKAGE #:SCHEMEISH.DEFINE-STRUCT
+  (:DOCUMENTATION "Provides define-struct.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:SCHEMEISH.STRUCT)
+  (:EXPORT #:DEFINE-STRUCT))
+
+(DEFPACKAGE #:SCHEMEISH.STREAM-COLLECT
+  (:DOCUMENTATION "Provides the stream-collect macro.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.EXPAND-STREAM-COLLECT)
+  (:EXPORT #:STREAM-COLLECT))
+
+(DEFPACKAGE #:SCHEMEISH.STRUCT
+  (:DOCUMENTATION "Provides the basis and expansions for define-struct.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
+  (:EXPORT #:STRUCT
+           #:STRUCT->LIST
+           #:STRUCT-ACCESSORS
+           #:STRUCT-COPY
+           #:STRUCT-FORM
+           #:STRUCT?))
+
+(DEFPACKAGE #:SCHEMEISH.BUNDLE
+  (:DOCUMENTATION "Provides bundle and make-bundle-predicate for creating dispatch-style closures.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
+  (:EXPORT #:BUNDLE
+           #:BUNDLE-DOCUMENTATION
+           #:BUNDLE-PERMISSIONS
+           #:BUNDLE?
+           #:MAKE-BUNDLE-PREDICATE))
+
+(DEFPACKAGE #:SCHEMEISH.EXPAND-LEXICALLY
+  (:DOCUMENTATION "Provides tools to expand lexically/expose macros.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
+  (:EXPORT #:LEXICAL-BINDINGS
+           #:LEXICAL-NAME->PARAMETER-NAME
+           #:PARAMETER-NAME->LEXICAL-NAME
+           #:PARAMETER-NAME?
+           #:SPECIAL-FORM?
+           #:SPECIAL?))
+
+(DEFPACKAGE #:SCHEMEISH.CUT
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
+  (:EXPORT #:CUT))
+
+(DEFPACKAGE #:SCHEMEISH.EXPAND-STREAM-COLLECT
+  (:DOCUMENTATION "Provides tools to expand a stream-collect macro form.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
+  (:EXPORT #:STREAM-COLLECT-FORM))
+
+(DEFPACKAGE #:SCHEMEISH.AND-LET
+  (:DOCUMENTATION "Provides the and-let* macro.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
+  (:EXPORT #:AND-LET*))
+
+(DEFPACKAGE #:SCHEMEISH.BASE
+  (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
+  - symbols
+  - lists
+  - procedures
+  - alists
+  - sets
+  - strings
+  - output
+  - mutation")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.DEFINE)
+  (:EXPORT #:*THE-EMPTY-STREAM*
+           #:ALIST
+           #:ALIST-HAS-KEY?
+           #:ALIST-KEYS
+           #:ALIST-MAP
+           #:ALIST-REF
+           #:ALIST-REMOVE
+           #:ALIST-SET
+           #:ALIST-SET*
+           #:ALIST-UPDATE
+           #:ALIST-VALUES
+           #:ANDMAP
+           #:APPEND*
+           #:APPEND-MAP
+           #:COMPOSE
+           #:COMPOSE*
+           #:CONJOIN
+           #:CONJOIN*
+           #:CONST
+           #:DEFINE
+           #:DEGREES->RADIANS
+           #:DELAY
+           #:DISJOIN
+           #:DISJOIN*
+           #:DISPLAY
+           #:DISPLAYLN
+           #:DOCUMENT!
+           #:DROP
+           #:DROPF
+           #:EMPTY?
+           #:EQ?
+           #:EQUAL?
+           #:EVEN?
+           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-TOP-LEVEL-DEFINE
+           #:FILTER
+           #:FILTER-MAP
+           #:FILTER-NOT
+           #:FINDF
+           #:FLATTEN
+           #:FOLDL
+           #:FOLDR
+           #:FOR-ALL
+           #:FOR-ALL*
+           #:FOR-EACH
+           #:FOR-MACROS
+           #:FORCE
+           #:GROUP
+           #:HAS-SPECIFIC-ARITY?
+           #:HASH-FIND-KEYF
+           #:HASH-REF
+           #:HASH-SET!
+           #:IGNORE-ARGS
+           #:INSTALL-SYNTAX!
+           #:LAMBDA
+           #:LCURRY
+           #:LET
+           #:LIST->STREAM
+           #:LIST-REF
+           #:LIST-SET
+           #:LIST-TAIL
+           #:LIST-UPDATE
+           #:LIST?
+           #:MAKE-KEYWORD
+           #:MAP
+           #:MAP-SUCCESSIVE
+           #:MEMF
+           #:MEMO-PROC
+           #:NAND
+           #:NEGATIVE?
+           #:NEWLINE
+           #:NOR
+           #:NULL?
+           #:NUMBER->STRING
+           #:NUMBER?
+           #:ODD?
+           #:ORMAP
+           #:PAIR?
+           #:PARTITION
+           #:POSITIVE?
+           #:PROCEDURE-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-ALLOW-OTHER-KEYS?
+           #:PROCEDURE-ARGUMENTS-KEY-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-OPTIONAL-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-REQUIRED-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
+           #:PROCEDURE-ARITY
+           #:PROCEDURE?
+           #:QUOTIENT
+           #:RADIANS->DEGREES
+           #:RANDOM-STREAM
+           #:RANGE
+           #:RCURRY
+           #:REMOVE*
+           #:REMQ
+           #:REMQ*
+           #:SAFE-VECTOR-REF
+           #:SET!
+           #:SET->STREAM
+           #:SET-ADD
+           #:SET-CAR!
+           #:SET-CDR!
+           #:SET-COUNT
+           #:SET-EMPTY?
+           #:SET-INTERSECT
+           #:SET-MEMBER?
+           #:SET-REMOVE
+           #:SET-SUBTRACT
+           #:SET-UNION
+           #:SET=?
+           #:SGN
+           #:SORT
+           #:SPLIT-AT
+           #:SPLITF-AT
+           #:SQR
+           #:STREAM
+           #:STREAM->LIST
+           #:STREAM-APPEND
+           #:STREAM-CAR
+           #:STREAM-CDR
+           #:STREAM-CONS
+           #:STREAM-DROP
+           #:STREAM-EMPTY?
+           #:STREAM-FILTER
+           #:STREAM-FIRST
+           #:STREAM-FLATMAP
+           #:STREAM-FLATTEN
+           #:STREAM-FOLD
+           #:STREAM-FOR-EACH
+           #:STREAM-LENGTH
+           #:STREAM-MAP
+           #:STREAM-MAP-SUCCESSIVE
+           #:STREAM-RANGE
+           #:STREAM-REF
+           #:STREAM-REST
+           #:STREAM-TAKE
+           #:STREAM?
+           #:STRING-APPEND
+           #:STRING-STARTS-WITH?
+           #:STRING?
+           #:SUBSET?
+           #:SWAP-ARGS
+           #:SYMBOL->STRING
+           #:SYMBOL?
+           #:TAKE
+           #:TAKEF
+           #:THERE-EXISTS
+           #:THERE-EXISTS*
+           #:UNINSTALL-SYNTAX!
+           #:UNIQUE-SYMBOL
+           #:VECTOR-REF
+           #:VECTOR-SET!
+           #:WITH-READABLE-SYMBOLS
+           #:XOR
+           #:ZERO?)
+  (:SHADOW #:MAP #:SORT #:STREAM))
+
+(DEFPACKAGE #:SCHEMEISH.DEFINE
+  (:DOCUMENTATION "Provides DEFINE. See DEFINE's docs for more details.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX)
+  (:EXPORT #:DEFINE
+           #:DROPF
+           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-TOP-LEVEL-DEFINE
+           #:LAMBDA
+           #:SPLITF-AT
+           #:TAKEF
+           #:UNIQUE-SYMBOL
+           #:WITH-READABLE-SYMBOLS)
+  (:SHADOW #:LAMBDA))
+
+(DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
+  (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP
+        #:SCHEMEISH.FOR-MACROS
+        #:SCHEMEISH.NAMED-LET
+        #:SCHEMEISH.SYNTAX)
+  (:EXPORT #:FOR-MACROS
+           #:INSTALL-SYNTAX!
+           #:LET
+           #:UNINSTALL-SYNTAX!
+           #:UNIQUE-SYMBOL
+           #:WITH-READABLE-SYMBOLS))
+
+(DEFPACKAGE #:SCHEMEISH.SYNTAX
+  (:DOCUMENTATION "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
+  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
+  (:EXPORT #:INSTALL-SYNTAX! #:UNINSTALL-SYNTAX!))
+
+(DEFPACKAGE #:SCHEMEISH.ARGUMENTS
+  (:DOCUMENTATION "Tools to translate scheme style argument lists to CL style argument lists.")
+  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
+  (:EXPORT #:ARG-LIST->LAMBDA-LIST))
+
+(DEFPACKAGE #:SCHEMEISH.NAMED-LET
+  (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
+  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
+  (:EXPORT #:LET)
+  (:SHADOW #:LET))
+
+(DEFPACKAGE #:SCHEMEISH.FOR-MACROS
+  (:DOCUMENTATION "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
+  (:USE #:COMMON-LISP)
+  (:EXPORT #:FOR-MACROS #:UNIQUE-SYMBOL #:WITH-READABLE-SYMBOLS))
 

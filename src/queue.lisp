@@ -26,7 +26,7 @@
       (t
        (setq front-ptr (cdr front-ptr)))))
 
-  (bundle *queue?* (make-queue front-ptr)
+  (bundle *queue?*
 	  empty?
 	  front
 	  insert!

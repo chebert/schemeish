@@ -52,7 +52,6 @@ prefix it with the schemish prefix."
 (progn
   (sync-compound-packages!)
   (write-package-file!)
-
   (with-schemeish-designators
     (define-package :cut
 	(package-use-shadowing :cl :base)

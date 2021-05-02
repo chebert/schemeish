@@ -2,7 +2,6 @@
 
 
 (for-macros (install-syntax!))
-
 (defmacro lexically ((&key (parameter-wrap-sym '/) (special-fn-append-sym 'f)) &body body)
   "Evaluate body in a lexical scope, expanding defines as if inside of a define or lambda.
 Establishes lexical-bindings for all normal functions and parameters in the current package.

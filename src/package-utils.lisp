@@ -268,8 +268,8 @@ Returns the package-name."
 (define (independent-package? package packages)
   "True if package does not have any dependencies on packages."
   (let ((dependencies (package-dependencies package)))
-    (for-all* (lambda (other-package) (not (member other-package dependencies)))
-	      (remove package packages))))
+    (for-all (lambda (other-package) (not (member other-package dependencies)))
+	     (remove package packages))))
 
 (define (independent-packages packages)
   "Return a list of the packages in packages which are not dependent on other packages in packages."
@@ -298,7 +298,7 @@ Cyclic dependencies throw an error."
 
 (define (hierarchical-defpackage-forms packages)
   "Return a list of defpackage forms which have been hierarchically arranged. Cyclic dependencies throw an error."
-  (map 'defpackage-form (append* (package-hierarchy packages))))
+  (nreverse (map 'defpackage-form (append* (package-hierarchy packages)))))
 
 (define (filter-packages predicate)
   "Return all packages that match predicate"
