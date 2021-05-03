@@ -46,7 +46,7 @@ prefix it with the schemish prefix."
 		    (package-use-and-export-shadowing
 		     :COMMON-LISP
 		     :AND-LET :BASE :BUNDLE :DEFINE-STRUCT :LEXICALLY
-		     :QUEUE :SERIALIZE :STREAM-COLLECT :STRUCT :cut))))
+		     :QUEUE :STRUCT :cut))))
 
 #+nil
 (progn

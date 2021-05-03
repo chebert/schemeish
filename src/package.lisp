@@ -112,15 +112,25 @@
            #:FORCE
            #:GROUP
            #:HAS-SPECIFIC-ARITY?
+           #:HASH->ALIST
+           #:HASH-CLEAR!
            #:HASH-FIND-KEYF
+           #:HASH-FOR-EACH
+           #:HASH-KEYS
+           #:HASH-MAP
            #:HASH-REF
+           #:HASH-REMOVE!
            #:HASH-SET!
+           #:HASH-UPDATE!
+           #:HASH-VALUES
            #:IGNORE-ARGS
            #:INSTALL-SYNTAX!
            #:LAMBDA
            #:LCURRY
            #:LET
            #:LIST->STREAM
+           #:LIST->STRING
+           #:LIST->VECTOR
            #:LIST-REF
            #:LIST-SET
            #:LIST-TAIL
@@ -200,6 +210,7 @@
            #:STREAM-REST
            #:STREAM-TAKE
            #:STREAM?
+           #:STRING->LIST
            #:STRING-APPEND
            #:STRING-STARTS-WITH?
            #:STRING?
@@ -207,12 +218,15 @@
            #:SWAP-ARGS
            #:SYMBOL->STRING
            #:SYMBOL?
+           #:SYMBOLICATE
            #:TAKE
            #:TAKEF
            #:THERE-EXISTS
            #:THERE-EXISTS*
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
+           #:VECTOR->LIST
+           #:VECTOR-MAP
            #:VECTOR-REF
            #:VECTOR-SET!
            #:WITH-READABLE-SYMBOLS
@@ -276,6 +290,14 @@
   (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.EXPAND-STREAM-COLLECT)
   (:EXPORT #:STREAM-COLLECT))
 
+(DEFPACKAGE #:SCHEMEISH.LEXICALLY
+  (:DOCUMENTATION "Provides the lexically and expose macros.")
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
+  (:EXPORT #:EXPOSE #:LEXICALLY))
+
 (DEFPACKAGE #:SCHEMEISH.DEFINE-STRUCT
   (:DOCUMENTATION "Provides define-struct.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
@@ -283,16 +305,6 @@
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:SCHEMEISH.STRUCT)
   (:EXPORT #:DEFINE-STRUCT))
-
-(DEFPACKAGE #:SCHEMEISH.LEXICALLY
-  (:DOCUMENTATION "Provides the lexically and expose macros.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BASE)
-  (:EXPORT #:EXPOSE #:LEXICALLY))
 
 (DEFPACKAGE #:SCHEMEISH.QUEUE
   (:DOCUMENTATION "Provides a bundle-based implementation of a queue.")
@@ -873,8 +885,14 @@
            #:HANDLER-BIND
            #:HANDLER-CASE
            #:HAS-SPECIFIC-ARITY?
+           #:HASH->ALIST
+           #:HASH-CLEAR!
            #:HASH-FIND-KEYF
+           #:HASH-FOR-EACH
+           #:HASH-KEYS
+           #:HASH-MAP
            #:HASH-REF
+           #:HASH-REMOVE!
            #:HASH-SET!
            #:HASH-TABLE
            #:HASH-TABLE-COUNT
@@ -883,6 +901,8 @@
            #:HASH-TABLE-REHASH-THRESHOLD
            #:HASH-TABLE-SIZE
            #:HASH-TABLE-TEST
+           #:HASH-UPDATE!
+           #:HASH-VALUES
            #:HIERARCHICAL-DEFPACKAGE-FORMS
            #:HOST-NAMESTRING
            #:IDENTITY
@@ -952,6 +972,8 @@
            #:LIST
            #:LIST*
            #:LIST->STREAM
+           #:LIST->STRING
+           #:LIST->VECTOR
            #:LIST-ALL-PACKAGES
            #:LIST-LENGTH
            #:LIST-REF
@@ -1413,6 +1435,7 @@
            #:STREAM?
            #:STREAMP
            #:STRING
+           #:STRING->LIST
            #:STRING-APPEND
            #:STRING-CAPITALIZE
            #:STRING-DOWNCASE
@@ -1470,6 +1493,7 @@
            #:SYMBOL-PLIST
            #:SYMBOL-VALUE
            #:SYMBOL?
+           #:SYMBOLICATE
            #:SYMBOLP
            #:SYMBOLS-IN-PACKAGE
            #:SYMBOLS-INTERNED-IN-PACKAGE
@@ -1535,6 +1559,8 @@
            #:VALUES-LIST
            #:VARIABLE
            #:VECTOR
+           #:VECTOR->LIST
+           #:VECTOR-MAP
            #:VECTOR-POP
            #:VECTOR-PUSH
            #:VECTOR-PUSH-EXTEND

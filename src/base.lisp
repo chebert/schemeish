@@ -572,12 +572,19 @@ Applies updater to failure-result if key is not present."
        (string= (subseq string 0 (length sub-string))
 		sub-string)))
 
+(define (string->list string)
+  (coerce string 'list))
+(define (list->string list)
+  (coerce list 'string))
+
 (define (newline (out *standard-output*)) (format out "~%"))
 (define (display datum (out *standard-output*)) (format out "~A" datum))
 (define (displayln datum (out *standard-output*))
   (display datum out)
   (newline out))
 
+(define (symbolicate . things)
+  (intern (apply 'string-append (map 'string things))))
 
 (defmacro set! (id expression)
   `(setq ,id ,expression))
@@ -977,8 +984,8 @@ Does not affect the random-state."
       (t base-arity)))
 
   (define (arity-finished base-arity)
-    (let ((arity (nreverse base-arity)))
-      arity))
+    (nreverse base-arity))
+  
   (arity-finished
    (arity-extended-by-indefinite
     (arity-extended-by-keys (arity-extended-by-optionals required-arity))
@@ -1027,6 +1034,11 @@ Does not affect the random-state."
 (assert (not (has-specific-arity? '(2 3 (:** . 4)) 5)))
 (assert (has-specific-arity? '(2 3 (:** . 4)) 6))
 
+;; TODO: Arity-table
+;; TODO: Restrict arity when creating higher order functions. COMPOSE, etc.
+;; TODO: Generics
+
+
 (define (group key-fn list)
   "Groups elements of list that have the same key-fn into an alist."
   (define (rec list result)
@@ -1064,6 +1076,40 @@ Does not affect the random-state."
 	     (return-from hash-find-keyf key)))
   failure-result)
 
+(define (hash-update! table key updater (failure-result))
+  "Updates the value in table associated with key using [updater value].
+If no value is associated with key, failure-result is used instead."
+  (hash-set! table key [updater (hash-ref table key failure-result)]))
+
+(define (hash-map table proc)
+  "Maps [proc key value] over the keys and values of table, producing a list as a result."
+  (loop for key being the hash-keys of table using (hash-value value)
+	collecting [proc key value]))
+
+(define (hash-keys table)
+  "Returns a list of all of the keys in table."
+  (loop for key being the hash-keys of table collecting key))
+
+(define (hash-values table)
+  "Returns a list of all of the values in table."
+  (loop for value being the hash-values of table collecting value))
+
+(define (hash->alist table)
+  "Return an alist representation of the key/value pairs in table."
+  (hash-map table #'cons))
+
+(define (hash-for-each table proc)
+  "Apply [proc key value] to each key/value pair in table."
+  (maphash proc table))
+
+(define (hash-remove! table key)
+  "Removes key and associated value from table"
+  (remhash key table))
+(define (hash-clear! table)
+  "Remvoes all keys and values from table."
+  (clrhash table))
+
+
 (define (vector-ref vector index)
   (aref vector index))
 (define (vector-set! vector index value)
@@ -1075,7 +1121,10 @@ Does not affect the random-state."
       out-of-bounds-result
       (aref vector index)))
 
-
+(define (vector->list vector)
+  (coerce vector 'list))
+(define (list->vector list)
+  (coerce list 'vector))
 
 
 (for-macros (uninstall-syntax!))
