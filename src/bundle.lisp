@@ -57,17 +57,15 @@ Example:
       (assert [*point?* point])
       (bundle-permissions bundle) ; => '(:get-x :get-y :set-x! :set-y!)
       )"
-  `(progn
-     (lambda (arg)
-       (cond
-	 ((eq *get-bundle-type-predicate* arg)
-	  (cond
-	    ((null? ,type-predicate) *bundle?*)
-	    ((symbolp ,type-predicate) (symbol-function ,type-predicate))
-	    (t ,type-predicate))
-	  (or ,type-predicate *bundle?*))
-	 ((eq *get-bundle-permissions* arg) ',(map (lambda (name) (make-keyword name)) fn-names))
-	 ,@ (map (lambda (name) `((eq ,(make-keyword name) arg) ,name)) fn-names)))))
+  `(lambda (arg)
+     (cond
+       ((eq *get-bundle-type-predicate* arg)
+	,(cond
+	   ((null? type-predicate) *bundle?*)
+	   ((symbolp type-predicate) (symbol-function type-predicate))
+	   (t `(or ,type-predicate *bundle?*))))
+       ((eq *get-bundle-permissions* arg) ',(map (lambda (name) (make-keyword name)) fn-names))
+       ,@ (map (lambda (name) `((eq ,(make-keyword name) arg) ,name)) fn-names))))
 
 (define (bundle-documentation bundle)
   "Generates documentation for bundle and all of its permissions."
@@ -85,14 +83,14 @@ Example:
   (and (procedure? bundle)
        (bundle-predicate? (ignore-errors [bundle *get-bundle-type-predicate*]))))
 
-(defvar *point?* (make-bundle-predicate :point))
+(define point? (make-bundle-predicate :point))
 (define (make-bundle-point x y)
   (define (get-x) "x-coord" x)
   (define (get-y) "y-coord" y)
   (define (set-x! new-x) "set x-coord to new-x" (setq x new-x))
   (define (set-y! new-y) "set y-coord to new-y" (setq y new-y))
 
-  (bundle *point?* get-x get-y set-x! set-y!))
+  (bundle #'point? get-x get-y set-x! set-y!))
 
 
 (bundle-documentation (make-bundle-point 3 4))
@@ -108,7 +106,7 @@ A bundle of type :POINT with permissions:
   (assert (= 3 [[point :get-x]]))
   [[point :set-x!] 32]
   (assert (= 32 [[point :get-x]]))
-  (assert [*point?* point]))
+  (assert (point? point)))
 #+nil
 (sb-introspect:function-lambda-list [(make-bundle-point 3 4) :set-x!])
 ;; => (NEW-X)

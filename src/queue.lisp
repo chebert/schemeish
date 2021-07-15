@@ -1,7 +1,7 @@
 (in-package #:schemeish.queue)
 
 (for-macros (install-syntax!))
-(defparameter *queue?* (make-bundle-predicate :queue))
+(define queue? (make-bundle-predicate :queue))
 (define (make-queue (front-ptr ()))
   (define rear-ptr (last front-ptr))
   (define (empty?) (null? front-ptr))
@@ -26,13 +26,12 @@
       (t
        (setq front-ptr (cdr front-ptr)))))
 
-  (bundle *queue?*
+  (bundle #'queue?
 	  empty?
 	  front
 	  insert!
 	  delete!))
 
-(define (queue? v) [*queue?* v])
 (define (queue-empty? q) [[q :empty?]])
 (define (queue-front q) [[q :front]])
 (define (queue-insert! q item)
