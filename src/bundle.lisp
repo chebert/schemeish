@@ -78,12 +78,12 @@ when given a bundle with this type-predicate"
 (assert (equal? (with-readable-symbols
 		  (bundle-fn-identifier->permission-form 'arg '(:set! variable-name)))
 		'((EQ :SET-VARIABLE-NAME! ARG)
-		  (LAMBDA (VALUE-NAME)
+		  (LAMBDA (VALUE)
 		    (SET! VARIABLE-NAME VALUE)))))
 (assert (equal? (with-readable-symbols
 		  (bundle-fn-identifier->permission-form 'arg '(:set! variable-name setter-name!)))
 		'((EQ :setter-name! ARG)
-		  (LAMBDA (VALUE-NAME)
+		  (LAMBDA (VALUE)
 		    (SET! VARIABLE-NAME VALUE)))))
 
 (defmacro bundle (type-predicate &rest fn-identifiers)
@@ -119,7 +119,8 @@ Example:
       (assert [*point?* point])
       (bundle-permissions bundle) ; => '(:get-x :get-y :set-x! :set-y!))"
   (let* ((arg-name (unique-symbol 'arg))
-	 (permission-forms (map (lcurry #'bundle-fn-identifier->permission-form arg-name) fn-identifiers)))
+	 (permission-forms (map (lcurry #'bundle-fn-identifier->permission-form arg-name) fn-identifiers))
+	 (permission-names (map #'fn-identifier->permission-name fn-identifiers)))
     (assert (every #'identity permission-forms))
     `(lambda (,arg-name)
        (cond
@@ -128,9 +129,11 @@ Example:
 	     ((null? type-predicate) '*bundle?*)
 	     ((symbolp type-predicate) (symbol-function type-predicate))
 	     (t type-predicate)))
-	 ((eq *get-bundle-permissions* ,arg-name) ',(map #'fn-identifier->permission-name fn-identifiers))
+	 ((eq *get-bundle-permissions* ,arg-name) ',permission-names)
 	 ;; TODO: switch to a case statement
-	 ,@permission-forms))))
+	 ,@permission-forms
+	 (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
+		   ,arg-name ',permission-names))))))
 
 (define (bundle-documentation bundle)
   "Generates documentation for bundle and all of its permissions."
