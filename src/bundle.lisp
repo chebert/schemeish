@@ -4,8 +4,6 @@
 
 (defvar *get-bundle-type-predicate* (gensym))
 (defvar *get-bundle-predicate-symbol* (gensym))
-(defvar *get-is-bundle-predicate?* (gensym))
-(defvar *is-bundle-predicate* (gensym))
 
 (define (make-bundle-predicate name)
   "Returns a predicate which, only evaluates to true 
@@ -13,8 +11,6 @@ when given a bundle with this type-predicate"
   (define (dispatch arg)
     (cond
       ((eq? *get-bundle-predicate-symbol* arg) name)
-      ((eq? *get-is-bundle-predicate?* arg)
-       *is-bundle-predicate*)
       ((procedure? arg)
        (eq? dispatch [arg *get-bundle-type-predicate*]))
       (t nil)))
@@ -23,17 +19,15 @@ when given a bundle with this type-predicate"
 (define (bundle-predicate-symbol predicate)
   "Returns the debug symbol associated with predicate."
   [predicate *get-bundle-predicate-symbol*])
-(define (bundle-predicate? datum)
-  (and (procedure? datum)
-       (eq? *is-bundle-predicate* [datum *get-is-bundle-predicate?*])))
 
 (defvar *name?* (make-bundle-predicate :bundle))
 (assert [*name?* (lambda (arg)
 		   (cond
 		     ((eq *get-bundle-type-predicate* arg) *name?*)))])
 
-(defparameter *get-bundle-permissions* (gensym))
-(defparameter *bundle?* (make-bundle-predicate :bundle))
+(for-macros
+  (defvar *get-bundle-permissions* (gensym "GET-BUNDLE-PERMISSIONS"))
+  (defvar *get-bundle-id* (gensym "GET-BUNDLE-ID")))
 
 (define (get-fn-identifier? fn-identifier)
   (and (eql (first fn-identifier) :get)
@@ -86,6 +80,16 @@ when given a bundle with this type-predicate"
 		  (LAMBDA (VALUE)
 		    (SET! VARIABLE-NAME VALUE)))))
 
+(for-macros
+  (defvar *bundles* (make-hash-table :weakness :key))
+
+  (define (register-bundle! bundle)
+    (setf (gethash bundle *bundles*) t)
+    bundle))
+
+(define (bundle? bundle)
+  (gethash bundle *bundles*))
+
 (defmacro bundle (type-predicate &rest fn-identifiers)
   "Create a bundle of permissions for closure objects.
 A bundle is a function (bundle-proc msg) => permission, where each permission
@@ -119,21 +123,25 @@ Example:
       (assert [*point?* point])
       (bundle-permissions bundle) ; => '(:get-x :get-y :set-x! :set-y!))"
   (let* ((arg-name (unique-symbol 'arg))
+	 (id-name (unique-symbol 'id))
 	 (permission-forms (map (lcurry #'bundle-fn-identifier->permission-form arg-name) fn-identifiers))
 	 (permission-names (map #'fn-identifier->permission-name fn-identifiers)))
     (assert (every #'identity permission-forms))
-    `(lambda (,arg-name)
-       (cond
-	 ((eq *get-bundle-type-predicate* ,arg-name)
-	  ,(cond
-	     ((null? type-predicate) '*bundle?*)
-	     ((symbolp type-predicate) (symbol-function type-predicate))
-	     (t type-predicate)))
-	 ((eq *get-bundle-permissions* ,arg-name) ',permission-names)
-	 ;; TODO: switch to a case statement
-	 ,@permission-forms
-	 (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
-		   ,arg-name ',permission-names))))))
+    `(register-bundle!
+      (let ((,id-name (gensym "BUNDLE")))
+	(lambda (,arg-name)
+	  (cond
+	    ((eq *get-bundle-type-predicate* ,arg-name)
+	     ,(cond
+		((null? type-predicate) '(constantly nil))
+		((symbolp type-predicate) (symbol-function type-predicate))
+		(t type-predicate)))
+	    ((eq *get-bundle-permissions* ,arg-name) ',permission-names)
+	    ((eq *get-bundle-id* ,arg-name) ,id-name)
+	    ;; TODO: switch to a case statement
+	    ,@permission-forms
+	    (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
+		      ,arg-name ',permission-names))))))))
 
 (define (bundle-documentation bundle)
   "Generates documentation for bundle and all of its permissions."
@@ -147,9 +155,6 @@ Example:
 (define (bundle-permissions bundle)
   "Return a list of permissions to the bundle."
   [bundle *get-bundle-permissions*])
-(define (bundle? bundle)
-  (and (procedure? bundle)
-       (bundle-predicate? (ignore-errors [bundle *get-bundle-type-predicate*]))))
 
 (define point? (make-bundle-predicate :point))
 (define (make-bundle-point x y)
@@ -157,9 +162,14 @@ Example:
   (define (get-y) "y-coord" y)
   (define (set-x! new-x) "set x-coord to new-x" (setq x new-x))
   (define (set-y! new-y) "set y-coord to new-y" (setq y new-y))
-
+  
   (bundle #'point? get-x get-y set-x! set-y!))
 
+(defmethod print-object :around ((object function) stream)
+  (if (bundle? object)
+      (print-unreadable-object (object stream)
+	(format stream "BUNDLE ~S {~s}" (bundle-predicate-symbol [object *get-bundle-type-predicate*]) [object *get-bundle-id*]))
+      (call-next-method)))
 
 (bundle-documentation (make-bundle-point 3 4))
 "(MAKE-BUNDLE-POINT 3 4)
