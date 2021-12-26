@@ -267,7 +267,11 @@
            #:BUNDLE-DOCUMENTATION
            #:BUNDLE-PERMISSIONS
            #:BUNDLE?
-           #:MAKE-BUNDLE-PREDICATE))
+           #:MAKE-BUNDLE-PREDICATE
+	   #:undefine-bundle-print-object
+	   #:define-bundle-print-object)
+  (:export
+   #:define-bundle-print-object!))
 
 (DEFPACKAGE #:SCHEMEISH.STRUCT
   (:DOCUMENTATION "Provides the basis and expansions for define-struct.")
@@ -1021,6 +1025,8 @@
            #:MAKE-ARRAY
            #:MAKE-BROADCAST-STREAM
            #:MAKE-BUNDLE-PREDICATE
+	   #:undefine-bundle-print-object
+	   #:define-bundle-print-object
            #:MAKE-CONCATENATED-STREAM
            #:MAKE-CONDITION
            #:MAKE-DISPATCH-MACRO-CHARACTER

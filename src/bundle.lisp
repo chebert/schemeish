@@ -26,8 +26,7 @@ when given a bundle with this type-predicate"
 		     ((eq *get-bundle-type-predicate* arg) *name?*)))])
 
 (for-macros
-  (defvar *get-bundle-permissions* (gensym "GET-BUNDLE-PERMISSIONS"))
-  (defvar *get-bundle-id* (gensym "GET-BUNDLE-ID")))
+  (defvar *get-bundle-permissions* (gensym "GET-BUNDLE-PERMISSIONS")))
 
 (define (get-fn-identifier? fn-identifier)
   (and (eql (first fn-identifier) :get)
@@ -123,25 +122,37 @@ Example:
       (assert [*point?* point])
       (bundle-permissions bundle) ; => '(:get-x :get-y :set-x! :set-y!))"
   (let* ((arg-name (unique-symbol 'arg))
-	 (id-name (unique-symbol 'id))
 	 (permission-forms (map (lcurry #'bundle-fn-identifier->permission-form arg-name) fn-identifiers))
 	 (permission-names (map #'fn-identifier->permission-name fn-identifiers)))
     (assert (every #'identity permission-forms))
     `(register-bundle!
-      (let ((,id-name (gensym "BUNDLE")))
-	(lambda (,arg-name)
-	  (cond
-	    ((eq *get-bundle-type-predicate* ,arg-name)
-	     ,(cond
-		((null? type-predicate) '(constantly nil))
-		((symbolp type-predicate) (symbol-function type-predicate))
-		(t type-predicate)))
-	    ((eq *get-bundle-permissions* ,arg-name) ',permission-names)
-	    ((eq *get-bundle-id* ,arg-name) ,id-name)
-	    ;; TODO: switch to a case statement
-	    ,@permission-forms
-	    (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
-		      ,arg-name ',permission-names))))))))
+      (lambda (,arg-name)
+	(cond
+	  ((eq *get-bundle-type-predicate* ,arg-name)
+	   ,(cond
+	      ((null? type-predicate) '(constantly nil))
+	      ((symbolp type-predicate) `(function ,type-predicate))
+	      (t type-predicate)))
+	  ((eq *get-bundle-permissions* ,arg-name) ',permission-names)
+	  ;; TODO: switch to a case statement
+	  ,@permission-forms
+	  (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
+		    ,arg-name ',permission-names)))))))
+
+
+(defvar *bundle-print-object-table* (make-hash-table :weakness :key))
+
+(define (define-bundle-print-object bundle print-object-proc)
+  "Defines the print-object-proc for the given bundle. [print-object-proc stream] will be called
+when print-object is called on the bundle."
+  (setf (gethash bundle *bundle-print-object-table*) print-object-proc)
+  bundle)
+(define (undefine-bundle-print-object bundle)
+  "Removes the print-object-proc for the given bundle."
+  (remhash bundle *bundle-print-object-table*)
+  bundle)
+(define (bundle-print-object-proc bundle)
+  (gethash bundle *bundle-print-object-table*))
 
 (define (bundle-documentation bundle)
   "Generates documentation for bundle and all of its permissions."
@@ -167,9 +178,14 @@ Example:
 
 (defmethod print-object :around ((object function) stream)
   (if (bundle? object)
-      (print-unreadable-object (object stream)
-	(format stream "BUNDLE ~S {~s}" (bundle-predicate-symbol [object *get-bundle-type-predicate*]) [object *get-bundle-id*]))
+      (let ((proc (bundle-print-object-proc object)))
+	(if proc
+	    [proc stream]
+	    (print-unreadable-object (object stream :identity t)
+	      (format stream "BUNDLE ~S" (bundle-predicate-symbol [object *get-bundle-type-predicate*])))))
       (call-next-method)))
+
+(make-bundle-point 3 4)
 
 (bundle-documentation (make-bundle-point 3 4))
 "(MAKE-BUNDLE-POINT 3 4)
