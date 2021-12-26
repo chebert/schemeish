@@ -24,7 +24,7 @@ The rest of Schemeish is fully compatible with the `CL` package. If you'd like t
 
 ## SYNTAX
 
-Schemeish provides `[...]` syntax which expands to `(funcall ...)`. This can be installed with `(install-syntax)`
+Schemeish provides `[...]` syntax which expands to `(funcall ...)`.
 To use [] syntax (described below) you can use `INSTALL-SYNTAX!` and to disable it again you can use `UNINSTALL-SYNTAX!`. 
 
 ## DEFINE
@@ -102,11 +102,11 @@ If the clause is (identifier expression) it creates a binding for the rest of th
 
 ## BUNDLE
 
-Bundles are closure objects which provide an interface for other closures. See documentation of `BUNDLE`.
+Bundles are closure objects which provide an object-oriented style interface. See documentation of `BUNDLE`.
 
 ## DEFINE-STRUCT
 
-Define-struct provides a syntax for creating records. See documentation of `DEFINE-STRUCT`.
+Define-struct provides a syntax for creating records. See documentation of `DEFINE-STRUCT`. The underlying type is a CLOS object, but this is subject to change.
 
 ## PACKAGE-UTILS
 
