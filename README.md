@@ -3,15 +3,14 @@
 
 Provide Scheme/Racket style naming conventions and objects in Common Lisp.
 
+With a couple of minor exceptions Schemeish is designed to enhance Common Lisp by providing new functionality.
+There are still separate namespaces for functions and values. `LET`, `DEFUN`, and `DEFMACRO` all work the same.
+
 The SCHEMEISH package can be used in place of CL.
 
     (defpackage my-new-package
        (:shadowing-import-from :cl :lambda)
-       (:use :schemeish))
-       
-To use [] syntax (described below) you can use `INSTALL-SYNTAX!` and to disable it again you can use `UNINSTALL-SYNTAX!`. 
-It's recommended that you do these in a call to `FOR-MACROS` at the top and bottom of the file.
-
+       (:use :schemeish.schemeish))
 
 The following CL symbols are replaced by Schemeish:
 
@@ -23,44 +22,99 @@ The following CL symbols are replaced by Schemeish:
 
 The rest of Schemeish is fully compatible with the `CL` package. If you'd like to favor `CL` in conflicts you can use `:SHADOWING-IMPORT-FROM`.
 
-Three things I find particularly valuable, named let, define and [] syntax:
+## SYNTAX
 
-    ;; Named let allows for local recursion.
-    (let rec ((n 10)
-              (result '()))
+Schemeish provides `[...]` syntax which expands to `(funcall ...)`. This can be installed with `(install-syntax)`
+To use [] syntax (described below) you can use `INSTALL-SYNTAX!` and to disable it again you can use `UNINSTALL-SYNTAX!`. 
+
+## DEFINE
+
+`DEFINE` is Schemeish's major provision. Defines have two similar behaviors depending on if they are nested.
+
+If a define is at the top level, it is only used to define functions, since CL doesn't have a global lexical environment for values.
+
+    (define (+2 n) (+ 2 n))
+
+If define is just given a name, it sets the function value of the symbol:
+
+    (define +2 (lcurry #'+ 2))
+
+If define is nested or at the top level it can be used to define functions:
+
+Define/Lambda can take rest parameters:
+
+    (define (+2 . args) (apply #'+ 2 args))
+
+It can take optional arguments:
+
+    (define (greet name (greeting "Hello") (out))
+      (format out "~A ~A" greeting name))
+	  
+Or it can take keyword arguments:
+
+    (define (greet name (:greeting "Hello") (:out))
+      (format out "~A ~A" greeting name))
+	  
+If a define is nested within another define, it is used to define mutually recursive functions/variables.
+
+    (define (top-level)
+	  (define x 3)
+      (define f (lambda (v) (g v 2)))
+	  (define (g x y) (+ x y))
+      (f x))
+
+Value-slots and function-slots are bound to the function object created by a nested define.
+
+## NAMED LET
+
+In all cases the `LET` provided by Schemeish works the same as `CL:LET`
+
+Additionally you can create a local named procedure with `LET`
+
+    (let recurse ((result 1)
+                  (n 5))
       (if (= n 0)
           result
-          (rec (1- n) (cons n result))))
-    ;; => '(1 2 3 4 5 6 7 8 9 10)
+          (recurse (* result n) (1- n))))
 
-    (define *variable-name* value) ;; Expands to (defparameter *variable-name* value)
-    (define (function-name arg1 arg2 . args) 
-      body...) ;; Expands to
-    (defun function-name (arg1 arg2 &rest args)
-      body...)
-      
-    ;; Defines can be nested like in scheme.
-    (define (outer-function-name oarg1 oarg2 . oargs)
-      ;; Binds both function/lexical variable
-      (define (inner-function-name a1 a2) (list a1 a2))
-      (define (mutually-recursive-function1 a) (mutually-recursive-function2 a))
-      (define (mutually-recursive-function2 a) (mutually-recursive-function1 a))
-      (inner-function-name oarg1 oarg2)
-      inner-function-name)
-    
-    ;; Define nested functions.
-    (define ((left-curry . args) f)
-      ...)
-    
-    ;; [] Brackets evaluate the function argument (as if funcalling it)
-    [[(left-curry 5 4) '-] 3 2] ;; => (- 5 4 3 2)
-    
-    ;; λ is like a lambda but it uses scheme-style argument lists
-    (λ (arg1 arg2 arg3) (list arg1 arg2 arg3)) ;; Arity: 3
-    (λ (arg1 . args) (list* arg1 args)) ;; Arity: at least 1
-    (λ args args) ;; Arity: at least 0
+## SCHEMISH BASE
 
-    
+Schemeish provides utilities for working with:
+
+- Alists
+- Function objects: e.g. currying, composing, arity,
+- Lists
+- Hash tables
+- Scheme-style streams
+- Vectors
+
+## AND-LET*
+
+AND-LET* will evaluate each clause from first to last until one is false. If all are true, evaluate body.
+Each clause is one of: identifier, (expression), or (identifier expression).
+If the clause is (identifier expression) it creates a binding for the rest of the clauses and the body.
+
+    (and-let* ((list (compute-list))
+               ((pair? list))
+               (item (car list))
+               ((integer? item)))
+      (sqrt item))
+
+## BUNDLE
+
+Bundles are closure objects which provide an interface for other closures. See documentation of `BUNDLE`.
+
+## DEFINE-STRUCT
+
+Define-struct provides a syntax for creating records. See documentation of `DEFINE-STRUCT`.
+
+## PACKAGE-UTILS
+
+Schemeish also exports tools for dealing with packages, including reconstructing `DEFPACKAGE` forms from the current state of a package.
+See `DEFPACKAGE-FORM`.
+
+## EMACS
+
 The following adjustments to emacs init.el enhance the experience:
 
     (defun enable-squares-as-parens-in-syntax-table (syntax-table)
@@ -72,9 +126,6 @@ The following adjustments to emacs init.el enhance the experience:
      (define-key paredit-mode-map (kbd "M-{")
         'paredit-wrap-square)
         
-     (global-set-key (kbd "C-\\") "λ")
-     
-    
     (defun swap-square-and-round ()
       "Change |(..) to |[..]. | is point position."
       (interactive)
