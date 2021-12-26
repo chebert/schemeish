@@ -14,7 +14,7 @@ The SCHEMEISH package can be used in place of CL.
 
 The following CL symbols are replaced by Schemeish:
 
- - `LAMBDA` uses scheme-style argument lists with nestable defines. I recommend shadowing this symbol and use λ (or some other name) instead.
+ - `LAMBDA` uses scheme-style argument lists with nestable defines.
  - `LET` is fully compatible with `CL:LET`, but with named let syntax described below
  - `SORT` is a non-modifying sort for lists
  - `MAP` maps a function over a list (equivalent to `MAPCAR`)
