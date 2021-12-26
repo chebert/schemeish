@@ -10,7 +10,7 @@ The SCHEMEISH package can be used in place of CL.
 
     (defpackage my-new-package
        (:shadowing-import-from :cl :lambda)
-       (:use :schemeish.schemeish))
+       (:use :schemeish))
 
 The following CL symbols are replaced by Schemeish:
 

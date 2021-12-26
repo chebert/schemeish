@@ -383,6 +383,7 @@
 
 (DEFPACKAGE #:SCHEMEISH.SCHEMEISH
   (:DOCUMENTATION "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
+  (:NICKNAMES #:SCHEMEISH)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
