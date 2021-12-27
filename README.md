@@ -33,17 +33,17 @@ To use [] syntax (described below) you can use `INSTALL-SYNTAX!` and to disable 
 
 If a define is at the top level, it is only used to define functions, since CL doesn't have a global lexical environment for values.
 
-    (define (+2 n) (+ 2 n))
+    (define (add2 n) (+ 2 n))
 
 If define is just given a name, it sets the function value of the symbol:
 
-    (define +2 (lcurry #'+ 2))
+    (define add2 (lcurry #'+ 2))
 
 If define is nested or at the top level it can be used to define functions:
 
 Define/Lambda can take rest parameters:
 
-    (define (+2 . args) (apply #'+ 2 args))
+    (define (add2 . args) (apply #'+ 2 args))
 
 It can take optional arguments:
 
