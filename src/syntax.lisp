@@ -17,7 +17,7 @@
      (set-macro-character #\[ #'read-left-bracket)
      (set-macro-character #\] #'read-right-bracket)))
 
-(defun uninstall-syntax! ()
+(defmacro uninstall-syntax! ()
   "Uninstalls [] reader syntax if it was installed using INSTALL-SYNTAX!."
   `(for-macros
      (when (eq (get-macro-character #\[) #'read-left-bracket)

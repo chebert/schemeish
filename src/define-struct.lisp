@@ -12,14 +12,14 @@ It takes takes the form
 Where a field-spec is either FIELD-NAME or (FIELD-NAME :MUTABLE)
 and a struct-option is one of:
   :mutable
-  :transparent
+  :opaque
   :super super-struct-type-name-form
 
 If mutable is provided for fields or the whole structure, 
 setters are generated of the form SET-<type-name>-<field-name>!
 and setf forms are generated for (setf (<type-name>-<field-name> struct-arg) value).
 
-If transparent is provided:
+If opaque is NOT provided:
 - a recursive EQUAL? test is generated to test equality of each field. Otherwise only identity is tested.
 - (struct->list p) creates a list that looks like a constructor call. This is used when printing the object.
 - (struct-accessors p) returns a list of all of the accessors associated with transparent structure p. 
@@ -33,8 +33,7 @@ Returns a list of newly defined symbols."
   `(for-macros
      ,(struct-form type-name field-specs struct-options)))
 
-
-(define-struct point (x y))
+(define-struct point (x y) :opaque)
 (let ((p (make-point 3 4)))
   (assert (equal? (list (point-x p)	   ;; 3
 			(point-y p)	   ;; 4
@@ -48,7 +47,8 @@ Returns a list of newly defined symbols."
 
 ;; Super types
 (define-struct point3d (z)
-	       :super 'point)
+	       :super 'point
+	       :opaque)
 (let ((p3d (make-point3d 3 4 5)))
   (assert (and-let* ((copy (struct-copy p3d))
 		     ((equal? (point-x p3d) (point-x copy)))
@@ -77,7 +77,7 @@ Returns a list of newly defined symbols."
 	(point4d-w p4d)))
 
 ;; Transparent structures
-(define-struct tpoint (x y) :transparent)
+(define-struct tpoint (x y))
 (let ((p (make-tpoint 3 4)))
   (assert (every 'identity
 		 (list
@@ -88,7 +88,7 @@ Returns a list of newly defined symbols."
 		  (equal? (make-tpoint 3 4) (make-tpoint 3 4))))))
 
 ;; Mutable structures
-(define-struct mpoint (x y) :mutable :transparent)
+(define-struct mpoint (x y) :mutable)
 (let ((p (make-mpoint 3 4)))
   (setf (mpoint-x p) 5)
   (setf (mpoint-y p) 6)
@@ -98,7 +98,7 @@ Returns a list of newly defined symbols."
   (assert (equal? (struct->list p) '(make-mpoint :x :y))))
 
 ;; Mutable fields
-(define-struct mpoint3 (x y (z :mutable)) :transparent)
+(define-struct mpoint3 (x y (z :mutable)))
 (let ((p (make-mpoint3 3 4 5)))
   (setf (mpoint3-z p) 20)
   (assert (equal? p (make-mpoint3 3 4 20))))
@@ -111,5 +111,4 @@ Returns a list of newly defined symbols."
 		     (error "ipoints require integer arguments. got: X=~S Y=~S" x y)
 		     (values x y))))
 
-
-(for-macros (uninstall-syntax!))
+(uninstall-syntax!)
