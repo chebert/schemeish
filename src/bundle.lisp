@@ -139,7 +139,6 @@ Example:
 	  (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
 		    ,arg-name ',permission-names)))))))
 
-
 (defvar *bundle-print-object-table* (make-hash-table :weakness :key))
 
 (define (define-bundle-print-object bundle print-object-proc)

@@ -270,7 +270,6 @@
            #:BUNDLE-PERMISSIONS
            #:BUNDLE?
            #:DEFINE-BUNDLE-PRINT-OBJECT
-           #:DEFINE-BUNDLE-PRINT-OBJECT!
            #:MAKE-BUNDLE-PREDICATE
            #:UNDEFINE-BUNDLE-PRINT-OBJECT))
 
@@ -704,7 +703,6 @@
            #:DEFGENERIC
            #:DEFINE
            #:DEFINE-BUNDLE-PRINT-OBJECT
-           #:DEFINE-BUNDLE-PRINT-OBJECT!
            #:DEFINE-COMPILER-MACRO
            #:DEFINE-CONDITION
            #:DEFINE-METHOD-COMBINATION
