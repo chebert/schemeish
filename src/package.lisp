@@ -5,16 +5,16 @@
   (:USE #:COMMON-LISP)
   (:EXPORT #:FOR-MACROS #:UNIQUE-SYMBOL #:WITH-READABLE-SYMBOLS))
 
+(DEFPACKAGE #:SCHEMEISH.ARGUMENTS
+  (:DOCUMENTATION "Tools to translate scheme style argument lists to CL style argument lists.")
+  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
+  (:EXPORT #:ARG-LIST->LAMBDA-LIST))
+
 (DEFPACKAGE #:SCHEMEISH.NAMED-LET
   (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
   (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
   (:EXPORT #:LET)
   (:SHADOW #:LET))
-
-(DEFPACKAGE #:SCHEMEISH.ARGUMENTS
-  (:DOCUMENTATION "Tools to translate scheme style argument lists to CL style argument lists.")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:ARG-LIST->LAMBDA-LIST))
 
 (DEFPACKAGE #:SCHEMEISH.SYNTAX
   (:DOCUMENTATION "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
@@ -46,6 +46,7 @@
            #:LAMBDA
            #:SPLITF-AT
            #:TAKEF
+           #:UNDEFINE
            #:UNIQUE-SYMBOL
            #:WITH-READABLE-SYMBOLS)
   (:SHADOW #:LAMBDA))
@@ -223,6 +224,7 @@
            #:TAKEF
            #:THERE-EXISTS
            #:THERE-EXISTS*
+           #:UNDEFINE
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
            #:VECTOR->LIST
@@ -267,11 +269,9 @@
            #:BUNDLE-DOCUMENTATION
            #:BUNDLE-PERMISSIONS
            #:BUNDLE?
+           #:DEFINE-BUNDLE-PRINT-OBJECT
            #:MAKE-BUNDLE-PREDICATE
-	   #:undefine-bundle-print-object
-	   #:define-bundle-print-object)
-  (:export
-   #:define-bundle-print-object!))
+           #:UNDEFINE-BUNDLE-PRINT-OBJECT))
 
 (DEFPACKAGE #:SCHEMEISH.STRUCT
   (:DOCUMENTATION "Provides the basis and expansions for define-struct.")
@@ -383,7 +383,6 @@
 
 (DEFPACKAGE #:SCHEMEISH.SCHEMEISH
   (:DOCUMENTATION "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
-  (:NICKNAMES #:SCHEMEISH)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
@@ -703,6 +702,7 @@
            #:DEFCONSTANT
            #:DEFGENERIC
            #:DEFINE
+           #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-COMPILER-MACRO
            #:DEFINE-CONDITION
            #:DEFINE-METHOD-COMBINATION
@@ -1026,8 +1026,6 @@
            #:MAKE-ARRAY
            #:MAKE-BROADCAST-STREAM
            #:MAKE-BUNDLE-PREDICATE
-	   #:undefine-bundle-print-object
-	   #:define-bundle-print-object
            #:MAKE-CONCATENATED-STREAM
            #:MAKE-CONDITION
            #:MAKE-DISPATCH-MACRO-CHARACTER
@@ -1540,6 +1538,8 @@
            #:UNBOUND-SLOT
            #:UNBOUND-SLOT-INSTANCE
            #:UNBOUND-VARIABLE
+           #:UNDEFINE
+           #:UNDEFINE-BUNDLE-PRINT-OBJECT
            #:UNDEFINED-FUNCTION
            #:UNEXPORT
            #:UNINSTALL-SYNTAX!
@@ -1604,7 +1604,8 @@
            #:YES-OR-NO-P
            #:ZERO?
            #:ZEROP)
-  (:SHADOW #:* #:** #:*** #:+ #:++ #:+++ #:- #:/ #:// #:///))
+  (:SHADOW #:* #:** #:*** #:+ #:++ #:+++ #:- #:/ #:// #:///)
+  (:NICKNAMES #:SCHEMEISH))
 
 (DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
   (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
