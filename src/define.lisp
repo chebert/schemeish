@@ -429,9 +429,9 @@
 
 (assert (eq :yeah-its-kay (definition-with-definitions-nested-inside-let)))
 
-(defmacro undefine (name &rest ignored)
-  "Undefines a globally defined function using fmakunbound."
-  (declare (ignore ignored))
-  `(fmakunbound ',name))
+(defmacro undefine (&rest symbols)
+  "Undefines globally defined functions using fmakunbound."
+  `(progn
+     ,@(mapcar (lambda (name) `(fmakunbound ',name)) symbols)))
 
 (uninstall-syntax!)

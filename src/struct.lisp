@@ -1,6 +1,6 @@
 (in-package #:schemeish.struct)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (defclass struct () ())
 (define (struct? datum)
@@ -108,7 +108,7 @@
     (t
      (let ((opt (first struct-options)))
        (cond
-	 ((or (eq? :transparent opt)
+	 ((or (eq? :opaque opt)
 	      (eq? :mutable opt))
 	  (cons (cons opt ()) (parse-struct-options (rest struct-options))))
 	 ((or (eq? :guard opt)
@@ -122,20 +122,14 @@
 	 (t (error "Bad thing to be a struct-option ~S" opt)))))))
 
 
-#+nil(assert (equal (parse-struct-options '(:transparent :mutable :guard (lambda (x y z) (values x y z)) :super 'point))
-		    '((:TRANSPARENT) (:MUTABLE)
-		      (:GUARD LAMBDA NIL
-		       (LAMBDA (X Y Z)
-			 (VALUES X Y Z)))
-		      (:SUPER LAMBDA NIL 'POINT))))
+(assert (equal? (parse-struct-options '(:opaque :mutable :super 'point))
+		'((:OPAQUE) (:MUTABLE) (:SUPER . POINT))))
 
 (define (struct-constructor-name type-name)
   (intern (string-append (symbol->string 'make-) (symbol->string type-name))))
 
 (assert (eq? (struct-constructor-name 'point)
 	     'make-point))
-
-
 
 (define (struct-defclass-form type-name field-names super-type-name)
   (let ((supers (cond ((null? super-type-name) '(struct))
@@ -245,10 +239,59 @@
 			   (slot-value object2 ',slot-name)))
 		(struct-defclass-slot-names type-name field-names)))))))
 
+(defparameter *self-evaluating-symbols* '(t nil))
+(define (printable-field field)
+  "Returns symbols as '(quote symbol), lists as '(list ...),
+dotted-lists as '(dotted-list ...) and conses as '(cons ...).
+For lists containing a cycle, just returns the list as is."
+  (cond ((and (symbol? field)
+	      (not (keywordp field))
+	      (not (member field *self-evaluating-symbols*)))
+	 `',field)
+	((pair? field)
+	 ;; Field is a list, list*, cons, or a cycle
+	 (let recurse ((xs field)
+		       (visited ())
+		       (result ()))
+	   (cond
+	     ((empty? xs)
+	      ;; We are in a proper list
+	      `(list ,@(map #'printable-field field)))
+	     ((member xs visited)
+	      ;; We are in a cycle, just return the field
+	      field)
+	     ((pair? xs)
+	      ;; In the middle of the list, keep looking.
+	      (recurse (rest xs) (cons xs visited) (cons (first xs) result)))
+	     (t
+	      ;; xs is not empty or a list, we are in a dotted list or cons.
+	      (cond
+		;; Dotted-list
+		((pair? (rest field)) `(list* ,@(nreverse (map #'printable-field (cons xs result)))))
+		(t `(cons ,(printable-field (car field)) ,(printable-field (cdr field)))))))))
+	;; Field is something else. Just print it.
+	(t field)))
+
+(assert (equal? (printable-field :a) :a))
+(assert (equal? (printable-field 'a) '(quote a)))
+(assert (equal? (printable-field 1) 1))
+(assert (equal? (printable-field (list 1 2 3))
+		'(list 1 2 3)))
+(assert (equal? (printable-field (cons 1 (cons 2 3)))
+		'(list* 1 2 3)))
+(assert (equal? (printable-field (cons 1 2))
+		'(cons 1 2)))
+(assert (equal? (printable-field (list (list 1) (list 2 (list 3))))
+		'(LIST (LIST 1) (LIST 2 (LIST 3)))))
+
+(define (print-transparent-struct struct stream)
+  (let ((list (struct->list struct)))
+    (print-object (cons (first list) (map #'printable-field (rest list)))
+		  stream)))
+
 (define (struct-define-print-object-form type-name)
   `(defmethod print-object ((struct ,type-name) stream)
-     (print-object (struct->list struct) stream)))
-
+     (print-transparent-struct struct stream)))
 
 (define (struct-define-type-predicate-form type-name predicate-name)
   `(define (,predicate-name datum)
@@ -270,7 +313,7 @@
        (set-struct-info! (make-struct-info ',type-name ',super-type-name ',field-names))
        ,(struct-defclass-form type-name field-names super-type-name)
        ,(struct-define-struct-copy-form type-name field-names super-type-name)
-       ,@(cond ((alist-has-key? parsed-struct-options :transparent)
+       ,@(cond ((not (alist-has-key? parsed-struct-options :opaque))
 		(list
 		 (struct-define-struct->list-form type-name field-names super-type-name)
 		 (struct-define-struct-accessors-form type-name field-names super-type-name)
@@ -296,8 +339,8 @@
 
 (struct-form 'point '(x y) '())
 (struct-form 'point3 '(z) '(:super 'point))
-(struct-form 'tpoint '(x y) '(:transparent))
+(struct-form 'tpoint '(x y) '(:opaque))
 (struct-form 'mpoint '(x y) '(:mutable))
 (struct-form 'mypoint '(x (y :mutable)) '())
 
-(for-macros (uninstall-syntax!))
+(uninstall-syntax!)
