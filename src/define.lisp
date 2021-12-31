@@ -328,10 +328,9 @@
 "
   `(cl:lambda ,(arg-list->lambda-list arg-list) ,@(expand-function-body body)))
 
-
 (defmacro define (name-or-form &body body)
   "Definition form.
-  (define *variable-name* value) ;; Expands to (defparameter *variable-name* value)
+  (define new-function-name #'function-name) ;; Sets the fdefinition of new-function-name
   (define (function-name arg1 arg2 . args) 
     body...) ;; Expands to
   (defun function-name (arg1 arg2 &rest args)
