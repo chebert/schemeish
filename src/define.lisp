@@ -248,10 +248,19 @@
 		     (SETQ F #'F)
 		     (FUNCALL (F 1) 2))))))
 
+(for-macros (defun ignorable-declaration-body (ignorable-args)
+	      (when ignorable-args (list `(declare (ignorable ,@ignorable-args))))))
+
+(assert (equal (ignorable-declaration-body '(a b c))
+	       '((DECLARE (IGNORABLE A B C)))))
+(assert (equal (ignorable-declaration-body '())
+	       '()))
 
 (for-macros (defun expand-top-level-define-function (name arg-list body)
-	      `(defun ,name ,(arg-list->lambda-list arg-list)
-		 ,@(expand-function-body body))))
+	      (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
+		`(defun ,name ,lambda-list
+		   ,@(ignorable-declaration-body ignorable-args)
+		   ,@(expand-function-body body)))))
 
 (assert (equal (expand-top-level-define-function 'fn-name '(x y z) '(body))
 	       '(DEFUN FN-NAME (X Y Z) BODY)))
@@ -326,7 +335,10 @@
   Rest/Optional/Keyword arguments are not compatible with each other.
   See DEFINE for more information on argument lists.
 "
-  `(cl:lambda ,(arg-list->lambda-list arg-list) ,@(expand-function-body body)))
+  (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
+    `(cl:lambda ,lambda-list
+       ,@(ignorable-declaration-body ignorable-args)
+       ,@(expand-function-body body))))
 
 (defmacro define (name-or-form &body body)
   "Definition form.
@@ -365,6 +377,13 @@
   (defun left-curry (&rest args)
     (lambda (f)
        ...))
+
+  ;; Ignoreable arguments:
+  ;; Optional, positional and rest arguments are affected by these rules, but keyword arguments are not.
+  ;; Arguments which have '_' prefixed to their symbol names are automatically declared ignorable.
+  ;; Argument with the name '_' will be replaced with unique symbols.
+  (define ((foo _ . _ignorable-rest) . _) ...)
+  (define (boo _opt1 (_)) ...)
   
   It is an error to mix defines with expressions.
   Special case: if the first form of a post-define body is a let or a let* you can place defines in that form.
