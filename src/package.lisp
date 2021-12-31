@@ -1606,23 +1606,6 @@
            #:ZEROP)
   (:SHADOW #:* #:** #:*** #:+ #:++ #:+++ #:- #:/ #:// #:///))
 
-(DEFPACKAGE #:SCHEMEISH.HTML
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
-                          #:*
-                          #:**
-                          #:***
-                          #:+
-                          #:++
-                          #:+++
-                          #:-
-                          #:/
-                          #://
-                          #:///)
-  (:USE #:SCHEMEISH.SCHEMEISH))
-
 (DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
   (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
 Provides write-package-file! which writes the current schemeish-packages to a file.")

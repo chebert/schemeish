@@ -18,6 +18,7 @@
 	       (:file "expand-stream-collect")
 	       (:file "stream-collect")
 	       (:file "and-let")
+	       (:file "cut")
 	       (:file "bundle")
 	       (:file "struct")
 	       (:file "define-struct")

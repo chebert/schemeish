@@ -88,6 +88,15 @@ Schemeish provides utilities for working with:
 - Scheme-style streams
 - Vectors
 
+## CUT
+
+Cut provides a macro for creating curried functions. See documentation for `CUT`.
+
+## Lexically
+
+Lexically provides a new lexical environment which can have nested defines. Functions/variables can be exported to global scope using
+expose. See `DEFINE` and `EXPOSE`. 
+
 ## AND-LET*
 
 AND-LET* will evaluate each clause from first to last until one is false. If all are true, evaluate body.
