@@ -24,6 +24,5 @@
 	       (:file "define-struct")
 	       (:file "queue")
 	       (:file "lexically")
-	       (:file "schemeish")
 	       (:file "package-utils")
 	       (:file "package-definitions")))

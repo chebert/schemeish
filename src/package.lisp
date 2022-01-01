@@ -1605,7 +1605,6 @@
            #:YES-OR-NO-P
            #:ZERO?
            #:ZEROP)
-  (:SHADOW #:* #:** #:*** #:+ #:++ #:+++ #:- #:/ #:// #:///)
   (:NICKNAMES #:SCHEMEISH))
 
 (DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
@@ -1614,17 +1613,6 @@ Provides write-package-file! which writes the current schemeish-packages to a fi
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
-                          #:*
-                          #:**
-                          #:***
-                          #:+
-                          #:++
-                          #:+++
-                          #:-
-                          #:/
-                          #://
-                          #:///)
   (:USE #:SCHEMEISH.PACKAGE-UTILS #:SCHEMEISH.SCHEMEISH)
   (:EXPORT #:SCHEMEISH-PACKAGES #:WRITE-PACKAGE-FILE!))
 
