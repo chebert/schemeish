@@ -407,6 +407,8 @@
            #:&REST
            #:&WHOLE
            #:*
+           #:**
+           #:***
            #:*BREAK-ON-SIGNALS*
            #:*COMPILE-FILE-PATHNAME*
            #:*COMPILE-FILE-TRUENAME*
@@ -454,8 +456,12 @@
            #:*THE-EMPTY-STREAM*
            #:*TRACE-OUTPUT*
            #:+
+           #:++
+           #:+++
            #:-
            #:/
+           #://
+           #:///
            #:/=
            #:1+
            #:1-

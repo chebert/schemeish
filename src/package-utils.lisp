@@ -263,7 +263,8 @@ Returns the package-name."
 
 (define (package-dependencies package)
   "Return a list of packages which package has a dependency on."
-  (map (compose 'find-package 'car) (group-by-package (package-symbols package))))
+  (append (map (compose 'find-package 'car) (group-by-package (package-symbols package)))
+	  (package-use-list package)))
 
 (define (independent-package? package packages)
   "True if package does not have any dependencies on packages."

@@ -21,13 +21,6 @@ prefix it with the schemish prefix."
   `(let ((*resolve-package-designator* #'resolve-schemeish-package-designator))
      ,@body))
 
-(define (write-package-file! (file-path "src/package.lisp"))
-  "Writes the current contents of (SCHEMISH-PACKAGES) as defpackage forms to file-path."
-  (with-open-file (stream file-path
-			  :direction :output
-			  :if-exists :supersede)
-    (format stream "~A" (package-file-contents (schemeish-packages)))))
-
 (define ((package-use-and-export-shadowing . packages) package)
   [(compose
     (apply 'package-re-export-shadowing packages)
@@ -48,9 +41,15 @@ prefix it with the schemish prefix."
 		     :AND-LET :BASE :BUNDLE :DEFINE-STRUCT :LEXICALLY
 		     :QUEUE :STRUCT :cut))))
 
-#+nil
-(progn
+(define (write-package-file! (file-path "src/package.lisp"))
+  "Writes the current contents of (SCHEMISH-PACKAGES) as defpackage forms to file-path."
   (sync-compound-packages!)
-  (write-package-file!))
+  (with-open-file (stream file-path
+			  :direction :output
+			  :if-exists :supersede)
+    (format stream "~A" (package-file-contents (schemeish-packages)))))
+
+#+nil
+(write-package-file!)
 
 (uninstall-syntax!)
