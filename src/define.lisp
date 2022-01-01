@@ -350,6 +350,11 @@
 	  (recurse (first name-form))
 	  (setf (gethash name-form *define-form-hash-table*) form)))))
 
+(defun unregister-define-form (symbol)
+  "Removes any registered define-form associated with symbol from the
+*DEFINE-FORM-HASH-TABLE*"
+  (remhash symbol *define-form-hash-table*))
+
 (defun define-form (symbol)
   "Retrieve the DEFINE form used to define symbol's function.
 Returns nil if not defined using DEFINE. Does not include any outer
@@ -449,6 +454,10 @@ lexical environment, and so it may not always be used to redefine the function."
 (defmacro undefine (&rest symbols)
   "Undefines globally defined functions using fmakunbound."
   `(progn
-     ,@(mapcar (lambda (name) `(fmakunbound ',name)) symbols)))
+     ,@(mapcar (lambda (name)
+		 `(progn
+		    (fmakunbound ',name)
+		    (unregister-define-form ',name)))
+	       symbols)))
 
 (uninstall-syntax!)
