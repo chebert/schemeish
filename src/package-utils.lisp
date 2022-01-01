@@ -316,6 +316,11 @@ Cyclic dependencies throw an error."
 		(format s "~&~S~%~%" form))
 	      (hierarchical-defpackage-forms packages))))
 
+(define (package-defined-and-exported-symbols package)
+  "All symbols exported by package that were not imported or used."
+  (set-difference (package-exported-symbols package)
+		  (union (package-used-symbols package)
+			 (package-imported-symbols package))))
 
 
 (uninstall-syntax!)

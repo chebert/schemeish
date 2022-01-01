@@ -51,10 +51,6 @@ prefix it with the schemish prefix."
 #+nil
 (progn
   (sync-compound-packages!)
-  (write-package-file!)
-  (with-schemeish-designators
-    (define-package :cut
-	(package-use-shadowing :cl :base)
-      (package-export :cut))))
+  (write-package-file!))
 
 (uninstall-syntax!)
