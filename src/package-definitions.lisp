@@ -47,16 +47,37 @@ prefix it with the schemish prefix."
 #+nil
 (write-package-file!)
 
-(define-struct symbol-documentation
-    (symbol function-documentation variable-documentation type-documentation))
-(define-struct package-documentation
-    (name documentation symbol-documentations))
+(define-struct function-documentation
+    (arg-list documentation))
+(define (function-documentation fn)
+  (make-function-documentation (procedure-arguments fn)
+			       (documentation fn 'function)))
 
+(define-struct variable-documentation
+    (documentation))
+(define (variable-documentation symbol)
+  (make-variable-documentation (documentation symbol 'variable)))
+
+(define-struct class-documentation
+    (documentation))
+(define (class-documentation symbol)
+  (make-class-documentation (documentation symbol 'type)))
+
+(define-struct symbol-documentation
+    (symbol documentations))
 (define (symbol-documentation symbol)
   (make-symbol-documentation symbol
-			     (documentation symbol 'function)
-			     (documentation symbol 'variable)
-			     (documentation symbol 'type)))
+			     (remove nil
+				     (list
+				      (when (fboundp symbol)
+					(function-documentation (symbol-function symbol)))
+				      (when (boundp symbol)
+					(variable-documentation symbol))
+				      (when (find-class symbol nil)
+					(class-documentation symbol))))))
+
+(define-struct package-documentation
+    (name documentation symbol-documentations))
 (define (package-documentation package)
   (make-package-documentation (package-name package)
 			      (documentation package t)

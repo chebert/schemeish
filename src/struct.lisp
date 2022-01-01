@@ -2,7 +2,8 @@
 
 (install-syntax!)
 
-(defclass struct () ())
+(defclass struct () ()
+  (:documentation "The base type for structures defined using DEFINE-STRUCT."))
 (define (struct? datum)
   (typep datum 'struct))
 (defgeneric struct-copy (struct)
@@ -111,7 +112,7 @@
 	 ((or (eq? :opaque opt)
 	      (eq? :mutable opt))
 	  (cons (cons opt ()) (parse-struct-options (rest struct-options))))
-	 ((or (eq? :guard opt)
+	 ((or (eq? :documentation opt)
 	      (eq? :super opt))
 	  (cond
 	    ((or (null? (rest struct-options))
@@ -122,8 +123,8 @@
 	 (t (error "Bad thing to be a struct-option ~S" opt)))))))
 
 
-(assert (equal? (parse-struct-options '(:opaque :mutable :super 'point))
-		'((:OPAQUE) (:MUTABLE) (:SUPER . POINT))))
+(assert (equal? (parse-struct-options '(:opaque :mutable :super 'point :documentation "docs"))
+		'((:OPAQUE) (:MUTABLE) (:SUPER . POINT) (:DOCUMENTATION . "docs"))))
 
 (define (struct-constructor-name type-name)
   (intern (string-append (symbol->string 'make-) (symbol->string type-name))))
@@ -131,16 +132,17 @@
 (assert (eq? (struct-constructor-name 'point)
 	     'make-point))
 
-(define (struct-defclass-form type-name field-names super-type-name)
+(define (struct-defclass-form type-name field-names super-type-name documentation)
   (let ((supers (cond ((null? super-type-name) '(struct))
 		      (t `(,super-type-name)))))
     `(defclass ,type-name ,supers
-       ,(struct-defclass-slot-names type-name field-names))))
+       ,(struct-defclass-slot-names type-name field-names)
+       ,@(when documentation `((:documentation ,documentation))))))
 
-(assert (equal? (struct-defclass-form 'point '(x y) ())
+(assert (equal? (struct-defclass-form 'point '(x y) () ())
 		'(DEFCLASS POINT (struct) (point-x point-y))))
 
-(assert (equal? (struct-defclass-form 'point3 '(z) 'point)
+(assert (equal? (struct-defclass-form 'point3 '(z) 'point ())
 		'(DEFCLASS POINT3 (point) (point3-z))))
 
 (define (struct-define-constructor-form type-name constructor-name field-names super-type-name)
@@ -311,7 +313,7 @@ For lists containing a cycle, just returns the list as is."
 	 (predicate-name (intern (string-append (symbol->string type-name) "?"))))
     `(progn
        (set-struct-info! (make-struct-info ',type-name ',super-type-name ',field-names))
-       ,(struct-defclass-form type-name field-names super-type-name)
+       ,(struct-defclass-form type-name field-names super-type-name (alist-ref parsed-struct-options :documentation))
        ,(struct-define-struct-copy-form type-name field-names super-type-name)
        ,@(cond ((not (alist-has-key? parsed-struct-options :opaque))
 		(list
@@ -342,5 +344,6 @@ For lists containing a cycle, just returns the list as is."
 (struct-form 'tpoint '(x y) '(:opaque))
 (struct-form 'mpoint '(x y) '(:mutable))
 (struct-form 'mypoint '(x (y :mutable)) '())
+(struct-form 'mypoint '(x y) '(:documentation "docstring"))
 
 (uninstall-syntax!)
