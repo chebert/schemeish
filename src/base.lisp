@@ -12,6 +12,20 @@
 
 (define (procedure? datum) (functionp datum))
 
+(define (parameter? symbol)
+  "Returns true if symbol is a parameter i.e. dynamically scoped."
+  #+sbcl
+  (eq? :special (sb-cltl2:variable-information symbol))
+  #-sbcl
+  (and (not (constantp symbol))
+       ;; If we have an error, its because the parameter has a type
+       ;; associated with it. Therefore we know its a parameter.
+       (eval `(not (ignore-errors
+		    (let (,symbol)
+		      (let ((f (lambda () ,symbol)))
+			(let ((,symbol t))
+			  (not (eq? [f] t))))))))))
+
 (define (document! proc docstring)
   "Attach documentation to proc before returning it."
   (setf (documentation proc 'function) docstring)

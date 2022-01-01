@@ -49,15 +49,32 @@ prefix it with the schemish prefix."
 
 (define-struct function-documentation
     (arg-list documentation))
-(define (function-documentation fn)
-  (make-function-documentation (procedure-arguments fn)
-			       (documentation fn 'function)))
+(define (function-documentation symbol)
+  (let ((form (define-form symbol)))
+    (make-function-documentation (if form
+				     (second form)
+				     (procedure-arguments (symbol-function symbol)))
+				 (documentation symbol 'function))))
+
+(define-struct constant-documentation
+    (documentation value))
+(define (constant-documentation symbol)
+  (make-constant-documentation (documentation symbol 'variable)
+			       (symbol-value symbol)))
 
 (define-struct variable-documentation
-    (documentation))
+    (documentation bound? current-value))
 (define (variable-documentation symbol)
-  (make-variable-documentation (documentation symbol 'variable)))
+  (make-variable-documentation (documentation symbol 'variable)
+			       (boundp symbol)
+			       (when (boundp symbol)
+				 (symbol-value symbol))))
 
+;; TODO: document, document-proc, document-package, etc.
+;; TODO: documentation objects with mixture of text, references, etc.
+
+;; TODO: remember define-struct definition forms?
+;; TODO: list of super-classes, slots, 
 (define-struct class-documentation
     (documentation))
 (define (class-documentation symbol)
@@ -70,8 +87,10 @@ prefix it with the schemish prefix."
 			     (remove nil
 				     (list
 				      (when (fboundp symbol)
-					(function-documentation (symbol-function symbol)))
-				      (when (boundp symbol)
+					(function-documentation symbol))
+				      (when (constantp symbol)
+					(constant-documentation symbol))
+				      (when (parameter? symbol)
 					(variable-documentation symbol))
 				      (when (find-class symbol nil)
 					(class-documentation symbol))))))

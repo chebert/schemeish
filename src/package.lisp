@@ -154,6 +154,7 @@
            #:ODD?
            #:ORMAP
            #:PAIR?
+           #:PARAMETER?
            #:PARTITION
            #:POSITIVE?
            #:PROCEDURE-ARGUMENTS
@@ -1193,6 +1194,7 @@
            #:PACKAGEP
            #:PAIR?
            #:PAIRLIS
+           #:PARAMETER?
            #:PARSE-ERROR
            #:PARSE-INTEGER
            #:PARSE-NAMESTRING
