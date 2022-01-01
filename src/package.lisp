@@ -40,6 +40,7 @@
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX)
   (:EXPORT #:DEFINE
+           #:DEFINE-FORM
            #:DROPF
            #:EXPAND-FUNCTION-BODY
            #:EXPAND-TOP-LEVEL-DEFINE
@@ -84,6 +85,7 @@
            #:CONJOIN*
            #:CONST
            #:DEFINE
+           #:DEFINE-FORM
            #:DEGREES->RADIANS
            #:DELAY
            #:DISJOIN
@@ -713,6 +715,7 @@
            #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-COMPILER-MACRO
            #:DEFINE-CONDITION
+           #:DEFINE-FORM
            #:DEFINE-METHOD-COMBINATION
            #:DEFINE-MODIFY-MACRO
            #:DEFINE-PACKAGE

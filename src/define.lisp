@@ -340,6 +340,22 @@
        ,@(ignorable-declaration-body ignorable-args)
        ,@(expand-function-body body))))
 
+(for-macros
+  (defparameter *define-form-hash-table* (make-hash-table)
+    "A hash table from name -> define-form.")
+
+  (defun register-define-form (form)
+    (let recurse ((name-form (second form)))
+      (if (consp name-form)
+	  (recurse (first name-form))
+	  (setf (gethash name-form *define-form-hash-table*) form)))))
+
+(defun define-form (symbol)
+  "Retrieve the DEFINE form used to define symbol's function.
+Returns nil if not defined using DEFINE. Does not include any outer
+lexical environment, and so it may not always be used to redefine the function."
+  (gethash symbol *define-form-hash-table*))
+
 (defmacro define (name-or-form &body body)
   "Definition form.
   (define new-function-name #'function-name) ;; Sets the fdefinition of new-function-name
@@ -396,6 +412,7 @@
         (inner2))
       (inner1)))"
   `(for-macros
+     (register-define-form '(define ,name-or-form ,@body))
      (macrolet ((define (&whole inner-whole &body ignored)
 		  (declare (ignore ignored))
 		  (error "Improperly nested define: ~S in expansion for ~S" inner-whole ',name-or-form)))
