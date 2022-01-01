@@ -372,6 +372,7 @@
            #:PACKAGE-SYMBOLS
            #:PACKAGE-UNUSED-SYMBOLS
            #:PACKAGE-USE
+           #:PACKAGE-USE-AND-EXPORT-SHADOWING
            #:PACKAGE-USE-SHADOWING
            #:PACKAGE-USED-SYMBOLS
            #:PACKAGE?

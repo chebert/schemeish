@@ -323,5 +323,12 @@ Cyclic dependencies throw an error."
 		  (union (package-used-symbols package)
 			 (package-imported-symbols package))))
 
+(define ((package-use-and-export-shadowing . packages) package)
+  "Package will use each of packages and re-export shadowing. 
+See package-use-shadowing and package-re-export-shadowing."
+  [(compose
+    (apply 'package-re-export-shadowing packages)
+    (apply 'package-use-shadowing packages))
+   package])
 
 (uninstall-syntax!)

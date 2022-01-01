@@ -21,15 +21,10 @@ prefix it with the schemish prefix."
   `(let ((*resolve-package-designator* #'resolve-schemeish-package-designator))
      ,@body))
 
-(define ((package-use-and-export-shadowing . packages) package)
-  [(compose
-    (apply 'package-re-export-shadowing packages)
-    (apply 'package-use-shadowing packages))
-   package])
-
 (define (sync-compound-packages!)
+  "Synchronizes packages that re-export other packages."
   (with-schemeish-designators
-    (extend-package :BASIC-SYNTAX
+    (extend-package :basic-syntax
 		    (package-use :cl)
 		    (package-use-and-export-shadowing :for-macros :named-let :syntax))
     (extend-package :base
@@ -51,5 +46,24 @@ prefix it with the schemish prefix."
 
 #+nil
 (write-package-file!)
+
+(define-struct symbol-documentation
+    (symbol function-documentation variable-documentation type-documentation))
+(define-struct package-documentation
+    (name documentation symbol-documentations))
+
+(define (symbol-documentation symbol)
+  (make-symbol-documentation symbol
+			     (documentation symbol 'function)
+			     (documentation symbol 'variable)
+			     (documentation symbol 'type)))
+(define (package-documentation package)
+  (make-package-documentation (package-name package)
+			      (documentation package t)
+			      (map #'symbol-documentation
+				   (package-defined-and-exported-symbols package))))
+
+#+nil
+(map #'package-documentation (schemeish-packages))
 
 (uninstall-syntax!)
