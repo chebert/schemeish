@@ -5,6 +5,12 @@
   (:USE #:COMMON-LISP)
   (:EXPORT #:FOR-MACROS #:UNIQUE-SYMBOL #:WITH-READABLE-SYMBOLS))
 
+(DEFPACKAGE #:SCHEMEISH.DOCUMENT
+  (:DOCUMENTATION "Provides functions for annotating functions, parameters, and packages
+with rich documentation.")
+  (:USE #:COMMON-LISP)
+  (:EXPORT #:DOCUMENTATION-STRING))
+
 (DEFPACKAGE #:SCHEMEISH.NAMED-LET
   (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
   (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
@@ -92,7 +98,7 @@
            #:DISJOIN*
            #:DISPLAY
            #:DISPLAYLN
-           #:DOCUMENT!
+           #:DOCUMENT-PROC
            #:DROP
            #:DROPF
            #:EMPTY?
@@ -343,7 +349,7 @@
            #:DEFINE-PACKAGE
            #:DEFINE-PACKAGE-FORM
            #:DEFPACKAGE-FORM
-           #:DOCUMENT
+           #:DOCUMENT-PACKAGE
            #:ENSURE-STRING
            #:EXTEND-PACKAGE
            #:EXTEND-PACKAGE*
@@ -762,8 +768,8 @@
            #:DO-ALL-SYMBOLS
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
-           #:DOCUMENT
-           #:DOCUMENT!
+           #:DOCUMENT-PACKAGE
+           #:DOCUMENT-PROC
            #:DOCUMENTATION
            #:DOLIST
            #:DOTIMES
@@ -1160,6 +1166,7 @@
            #:OTHERWISE
            #:OUTPUT-STREAM-P
            #:PACKAGE
+           #:PACKAGE-DEFINED-AND-EXPORTED-SYMBOLS
            #:PACKAGE-DELETE
            #:PACKAGE-DEPENDENCIES
            #:PACKAGE-ERROR
@@ -1186,6 +1193,7 @@
            #:PACKAGE-SYMBOLS
            #:PACKAGE-UNUSED-SYMBOLS
            #:PACKAGE-USE
+           #:PACKAGE-USE-AND-EXPORT-SHADOWING
            #:PACKAGE-USE-LIST
            #:PACKAGE-USE-SHADOWING
            #:PACKAGE-USED-BY-LIST

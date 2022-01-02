@@ -9,6 +9,7 @@
   :pathname "src/"
   :depends-on (:trivial-arguments)
   :components ((:file "package")
+	       (:file "document")
 	       (:file "for-macros")
 	       (:file "named-let")
 	       (:file "syntax")

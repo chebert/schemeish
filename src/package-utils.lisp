@@ -103,7 +103,7 @@ This package may need to be USEd before it can be re-exported." (package-name re
        (map 'package-find re-exported-packages))
   package)
 
-(define ((document documentation) package)
+(define ((document-package documentation) package)
   "Sets the package documentation for package. Returns a closure that takes and returns the package."
   (setf (documentation package t) documentation)
   package)

@@ -34,7 +34,7 @@ prefix it with the schemish prefix."
 		    (package-use-and-export-shadowing
 		     :COMMON-LISP
 		     :AND-LET :BASE :BUNDLE :DEFINE-STRUCT :LEXICALLY
-		     :QUEUE :STRUCT :cut))))
+		     :QUEUE :STRUCT :cut :package-utils))))
 
 (define (write-package-file! (file-path "src/package.lisp"))
   "Writes the current contents of (SCHEMISH-PACKAGES) as defpackage forms to file-path."
@@ -70,11 +70,10 @@ prefix it with the schemish prefix."
 			       (when (boundp symbol)
 				 (symbol-value symbol))))
 
-;; TODO: document, document-proc, document-package, etc.
+;; TODO: document, document-proc, document-package, document-struct, etc.
 ;; TODO: documentation objects with mixture of text, references, etc.
+;; TODO: remember define-struct definition forms: super, slots, mutability, opaque, etc.
 
-;; TODO: remember define-struct definition forms?
-;; TODO: list of super-classes, slots, 
 (define-struct class-documentation
     (documentation))
 (define (class-documentation symbol)
@@ -104,6 +103,6 @@ prefix it with the schemish prefix."
 				   (package-defined-and-exported-symbols package))))
 
 #+nil
-(map #'package-documentation (schemeish-packages))
+(package-documentation :schemeish.base)
 
 (uninstall-syntax!)

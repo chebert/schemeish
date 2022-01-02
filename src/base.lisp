@@ -26,7 +26,7 @@
 			(let ((,symbol t))
 			  (not (eq? [f] t))))))))))
 
-(define (document! proc docstring)
+(define (document-proc proc docstring)
   "Attach documentation to proc before returning it."
   (setf (documentation proc 'function) docstring)
   proc)
@@ -157,7 +157,7 @@
 
 (define (remq* v-list list) (remove* v-list list #'eq?))
 
-(define (sort list less-than? (:extract-key (lambda (x) x)))
+(define (sort list less-than? (:extract-key #'identity))
   "Returns a sorted list."
   (cl:sort (copy-list list) less-than? :key extract-key))
 
