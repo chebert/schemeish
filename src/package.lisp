@@ -28,7 +28,6 @@ with rich documentation.")
            #:DOCUMENTATION-STRING
            #:FUNCTION-DOCUMENTATION
            #:NEWLINES
-           #:REF
            #:REF-CONSTANT
            #:REF-FUNC
            #:REF-GROUP
@@ -79,7 +78,6 @@ with rich documentation.")
            #:INSTALL-SYNTAX!
            #:LET
            #:NEWLINES
-           #:REF
            #:REF-CONSTANT
            #:REF-FUNC
            #:REF-GROUP
@@ -251,7 +249,6 @@ with rich documentation.")
            #:RANDOM-STREAM
            #:RANGE
            #:RCURRY
-           #:REF
            #:REF-CONSTANT
            #:REF-FUNC
            #:REF-GROUP
@@ -1408,7 +1405,6 @@ with rich documentation.")
            #:REALP
            #:REALPART
            #:REDUCE
-           #:REF
            #:REF-CONSTANT
            #:REF-FUNC
            #:REF-GROUP
