@@ -9,7 +9,34 @@
   (:DOCUMENTATION "Provides functions for annotating functions, parameters, and packages
 with rich documentation.")
   (:USE #:COMMON-LISP)
-  (:EXPORT #:DOCUMENTATION-STRING))
+  (:EXPORT #:CONSTANT-DOCUMENTATION
+           #:DOC
+           #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REFERENCE
+           #:DOC-OBJECTS
+           #:DOC-REFERENCE-SYMBOL
+           #:DOC-STRING
+           #:DOC-TYPE-REFERENCE
+           #:DOC-VALUE
+           #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REFERENCE
+           #:DOCUMENT
+           #:DOCUMENT-CONSTANT
+           #:DOCUMENT-TYPE
+           #:DOCUMENT-VARIABLE
+           #:DOCUMENTATION-STRING
+           #:FUNCTION-DOCUMENTATION
+           #:NEWLINES
+           #:REF
+           #:REF-CONSTANT
+           #:REF-FUNC
+           #:REF-GROUP
+           #:REF-TYPE
+           #:REF-VARIABLE
+           #:TABS
+           #:TYPE-DOCUMENTATION
+           #:VARIABLE-DOCUMENTATION))
 
 (DEFPACKAGE #:SCHEMEISH.NAMED-LET
   (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
@@ -26,14 +53,43 @@ with rich documentation.")
   (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP
+        #:SCHEMEISH.DOCUMENT
         #:SCHEMEISH.FOR-MACROS
         #:SCHEMEISH.NAMED-LET
         #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:FOR-MACROS
+  (:EXPORT #:CONSTANT-DOCUMENTATION
+           #:DOC
+           #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REFERENCE
+           #:DOC-OBJECTS
+           #:DOC-REFERENCE-SYMBOL
+           #:DOC-STRING
+           #:DOC-TYPE-REFERENCE
+           #:DOC-VALUE
+           #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REFERENCE
+           #:DOCUMENT
+           #:DOCUMENT-CONSTANT
+           #:DOCUMENT-TYPE
+           #:DOCUMENT-VARIABLE
+           #:DOCUMENTATION-STRING
+           #:FOR-MACROS
+           #:FUNCTION-DOCUMENTATION
            #:INSTALL-SYNTAX!
            #:LET
+           #:NEWLINES
+           #:REF
+           #:REF-CONSTANT
+           #:REF-FUNC
+           #:REF-GROUP
+           #:REF-TYPE
+           #:REF-VARIABLE
+           #:TABS
+           #:TYPE-DOCUMENTATION
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
+           #:VARIABLE-DOCUMENTATION
            #:WITH-READABLE-SYMBOLS))
 
 (DEFPACKAGE #:SCHEMEISH.ARGUMENTS
@@ -90,6 +146,7 @@ with rich documentation.")
            #:CONJOIN
            #:CONJOIN*
            #:CONST
+           #:CONSTANT-DOCUMENTATION
            #:DEFINE
            #:DEFINE-FORM
            #:DEGREES->RADIANS
@@ -98,7 +155,23 @@ with rich documentation.")
            #:DISJOIN*
            #:DISPLAY
            #:DISPLAYLN
+           #:DOC
+           #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REFERENCE
+           #:DOC-OBJECTS
+           #:DOC-REFERENCE-SYMBOL
+           #:DOC-STRING
+           #:DOC-TYPE-REFERENCE
+           #:DOC-VALUE
+           #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REFERENCE
+           #:DOCUMENT
+           #:DOCUMENT-CONSTANT
            #:DOCUMENT-PROC
+           #:DOCUMENT-TYPE
+           #:DOCUMENT-VARIABLE
+           #:DOCUMENTATION-STRING
            #:DROP
            #:DROPF
            #:EMPTY?
@@ -119,6 +192,7 @@ with rich documentation.")
            #:FOR-EACH
            #:FOR-MACROS
            #:FORCE
+           #:FUNCTION-DOCUMENTATION
            #:GROUP
            #:HAS-SPECIFIC-ARITY?
            #:HASH->ALIST
@@ -153,6 +227,7 @@ with rich documentation.")
            #:NAND
            #:NEGATIVE?
            #:NEWLINE
+           #:NEWLINES
            #:NOR
            #:NULL?
            #:NUMBER->STRING
@@ -176,6 +251,12 @@ with rich documentation.")
            #:RANDOM-STREAM
            #:RANGE
            #:RCURRY
+           #:REF
+           #:REF-CONSTANT
+           #:REF-FUNC
+           #:REF-GROUP
+           #:REF-TYPE
+           #:REF-VARIABLE
            #:REMOVE*
            #:REMQ
            #:REMQ*
@@ -229,13 +310,16 @@ with rich documentation.")
            #:SYMBOL->STRING
            #:SYMBOL?
            #:SYMBOLICATE
+           #:TABS
            #:TAKE
            #:TAKEF
            #:THERE-EXISTS
            #:THERE-EXISTS*
+           #:TYPE-DOCUMENTATION
            #:UNDEFINE
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
+           #:VARIABLE-DOCUMENTATION
            #:VECTOR->LIST
            #:VECTOR-MAP
            #:VECTOR-REF
@@ -689,6 +773,7 @@ with rich documentation.")
            #:CONS
            #:CONSP
            #:CONST
+           #:CONSTANT-DOCUMENTATION
            #:CONSTANTLY
            #:CONSTANTP
            #:CONTINUE
@@ -768,9 +853,25 @@ with rich documentation.")
            #:DO-ALL-SYMBOLS
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
+           #:DOC
+           #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REFERENCE
+           #:DOC-OBJECTS
+           #:DOC-REFERENCE-SYMBOL
+           #:DOC-STRING
+           #:DOC-TYPE-REFERENCE
+           #:DOC-VALUE
+           #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REFERENCE
+           #:DOCUMENT
+           #:DOCUMENT-CONSTANT
            #:DOCUMENT-PACKAGE
            #:DOCUMENT-PROC
+           #:DOCUMENT-TYPE
+           #:DOCUMENT-VARIABLE
            #:DOCUMENTATION
+           #:DOCUMENTATION-STRING
            #:DOLIST
            #:DOTIMES
            #:DOUBLE-FLOAT
@@ -882,6 +983,7 @@ with rich documentation.")
            #:FTYPE
            #:FUNCALL
            #:FUNCTION
+           #:FUNCTION-DOCUMENTATION
            #:FUNCTION-KEYWORDS
            #:FUNCTION-LAMBDA-EXPRESSION
            #:FUNCTIONP
@@ -1119,6 +1221,7 @@ with rich documentation.")
            #:NCONC
            #:NEGATIVE?
            #:NEWLINE
+           #:NEWLINES
            #:NEXT-METHOD-P
            #:NICKNAME-PACKAGE
            #:NIL
@@ -1305,6 +1408,12 @@ with rich documentation.")
            #:REALP
            #:REALPART
            #:REDUCE
+           #:REF
+           #:REF-CONSTANT
+           #:REF-FUNC
+           #:REF-GROUP
+           #:REF-TYPE
+           #:REF-VARIABLE
            #:REINITIALIZE-INSTANCE
            #:REM
            #:REMF
@@ -1526,6 +1635,7 @@ with rich documentation.")
            #:SYNONYM-STREAM
            #:SYNONYM-STREAM-SYMBOL
            #:T
+           #:TABS
            #:TAGBODY
            #:TAILP
            #:TAKE
@@ -1550,6 +1660,7 @@ with rich documentation.")
            #:TWO-WAY-STREAM-INPUT-STREAM
            #:TWO-WAY-STREAM-OUTPUT-STREAM
            #:TYPE
+           #:TYPE-DOCUMENTATION
            #:TYPE-ERROR
            #:TYPE-ERROR-DATUM
            #:TYPE-ERROR-EXPECTED-TYPE
@@ -1586,6 +1697,7 @@ with rich documentation.")
            #:VALUES
            #:VALUES-LIST
            #:VARIABLE
+           #:VARIABLE-DOCUMENTATION
            #:VECTOR
            #:VECTOR->LIST
            #:VECTOR-MAP

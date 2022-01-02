@@ -26,7 +26,7 @@ prefix it with the schemish prefix."
   (with-schemeish-designators
     (extend-package :basic-syntax
 		    (package-use :cl)
-		    (package-use-and-export-shadowing :for-macros :named-let :syntax))
+		    (package-use-and-export-shadowing :for-macros :named-let :syntax :document))
     (extend-package :base
 		    (package-use :cl)
 		    (package-use-and-export-shadowing :basic-syntax :define))
@@ -47,62 +47,63 @@ prefix it with the schemish prefix."
 #+nil
 (write-package-file!)
 
-(define-struct function-documentation
-    (arg-list documentation))
-(define (function-documentation symbol)
-  (let ((form (define-form symbol)))
-    (make-function-documentation (if form
-				     (second form)
-				     (procedure-arguments (symbol-function symbol)))
-				 (documentation symbol 'function))))
-
-(define-struct constant-documentation
-    (documentation value))
-(define (constant-documentation symbol)
-  (make-constant-documentation (documentation symbol 'variable)
-			       (symbol-value symbol)))
-
-(define-struct variable-documentation
-    (documentation bound? current-value))
-(define (variable-documentation symbol)
-  (make-variable-documentation (documentation symbol 'variable)
-			       (boundp symbol)
-			       (when (boundp symbol)
-				 (symbol-value symbol))))
-
-;; TODO: document, document-proc, document-package, document-struct, etc.
-;; TODO: documentation objects with mixture of text, references, etc.
-;; TODO: remember define-struct definition forms: super, slots, mutability, opaque, etc.
-
-(define-struct class-documentation
-    (documentation))
-(define (class-documentation symbol)
-  (make-class-documentation (documentation symbol 'type)))
-
-(define-struct symbol-documentation
-    (symbol documentations))
-(define (symbol-documentation symbol)
-  (make-symbol-documentation symbol
-			     (remove nil
-				     (list
-				      (when (fboundp symbol)
-					(function-documentation symbol))
-				      (when (constantp symbol)
-					(constant-documentation symbol))
-				      (when (parameter? symbol)
-					(variable-documentation symbol))
-				      (when (find-class symbol nil)
-					(class-documentation symbol))))))
-
-(define-struct package-documentation
-    (name documentation symbol-documentations))
-(define (package-documentation package)
-  (make-package-documentation (package-name package)
-			      (documentation package t)
-			      (map #'symbol-documentation
-				   (package-defined-and-exported-symbols package))))
 
 #+nil
-(package-documentation :schemeish.base)
+(progn
+  (define-struct function-documentation
+      (arg-list documentation))
+  (define (function-documentation symbol)
+    (let ((form (define-form symbol)))
+      (make-function-documentation (if form
+				       (second form)
+				       (procedure-arguments (symbol-function symbol)))
+				   (documentation symbol 'function))))
+
+  (define-struct constant-documentation
+      (documentation value))
+  (define (constant-documentation symbol)
+    (make-constant-documentation (documentation symbol 'variable)
+				 (symbol-value symbol)))
+
+  (define-struct variable-documentation
+      (documentation bound? current-value))
+  (define (variable-documentation symbol)
+    (make-variable-documentation (documentation symbol 'variable)
+				 (boundp symbol)
+				 (when (boundp symbol)
+				   (symbol-value symbol))))
+
+  ;; TODO: remember define-struct definition forms: super, slots, mutability, opaque, etc.
+
+  (define-struct class-documentation
+      (documentation))
+  (define (class-documentation symbol)
+    (make-class-documentation (documentation symbol 'type)))
+
+  (define-struct symbol-documentation
+      (symbol documentations))
+  (define (symbol-documentation symbol)
+    (make-symbol-documentation symbol
+			       (remove nil
+				       (list
+					(when (fboundp symbol)
+					  (function-documentation symbol))
+					(when (constantp symbol)
+					  (constant-documentation symbol))
+					(when (parameter? symbol)
+					  (variable-documentation symbol))
+					(when (find-class symbol nil)
+					  (class-documentation symbol))))))
+
+  (define-struct package-documentation
+      (name documentation symbol-documentations))
+  (define (package-documentation package)
+    (make-package-documentation (package-name package)
+				(documentation package t)
+				(map #'symbol-documentation
+				     (package-defined-and-exported-symbols package))))
+
+  #+nil
+  (package-documentation :schemeish.base))
 
 (uninstall-syntax!)
