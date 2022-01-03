@@ -11,15 +11,20 @@ with rich documentation.")
   (:USE #:COMMON-LISP)
   (:EXPORT #:CONSTANT-DOCUMENTATION
            #:DOC
+           #:DOC-CONSTANT-REF
            #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNC-REF
            #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REF
            #:DOC-GROUP-REFERENCE
            #:DOC-OBJECTS
            #:DOC-REFERENCE-SYMBOL
            #:DOC-STRING
+           #:DOC-TYPE-REF
            #:DOC-TYPE-REFERENCE
            #:DOC-VALUE
            #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REF
            #:DOC-VARIABLE-REFERENCE
            #:DOCUMENT
            #:DOCUMENT-CONSTANT
@@ -28,11 +33,6 @@ with rich documentation.")
            #:DOCUMENTATION-STRING
            #:FUNCTION-DOCUMENTATION
            #:NEWLINES
-           #:REF-CONSTANT
-           #:REF-FUNC
-           #:REF-GROUP
-           #:REF-TYPE
-           #:REF-VARIABLE
            #:TABS
            #:TYPE-DOCUMENTATION
            #:VARIABLE-DOCUMENTATION))
@@ -58,15 +58,20 @@ with rich documentation.")
         #:SCHEMEISH.SYNTAX)
   (:EXPORT #:CONSTANT-DOCUMENTATION
            #:DOC
+           #:DOC-CONSTANT-REF
            #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNC-REF
            #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REF
            #:DOC-GROUP-REFERENCE
            #:DOC-OBJECTS
            #:DOC-REFERENCE-SYMBOL
            #:DOC-STRING
+           #:DOC-TYPE-REF
            #:DOC-TYPE-REFERENCE
            #:DOC-VALUE
            #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REF
            #:DOC-VARIABLE-REFERENCE
            #:DOCUMENT
            #:DOCUMENT-CONSTANT
@@ -78,11 +83,6 @@ with rich documentation.")
            #:INSTALL-SYNTAX!
            #:LET
            #:NEWLINES
-           #:REF-CONSTANT
-           #:REF-FUNC
-           #:REF-GROUP
-           #:REF-TYPE
-           #:REF-VARIABLE
            #:TABS
            #:TYPE-DOCUMENTATION
            #:UNINSTALL-SYNTAX!
@@ -154,15 +154,20 @@ with rich documentation.")
            #:DISPLAY
            #:DISPLAYLN
            #:DOC
+           #:DOC-CONSTANT-REF
            #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNC-REF
            #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REF
            #:DOC-GROUP-REFERENCE
            #:DOC-OBJECTS
            #:DOC-REFERENCE-SYMBOL
            #:DOC-STRING
+           #:DOC-TYPE-REF
            #:DOC-TYPE-REFERENCE
            #:DOC-VALUE
            #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REF
            #:DOC-VARIABLE-REFERENCE
            #:DOCUMENT
            #:DOCUMENT-CONSTANT
@@ -249,11 +254,6 @@ with rich documentation.")
            #:RANDOM-STREAM
            #:RANGE
            #:RCURRY
-           #:REF-CONSTANT
-           #:REF-FUNC
-           #:REF-GROUP
-           #:REF-TYPE
-           #:REF-VARIABLE
            #:REMOVE*
            #:REMQ
            #:REMQ*
@@ -851,15 +851,20 @@ with rich documentation.")
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
            #:DOC
+           #:DOC-CONSTANT-REF
            #:DOC-CONSTANT-REFERENCE
+           #:DOC-FUNC-REF
            #:DOC-FUNCTION-REFERENCE
+           #:DOC-GROUP-REF
            #:DOC-GROUP-REFERENCE
            #:DOC-OBJECTS
            #:DOC-REFERENCE-SYMBOL
            #:DOC-STRING
+           #:DOC-TYPE-REF
            #:DOC-TYPE-REFERENCE
            #:DOC-VALUE
            #:DOC-VALUE-VALUE
+           #:DOC-VARIABLE-REF
            #:DOC-VARIABLE-REFERENCE
            #:DOCUMENT
            #:DOCUMENT-CONSTANT
@@ -1405,11 +1410,6 @@ with rich documentation.")
            #:REALP
            #:REALPART
            #:REDUCE
-           #:REF-CONSTANT
-           #:REF-FUNC
-           #:REF-GROUP
-           #:REF-TYPE
-           #:REF-VARIABLE
            #:REINITIALIZE-INSTANCE
            #:REM
            #:REMF
