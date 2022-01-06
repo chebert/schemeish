@@ -17,22 +17,19 @@ with rich documentation.")
            #:DOC-FUNCTION-REFERENCE
            #:DOC-GROUP-REF
            #:DOC-GROUP-REFERENCE
-           #:DOC-OBJECTS
-           #:DOC-REFERENCE-SYMBOL
            #:DOC-STRING
            #:DOC-TYPE-REF
            #:DOC-TYPE-REFERENCE
-           #:DOC-VALUE
-           #:DOC-VALUE-VALUE
            #:DOC-VARIABLE-REF
            #:DOC-VARIABLE-REFERENCE
            #:DOCUMENT
            #:DOCUMENT-CONSTANT
+           #:DOCUMENT-PACKAGE
            #:DOCUMENT-TYPE
            #:DOCUMENT-VARIABLE
-           #:DOCUMENTATION-STRING
            #:FUNCTION-DOCUMENTATION
            #:NEWLINES
+           #:PACKAGE-DOCUMENTATION
            #:TABS
            #:TYPE-DOCUMENTATION
            #:VARIABLE-DOCUMENTATION))
@@ -50,6 +47,12 @@ with rich documentation.")
 
 (DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
   (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
+  (:IMPORT-FROM #:SCHEMEISH.DOCUMENT
+                #:DOC-OBJECTS
+                #:DOC-REFERENCE-SYMBOL
+                #:DOC-VALUE
+                #:DOC-VALUE-VALUE
+                #:DOCUMENTATION-STRING)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP
         #:SCHEMEISH.DOCUMENT
@@ -75,6 +78,7 @@ with rich documentation.")
            #:DOC-VARIABLE-REFERENCE
            #:DOCUMENT
            #:DOCUMENT-CONSTANT
+           #:DOCUMENT-PACKAGE
            #:DOCUMENT-TYPE
            #:DOCUMENT-VARIABLE
            #:DOCUMENTATION-STRING
@@ -83,6 +87,7 @@ with rich documentation.")
            #:INSTALL-SYNTAX!
            #:LET
            #:NEWLINES
+           #:PACKAGE-DOCUMENTATION
            #:TABS
            #:TYPE-DOCUMENTATION
            #:UNINSTALL-SYNTAX!
@@ -171,6 +176,7 @@ with rich documentation.")
            #:DOC-VARIABLE-REFERENCE
            #:DOCUMENT
            #:DOCUMENT-CONSTANT
+           #:DOCUMENT-PACKAGE
            #:DOCUMENT-PROC
            #:DOCUMENT-TYPE
            #:DOCUMENT-VARIABLE
@@ -237,6 +243,7 @@ with rich documentation.")
            #:NUMBER?
            #:ODD?
            #:ORMAP
+           #:PACKAGE-DOCUMENTATION
            #:PAIR?
            #:PARAMETER?
            #:PARTITION
@@ -430,7 +437,6 @@ with rich documentation.")
            #:DEFINE-PACKAGE
            #:DEFINE-PACKAGE-FORM
            #:DEFPACKAGE-FORM
-           #:DOCUMENT-PACKAGE
            #:ENSURE-STRING
            #:EXTEND-PACKAGE
            #:EXTEND-PACKAGE*
@@ -1274,6 +1280,7 @@ with rich documentation.")
            #:PACKAGE-DEFINED-AND-EXPORTED-SYMBOLS
            #:PACKAGE-DELETE
            #:PACKAGE-DEPENDENCIES
+           #:PACKAGE-DOCUMENTATION
            #:PACKAGE-ERROR
            #:PACKAGE-ERROR-PACKAGE
            #:PACKAGE-EXPORT

@@ -3,7 +3,7 @@
 (defvar *function-docs-hash-table* (make-hash-table :weakness :key))
 (defvar *function-symbol-docs-hash-table* (make-hash-table))
 (export (defun function-documentation (symbol-or-function)
-	  "Retrieve the rich-documentation for symbol-or-function if available, otherwise
+	  "Retrieve the marked up documentation for symbol-or-function if available, otherwise
 return the docstring."
 	  (if (symbolp symbol-or-function)
 	      (or (gethash symbol-or-function *function-symbol-docs-hash-table*)
@@ -12,32 +12,44 @@ return the docstring."
 		  (documentation symbol-or-function t)))))
 (defvar *variable-and-constant-docs-hash-table* (make-hash-table))
 (export (defun variable-documentation (symbol)
-	  "Retrieve the rich-documentation for symbol if available, otherwise
+	  "Retrieve the marked up documentation for symbol if available, otherwise
 return the docstring."
 	  (or (gethash symbol *variable-and-constant-docs-hash-table*)
 	      (documentation symbol 'variable))))
 (export (defun constant-documentation (symbol)
-	  "Retrieve the rich-documentation for symbol if available, otherwise
+	  "Retrieve the marked up documentation for symbol if available, otherwise
 return the docstring."
 	  (or (gethash symbol *variable-and-constant-docs-hash-table*)
 	      (documentation symbol 'constant))))
 (defvar *type-docs-hash-table* (make-hash-table))
 (export (defun type-documentation (symbol)
-	  "Retrieve the rich-documentation for symbol if available, otherwise
+	  "Retrieve the marked up documentation for symbol if available, otherwise
 return the docstring."
 	  (or (gethash symbol *type-docs-hash-table*)
 	      (documentation symbol 'type))))
+(defvar *package-docs-hash-table* (make-hash-table :weakness :key))
+(export (defun package-documentation (package-designator)
+	  "Retrieve the marked up documentation for package-designator if available, otherwise
+return the docstring. If the package does not exist, return nil."
+	  (let ((package (find-package package-designator)))
+	    (when package
+	      (or (gethash package *package-docs-hash-table*)
+		  (documentation package 'type))))))
 
+(defgeneric render-markup (markup output-spec stream)
+  (:documentation "Renders the markup object to the stream based on output-spec.
+Output-spec describes the markup format e.g. :string :html.
+Context describes things like the indentation and the number of characters per line."))
 
-(defgeneric documentation-string (documentation)
-  (:documentation "Resolves a documentation object to a string."))
-(defmethod documentation-string ((s string))
-  s)
-(export 'documentation-string)
+(defmethod render-markup (value (output-spec (eql :string)) context stream)
+  (format stream "~S" value))
+(defmethod render-markup ((string string) (output-spec (eql :string)) context stream)
+  (format stream "~A" string))
 
-;; TODO: document-package
-;; undocument*
-;; TODO: deprecate-
+(defun documentation-string (markup)
+  "Renders markup object to a documentation string."
+  (with-output-to-string (stream)
+    (render-markup markup :string (make-markup-context :indentation-level 0) stream)))
 
 (export
  (defun document (documentation symbol-or-function)
@@ -71,14 +83,16 @@ Symbol may name a function, macro-function, generic-function, or method."
    (setf (documentation symbol 'type) (documentation-string documentation))
    (setf (gethash symbol *type-docs-hash-table*) documentation)
    symbol))
+(export
+ (defun document-package (documentation package-designator)
+   "Sets the documentation of the package if it exists. Returns package."
+   (let ((package (find-package package-designator)))
+     (when package
+       (setf (documentation package t) (documentation-string documentation))
+       (setf (gethash package *type-docs-hash-table*) documentation)
+       package))))
 
 (export (defstruct doc objects))
-(export (defstruct doc-value
-	  "A lisp value which can be formatted as a string using (format nil \"~S\" value)"
-	  value))
-(export (defstruct doc-string
-	  "A lisp string."
-	  value))
 (defstruct doc-reference
   "An untyped reference to a symbol."
   symbol)
@@ -93,65 +107,71 @@ Symbol may name a function, macro-function, generic-function, or method."
 (export (defstruct (doc-group-reference (:include doc-reference))
 	  "A doc-reference to a named group."))
 
-(export 'doc-value-value)
-(export 'doc-objects)
-(export 'doc-reference-symbol)
+(defmethod render-markup ((doc doc-value) (output-spec (eql :string)) context stream)
+  (format stream "the value ~S" (doc-value-value doc)))
+(defmethod render-markup ((doc doc-string) (output-spec (eql :string)) context stream)
+  (format stream "~A" (doc-string-value doc)))
+(defmethod render-markup ((doc doc-function-reference) (output-spec (eql :string)) context stream)
+  (format stream "the function ~S" (doc-reference-symbol doc)))
+(defmethod render-markup ((doc doc-variable-reference) (output-spec (eql :string)) context stream)
+  (format stream "the variable ~S" (doc-reference-symbol doc)))
+(defmethod render-markup ((doc doc-constant-reference) (output-spec (eql :string)) context stream)
+  (format stream "the constant ~S" (doc-reference-symbol doc)))
+(defmethod render-markup ((doc doc-group-reference) (output-spec (eql :string)) context stream)
+  (format stream "the group ~S" (doc-reference-symbol doc)))
+(defmethod render-markup ((doc doc-type-reference) (output-spec (eql :string)) context stream)
+  (format stream "the type ~S" (doc-reference-symbol doc)))
 
-(defmethod documentation-string ((doc doc-value))
-  (format nil "the value ~S" (doc-value-value doc)))
-(defmethod documentation-string ((doc doc-string))
-  (doc-string-value doc))
-(defmethod documentation-string ((doc doc-function-reference))
-  (format nil "the function ~S" (doc-reference-symbol doc)))
-(defmethod documentation-string ((doc doc-variable-reference))
-  (format nil "the variable ~S" (doc-reference-symbol doc)))
-(defmethod documentation-string ((doc doc-constant-reference))
-  (format nil "the constant ~S" (doc-reference-symbol doc)))
-(defmethod documentation-string ((doc doc-group-reference))
-  (format nil "the group ~S" (doc-reference-symbol doc)))
-(defmethod documentation-string ((doc doc-type-reference))
-  (format nil "the type ~S" (doc-reference-symbol doc)))
-
-(defmethod documentation-string ((doc doc))
-  (with-output-to-string (s)
-    (loop for doc in (doc-objects doc) do
-      (format s "~A" (documentation-string doc)))))
+(defmethod render-markup ((doc doc) (output-spec (eql :string)) context stream)
+  (loop for doc in (doc-objects doc) do
+    (format stream "~A" (documentation-string doc))))
 
 (export
  (defun doc-func-ref (symbol)
+   "Construct a documentation markup object that references the function value of symbol."
    (make-doc-function-reference :symbol symbol)))
 (export
  (defun doc-variable-ref (symbol)
+   "Construct a documentation markup object that references the variable/parameter value of symbol."
    (make-doc-variable-reference :symbol symbol)))
 (export
  (defun doc-constant-ref (symbol)
+   "Construct a documentation markup object that references the constant value of symbol."
    (make-doc-constant-reference :symbol symbol)))
 (export
  (defun doc-type-ref (symbol)
+   "Construct a documentation markup object that references the type value of symbol."
    (make-doc-type-reference :symbol symbol)))
 (export
  (defun doc-group-ref (symbol)
+   "Construct a documentation markup object that references the group named by symbol."
    (make-doc-group-reference :symbol symbol)))
 
 (export (defun newlines (&optional (count 1))
+	  "Return a string with COUNT newlines."
 	  (make-string count :initial-element #\newline)))
 (export (defun tabs (&optional (count 1))
+	  "Return a string with COUNT tabs."
 	  (make-string count :initial-element #\tab)))
 (export
- (defun doc (&rest objects)
-   (make-doc :objects (mapcar (lambda (object)
-				(cond ((doc-reference-p object) object)
-				      ((stringp object) (make-doc-string :value object))
-				      (t (make-doc-value :value object))))
-			      objects))))
+ (defun doc (&rest markup-objects)
+   (make-doc :objects markup-objects)))
 
 (document-type
- (doc "DOC is an object for storing rich documentation. It can contain any of" (newlines)
-      (doc-type-ref 'doc-value) ", "
-      (doc-type-ref 'doc-string) ", "
-      (doc-type-ref 'doc-function-reference) ", "
-      (doc-type-ref 'doc-variable-reference) ", " (newlines)
-      (doc-type-ref 'doc-constant-reference) ", "
-      (doc-type-ref 'doc-group-reference) ", or "
-      (doc-type-ref 'doc-type-reference) ".")
+ (doc "DOC is a markup object for storing documentation. It can contain a list of objects markup objects."
+      (newlines) "See " (doc-func-ref 'render-markup) " and " (doc-func-ref 'documentation-string) ".")
  'doc)
+
+(document
+ (doc "Constructs a documentation markup object given a list of markup objects. See " (doc-type-ref 'doc) ".")
+ 'doc)
+
+(document-package
+ (doc "Provides tools for creating marked up documentation.")
+ :schemeish.document)
+
+
+;; TODO: Markup language
+;; TODO: look at restructured text
+;; (RENDER-MARKUP-STRING markup line-width stream)
+;; (CONVERT-TO-HTML markup)

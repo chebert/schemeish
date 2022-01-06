@@ -1081,7 +1081,7 @@ Does not affect the random-state."
 	value
 	failure-result)))
 (define (hash-set! table key value)
-  "Sets the value associated with key in hash-table table to value."
+  "Sets the value associated with key in hash-table table to value. Returns the value."
   (setf (gethash key table) value))
 (define (hash-find-keyf table predicate (failure-result))
   "Returns the first key that satisfies [predicate key] in table."
