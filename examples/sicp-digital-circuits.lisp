@@ -3,8 +3,7 @@
 
 (in-package #:sicp-digital-circuits)
 
-(for-macros
-  (install-syntax!))
+(install-syntax!)
 
 (defvar *the-agenda*)
 
@@ -54,7 +53,7 @@
 
   (define (get-current-time) current-time)
 
-  (bundle () (make-agenda current-time segments)
+  (bundle nil
 	  empty? first-item remove-first-item! add! get-current-time))
 
 (define (empty-agenda? a) [[a :empty?]])
@@ -81,7 +80,7 @@
 (define (call-each procedures)
   (for-each (lambda (proc) [proc]) procedures))
 
-(defvar *wire?* (make-bundle-predicate :wire))
+(define wire? (make-bundle-predicate :wire))
 (define (make-wire (signal-value 0) (action-procedures '()))
   (define (set-signal! new-value)
     (if (not (= signal-value new-value))
@@ -93,9 +92,7 @@
     (setq action-procedures (cons proc action-procedures))
     [proc])
   (define (get-signal) signal-value)
-
-  (bundle *wire?* (make-wire signal-value action-procedures)
-	  set-signal! accept-action-procedure! get-signal))
+  (bundle nil set-signal! accept-action-procedure! get-signal))
 
 (define (get-signal wire) [[wire :get-signal]])
 (define (set-signal! wire new-value) [[wire :set-signal!] new-value])
@@ -117,9 +114,9 @@
 
 (define (logical procedure)
   (lambda signal-args
-    (bool->signal (apply procedure (map 'signal->bool signal-args)))))
+    (bool->signal [procedure (map 'signal->bool signal-args)])))
 
-(define (logical-not signal) [(logical 'not) signal])
+(define (logical-not signal) (bool->signal (not (signal->bool signal))))
 (define (logical-and s1 s2) [(logical (lcurry 'for-all 'identity)) s1 s2])
 (define (logical-or s1 s2) [(logical (lcurry 'there-exists 'identity)) s1 s2])
 
@@ -238,4 +235,4 @@
 ;; :CARRY-OUT 16 New-value = 1
 ;; :SUM 16 New-value = 0
 
-(for-macros (uninstall-syntax!))
+(uninstall-syntax!)

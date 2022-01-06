@@ -3,6 +3,8 @@
 
 (in-package #:sicp-register-machine)
 
+(install-syntax!)
+
 (define (tagged-list? exp tag)
   "True if exp is a list that begins with tag."
   (and (pair? exp)
@@ -143,6 +145,7 @@
     machine))
 
 (define (make-register name (contents :unassigned))
+  (declare (ignore name))
   (define (get-contents) contents)
   (define (set-contents! value) (set! contents value))
 
@@ -654,3 +657,5 @@ Output:
 
 (define (vector-set! v index value)
   (setf (aref v index) value))
+
+(uninstall-syntax!)
