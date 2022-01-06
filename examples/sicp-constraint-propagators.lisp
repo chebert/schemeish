@@ -3,7 +3,7 @@
 
 (in-package #:sicp-constraint-propagators)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (define (inform-about-value constraint)
   [constraint :i-have-a-value])
@@ -13,7 +13,7 @@
 (define (for-each-except exception f list)
   (for-each f (remove exception list)))
 
-(defvar *connector?* (make-bundle-predicate :connector))
+(define connector? (make-bundle-predicate :connector))
 (define (make-connector (value nil) (informant nil) (constraints '()))
   (define (has-value?) informant)
   (define (get-value) value)
@@ -42,7 +42,7 @@
     (when (has-value?)
       (inform-about-value new-constraint)))
 
-  (bundle *connector?*
+  (bundle #'connector?
 	  has-value?
 	  get-value
 	  set-value!
@@ -292,3 +292,5 @@ Probe: Celsius temp = 25
 Probe: Fahrenheit temp = 77
 ||#
 ;; => NIL
+
+(uninstall-syntax!)

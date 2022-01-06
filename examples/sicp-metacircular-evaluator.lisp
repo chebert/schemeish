@@ -4,7 +4,7 @@
 
 (in-package #:sicp-metacircular-evaluator)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (define (eval expr env)
   (cond
@@ -501,3 +501,4 @@ OK
 ;; ANALYZE: 2.3-2.5 seconds
 ;; NATIVE: 0.01-0.1 seconds
 
+(uninstall-syntax!)
