@@ -186,6 +186,7 @@
 		((null definitions) body)
 		(t (let* ((function-definitions (remove-if-not 'define-function? definitions)))
 		     `((let ,(mapcar 'define-name definitions)
+			 (declare (ignorable ,@(mapcar #'define-name definitions)))
 			 (labels ,(append
 				   (mapcar (cl:lambda (form)
 					     (expand-define-closure-or-function (second form)
@@ -196,6 +197,7 @@
 					     (let ((args (unique-symbol 'args)))
 					       `(,(define-name form) (&rest ,args) (apply ,(define-name form) ,args))))
 				     (remove-if 'define-function? definitions)))
+			   (declare (ignorable ,@(mapcar (cl:lambda (definition) `(function ,(define-name definition))) definitions)))
 			   (setq ,@(append* (mapcar (cl:lambda (form)
 						      (cond ((define-function? form)
 							     (let ((name (define-name form)))
@@ -229,22 +231,23 @@
 	       '(body)))
 
 (assert (equal (with-readable-symbols (expand-function-body-definitions '((define x 1) (define (f x) (+ x 1))) '(body)))
-	       '((LET (X F)
+	       '((LET (X F) (DECLARE (IGNORABLE X F))
 		   (LABELS ((F (X)
 			      (+ X 1))
 			    (X (&REST ARGS)
 			      (APPLY X ARGS)))
+		     (DECLARE (IGNORABLE (FUNCTION X) (FUNCTION F)))
 		     (SETQ X 1
 			   F #'F)
 		     BODY)))))
-
 (assert (equal (expand-function-body-definitions '((define ((f x) y)
 						     (list x y)))
 						 '([(f 1) 2]))
-	       '((LET (F)
+	       '((LET (F) (DECLARE (IGNORABLE F))
 		   (LABELS ((F (X)
 			      (LAMBDA (Y)
 				(LIST X Y))))
+		     (DECLARE (IGNORABLE (FUNCTION F)))
 		     (SETQ F #'F)
 		     (FUNCALL (F 1) 2))))))
 
@@ -315,9 +318,11 @@
 					  inner-nested))
 	       '(DEFUN TEST-INNER-NESTED-DEFINES ()
 		 "Also returns a thing"
-		 (LET (INNER-NESTED)
+		 (LET (INNER-NESTED) (DECLARE (IGNORABLE INNER-NESTED))
 		   (LABELS ((INNER-NESTED (X)
-			      (LAMBDA (Y) (LIST X Y))))
+			      (LAMBDA (Y)
+				(LIST X Y))))
+		     (DECLARE (IGNORABLE (FUNCTION INNER-NESTED)))
 		     (SETQ INNER-NESTED #'INNER-NESTED)
 		     INNER-NESTED)))))
 
