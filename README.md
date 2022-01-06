@@ -12,6 +12,8 @@ The SCHEMEISH package can be used in place of CL.
        (:shadowing-import-from :cl :lambda)
        (:use :schemeish))
 
+You can find examples of this usage in the `examples/` folder of this project.
+
 The following CL symbols are replaced by Schemeish:
 
  - `LAMBDA` uses scheme-style argument lists with nestable defines.
