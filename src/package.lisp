@@ -5,35 +5,6 @@
   (:USE #:COMMON-LISP)
   (:EXPORT #:FOR-MACROS #:UNIQUE-SYMBOL #:WITH-READABLE-SYMBOLS))
 
-(DEFPACKAGE #:SCHEMEISH.DOCUMENT
-  (:DOCUMENTATION "Provides functions for annotating functions, parameters, and packages
-with rich documentation.")
-  (:USE #:COMMON-LISP)
-  (:EXPORT #:CONSTANT-DOCUMENTATION
-           #:DOC
-           #:DOC-CONSTANT-REF
-           #:DOC-CONSTANT-REFERENCE
-           #:DOC-FUNC-REF
-           #:DOC-FUNCTION-REFERENCE
-           #:DOC-GROUP-REF
-           #:DOC-GROUP-REFERENCE
-           #:DOC-STRING
-           #:DOC-TYPE-REF
-           #:DOC-TYPE-REFERENCE
-           #:DOC-VARIABLE-REF
-           #:DOC-VARIABLE-REFERENCE
-           #:DOCUMENT
-           #:DOCUMENT-CONSTANT
-           #:DOCUMENT-PACKAGE
-           #:DOCUMENT-TYPE
-           #:DOCUMENT-VARIABLE
-           #:FUNCTION-DOCUMENTATION
-           #:NEWLINES
-           #:PACKAGE-DOCUMENTATION
-           #:TABS
-           #:TYPE-DOCUMENTATION
-           #:VARIABLE-DOCUMENTATION))
-
 (DEFPACKAGE #:SCHEMEISH.NAMED-LET
   (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
   (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
@@ -47,52 +18,16 @@ with rich documentation.")
 
 (DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
   (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
-  (:IMPORT-FROM #:SCHEMEISH.DOCUMENT
-                #:DOC-OBJECTS
-                #:DOC-REFERENCE-SYMBOL
-                #:DOC-VALUE
-                #:DOC-VALUE-VALUE
-                #:DOCUMENTATION-STRING)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP
-        #:SCHEMEISH.DOCUMENT
         #:SCHEMEISH.FOR-MACROS
         #:SCHEMEISH.NAMED-LET
         #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:CONSTANT-DOCUMENTATION
-           #:DOC
-           #:DOC-CONSTANT-REF
-           #:DOC-CONSTANT-REFERENCE
-           #:DOC-FUNC-REF
-           #:DOC-FUNCTION-REFERENCE
-           #:DOC-GROUP-REF
-           #:DOC-GROUP-REFERENCE
-           #:DOC-OBJECTS
-           #:DOC-REFERENCE-SYMBOL
-           #:DOC-STRING
-           #:DOC-TYPE-REF
-           #:DOC-TYPE-REFERENCE
-           #:DOC-VALUE
-           #:DOC-VALUE-VALUE
-           #:DOC-VARIABLE-REF
-           #:DOC-VARIABLE-REFERENCE
-           #:DOCUMENT
-           #:DOCUMENT-CONSTANT
-           #:DOCUMENT-PACKAGE
-           #:DOCUMENT-TYPE
-           #:DOCUMENT-VARIABLE
-           #:DOCUMENTATION-STRING
-           #:FOR-MACROS
-           #:FUNCTION-DOCUMENTATION
+  (:EXPORT #:FOR-MACROS
            #:INSTALL-SYNTAX!
            #:LET
-           #:NEWLINES
-           #:PACKAGE-DOCUMENTATION
-           #:TABS
-           #:TYPE-DOCUMENTATION
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
-           #:VARIABLE-DOCUMENTATION
            #:WITH-READABLE-SYMBOLS))
 
 (DEFPACKAGE #:SCHEMEISH.ARGUMENTS
@@ -118,20 +53,21 @@ with rich documentation.")
   (:SHADOW #:LAMBDA))
 
 (DEFPACKAGE #:SCHEMEISH.BASE
-  (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
-  - symbols
-  - lists
-  - procedures
-  - alists
-  - sets
-  - strings
-  - output
+  (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
+  - symbols
+  - lists
+  - procedures
+  - alists
+  - sets
+  - strings
+  - output
   - mutation")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.DEFINE)
   (:EXPORT #:*THE-EMPTY-STREAM*
            #:ALIST
+           #:ALIST-FOR-EACH
            #:ALIST-HAS-KEY?
            #:ALIST-KEYS
            #:ALIST-MAP
@@ -144,12 +80,12 @@ with rich documentation.")
            #:ANDMAP
            #:APPEND*
            #:APPEND-MAP
+           #:CHARS-STRING
            #:COMPOSE
            #:COMPOSE*
            #:CONJOIN
            #:CONJOIN*
            #:CONST
-           #:CONSTANT-DOCUMENTATION
            #:DEFINE
            #:DEFINE-FORM
            #:DEGREES->RADIANS
@@ -158,29 +94,7 @@ with rich documentation.")
            #:DISJOIN*
            #:DISPLAY
            #:DISPLAYLN
-           #:DOC
-           #:DOC-CONSTANT-REF
-           #:DOC-CONSTANT-REFERENCE
-           #:DOC-FUNC-REF
-           #:DOC-FUNCTION-REFERENCE
-           #:DOC-GROUP-REF
-           #:DOC-GROUP-REFERENCE
-           #:DOC-OBJECTS
-           #:DOC-REFERENCE-SYMBOL
-           #:DOC-STRING
-           #:DOC-TYPE-REF
-           #:DOC-TYPE-REFERENCE
-           #:DOC-VALUE
-           #:DOC-VALUE-VALUE
-           #:DOC-VARIABLE-REF
-           #:DOC-VARIABLE-REFERENCE
-           #:DOCUMENT
-           #:DOCUMENT-CONSTANT
-           #:DOCUMENT-PACKAGE
            #:DOCUMENT-PROC
-           #:DOCUMENT-TYPE
-           #:DOCUMENT-VARIABLE
-           #:DOCUMENTATION-STRING
            #:DROP
            #:DROPF
            #:EMPTY?
@@ -201,7 +115,6 @@ with rich documentation.")
            #:FOR-EACH
            #:FOR-MACROS
            #:FORCE
-           #:FUNCTION-DOCUMENTATION
            #:GROUP
            #:HAS-SPECIFIC-ARITY?
            #:HASH->ALIST
@@ -211,12 +124,15 @@ with rich documentation.")
            #:HASH-KEYS
            #:HASH-MAP
            #:HASH-REF
+           #:HASH-REF-DEFAULT
            #:HASH-REMOVE!
            #:HASH-SET!
            #:HASH-UPDATE!
            #:HASH-VALUES
            #:IGNORE-ARGS
            #:INSTALL-SYNTAX!
+           #:INTERSPERSE
+           #:JOIN-STRINGS
            #:LAMBDA
            #:LCURRY
            #:LET
@@ -236,14 +152,12 @@ with rich documentation.")
            #:NAND
            #:NEGATIVE?
            #:NEWLINE
-           #:NEWLINES
            #:NOR
            #:NULL?
            #:NUMBER->STRING
            #:NUMBER?
            #:ODD?
            #:ORMAP
-           #:PACKAGE-DOCUMENTATION
            #:PAIR?
            #:PARAMETER?
            #:PARTITION
@@ -258,12 +172,12 @@ with rich documentation.")
            #:PROCEDURE?
            #:QUOTIENT
            #:RADIANS->DEGREES
-           #:RANDOM-STREAM
            #:RANGE
            #:RCURRY
            #:REMOVE*
            #:REMQ
            #:REMQ*
+           #:REPEAT
            #:SAFE-VECTOR-REF
            #:SET!
            #:SET->STREAM
@@ -281,6 +195,8 @@ with rich documentation.")
            #:SGN
            #:SORT
            #:SPLIT-AT
+           #:SPLIT-STRING
+           #:SPLIT-STRING-IF
            #:SPLITF-AT
            #:SQR
            #:STREAM
@@ -307,6 +223,10 @@ with rich documentation.")
            #:STREAM?
            #:STRING->LIST
            #:STRING-APPEND
+           #:STRING-APPEND*
+           #:STRING-EMPTY?
+           #:STRING-FOR-EACH
+           #:STRING-MAP
            #:STRING-STARTS-WITH?
            #:STRING?
            #:SUBSET?
@@ -314,16 +234,13 @@ with rich documentation.")
            #:SYMBOL->STRING
            #:SYMBOL?
            #:SYMBOLICATE
-           #:TABS
            #:TAKE
            #:TAKEF
            #:THERE-EXISTS
            #:THERE-EXISTS*
-           #:TYPE-DOCUMENTATION
            #:UNDEFINE
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
-           #:VARIABLE-DOCUMENTATION
            #:VECTOR->LIST
            #:VECTOR-MAP
            #:VECTOR-REF
@@ -338,7 +255,7 @@ with rich documentation.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:CUT))
+  (:EXPORT #:? #:CUT))
 
 (DEFPACKAGE #:SCHEMEISH.EXPAND-STREAM-COLLECT
   (:DOCUMENTATION "Provides tools to expand a stream-collect macro form.")
@@ -567,6 +484,7 @@ with rich documentation.")
            #:=
            #:>
            #:>=
+           #:?
            #:ABORT
            #:ABS
            #:ACONS
@@ -577,6 +495,7 @@ with rich documentation.")
            #:ADJUST-ARRAY
            #:ADJUSTABLE-ARRAY-P
            #:ALIST
+           #:ALIST-FOR-EACH
            #:ALIST-HAS-KEY?
            #:ALIST-KEYS
            #:ALIST-MAP
@@ -739,6 +658,7 @@ with rich documentation.")
            #:CHAR>=
            #:CHARACTER
            #:CHARACTERP
+           #:CHARS-STRING
            #:CHECK-TYPE
            #:CIS
            #:CLASS
@@ -776,7 +696,6 @@ with rich documentation.")
            #:CONS
            #:CONSP
            #:CONST
-           #:CONSTANT-DOCUMENTATION
            #:CONSTANTLY
            #:CONSTANTP
            #:CONTINUE
@@ -856,30 +775,8 @@ with rich documentation.")
            #:DO-ALL-SYMBOLS
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
-           #:DOC
-           #:DOC-CONSTANT-REF
-           #:DOC-CONSTANT-REFERENCE
-           #:DOC-FUNC-REF
-           #:DOC-FUNCTION-REFERENCE
-           #:DOC-GROUP-REF
-           #:DOC-GROUP-REFERENCE
-           #:DOC-OBJECTS
-           #:DOC-REFERENCE-SYMBOL
-           #:DOC-STRING
-           #:DOC-TYPE-REF
-           #:DOC-TYPE-REFERENCE
-           #:DOC-VALUE
-           #:DOC-VALUE-VALUE
-           #:DOC-VARIABLE-REF
-           #:DOC-VARIABLE-REFERENCE
-           #:DOCUMENT
-           #:DOCUMENT-CONSTANT
-           #:DOCUMENT-PACKAGE
            #:DOCUMENT-PROC
-           #:DOCUMENT-TYPE
-           #:DOCUMENT-VARIABLE
            #:DOCUMENTATION
-           #:DOCUMENTATION-STRING
            #:DOLIST
            #:DOTIMES
            #:DOUBLE-FLOAT
@@ -991,7 +888,6 @@ with rich documentation.")
            #:FTYPE
            #:FUNCALL
            #:FUNCTION
-           #:FUNCTION-DOCUMENTATION
            #:FUNCTION-KEYWORDS
            #:FUNCTION-LAMBDA-EXPRESSION
            #:FUNCTIONP
@@ -1025,6 +921,7 @@ with rich documentation.")
            #:HASH-KEYS
            #:HASH-MAP
            #:HASH-REF
+           #:HASH-REF-DEFAULT
            #:HASH-REMOVE!
            #:HASH-SET!
            #:HASH-TABLE
@@ -1063,11 +960,13 @@ with rich documentation.")
            #:INTERN
            #:INTERNAL-TIME-UNITS-PER-SECOND
            #:INTERSECTION
+           #:INTERSPERSE
            #:INVALID-METHOD-ERROR
            #:INVOKE-DEBUGGER
            #:INVOKE-RESTART
            #:INVOKE-RESTART-INTERACTIVELY
            #:ISQRT
+           #:JOIN-STRINGS
            #:KEYWORD
            #:KEYWORDP
            #:LABELS
@@ -1229,7 +1128,6 @@ with rich documentation.")
            #:NCONC
            #:NEGATIVE?
            #:NEWLINE
-           #:NEWLINES
            #:NEXT-METHOD-P
            #:NICKNAME-PACKAGE
            #:NIL
@@ -1280,7 +1178,6 @@ with rich documentation.")
            #:PACKAGE-DEFINED-AND-EXPORTED-SYMBOLS
            #:PACKAGE-DELETE
            #:PACKAGE-DEPENDENCIES
-           #:PACKAGE-DOCUMENTATION
            #:PACKAGE-ERROR
            #:PACKAGE-ERROR-PACKAGE
            #:PACKAGE-EXPORT
@@ -1390,7 +1287,6 @@ with rich documentation.")
            #:RANDOM
            #:RANDOM-STATE
            #:RANDOM-STATE-P
-           #:RANDOM-STREAM
            #:RANGE
            #:RASSOC
            #:RASSOC-IF
@@ -1432,6 +1328,7 @@ with rich documentation.")
            #:REMQ*
            #:RENAME-FILE
            #:RENAME-PACKAGE
+           #:REPEAT
            #:REPLACE
            #:REQUIRE
            #:REST
@@ -1530,6 +1427,8 @@ with rich documentation.")
            #:SPECIAL-OPERATOR-P
            #:SPEED
            #:SPLIT-AT
+           #:SPLIT-STRING
+           #:SPLIT-STRING-IF
            #:SPLITF-AT
            #:SQR
            #:SQRT
@@ -1575,12 +1474,16 @@ with rich documentation.")
            #:STRING
            #:STRING->LIST
            #:STRING-APPEND
+           #:STRING-APPEND*
            #:STRING-CAPITALIZE
            #:STRING-DOWNCASE
+           #:STRING-EMPTY?
            #:STRING-EQUAL
+           #:STRING-FOR-EACH
            #:STRING-GREATERP
            #:STRING-LEFT-TRIM
            #:STRING-LESSP
+           #:STRING-MAP
            #:STRING-NOT-EQUAL
            #:STRING-NOT-GREATERP
            #:STRING-NOT-LESSP
@@ -1638,7 +1541,6 @@ with rich documentation.")
            #:SYNONYM-STREAM
            #:SYNONYM-STREAM-SYMBOL
            #:T
-           #:TABS
            #:TAGBODY
            #:TAILP
            #:TAKE
@@ -1663,7 +1565,6 @@ with rich documentation.")
            #:TWO-WAY-STREAM-INPUT-STREAM
            #:TWO-WAY-STREAM-OUTPUT-STREAM
            #:TYPE
-           #:TYPE-DOCUMENTATION
            #:TYPE-ERROR
            #:TYPE-ERROR-DATUM
            #:TYPE-ERROR-EXPECTED-TYPE
@@ -1700,7 +1601,6 @@ with rich documentation.")
            #:VALUES
            #:VALUES-LIST
            #:VARIABLE
-           #:VARIABLE-DOCUMENTATION
            #:VECTOR
            #:VECTOR->LIST
            #:VECTOR-MAP
@@ -1742,8 +1642,64 @@ with rich documentation.")
            #:ZEROP)
   (:NICKNAMES #:SCHEMEISH))
 
+(DEFPACKAGE #:SCHEMEISH.MARKUP
+  (:USE #:SCHEMEISH.SCHEMEISH)
+  (:EXPORT #:*ESCAPE-CHARS*
+           #:*MARKUP-RENDER-WIDTH*
+           #:BLOCK-QUOTE
+           #:BOLD
+           #:BR
+           #:CODE
+           #:CODE-BLOCK
+           #:COPY-RENDERER-WITH-NEW-STREAM
+           #:HEADING
+           #:HORIZONTAL-BAR
+           #:HTML-TAG
+           #:HTML-TAG-ATTRIBUTE-ALIST
+           #:HTML-TAG-INNER-TAGS-AND-TEXTS
+           #:HTML-TAG-NAME
+           #:HTML-TAG?
+           #:INLINE-MARKUP
+           #:INLINE-MARKUP?
+           #:INLINE-TEXT
+           #:INLINE-TEXT?
+           #:ITALIC
+           #:LINK
+           #:LIST-ITEM-TAG
+           #:MAKE-HTML-TAG
+           #:MAKE-INLINE-MARKUP
+           #:MAKE-MARKUP
+           #:MARKUP
+           #:MARKUP-CONSTRUCTOR
+           #:MARKUP-CONSTRUCTOR-FORM
+           #:MARKUP-HTML-TAG
+           #:MARKUP-RENDER-TEXT
+           #:MARKUP-STRING-RENDERER
+           #:MARKUP?
+           #:ORDERED-LIST
+           #:PARAGRAPH
+           #:POP-RENDER-PREFIX
+           #:PUSH-RENDER-PREFIX
+           #:RENDER-FRESHLINE
+           #:RENDER-HTML-TAG
+           #:RENDER-HTML-TAG-TO-STRING
+           #:RENDER-INLINE
+           #:RENDER-INLINE-ESCAPED
+           #:RENDER-LENGTH
+           #:RENDER-MARKUP
+           #:RENDER-MARKUP-HTML-TAG-TO-STRING
+           #:RENDER-MARKUP-TO-STRING
+           #:RENDER-NEWLINE
+           #:RENDER-PREFIX
+           #:RENDER-PREFORMATTED-TEXT
+           #:RENDER-WITHOUT-WORD-WRAP
+           #:SEQ
+           #:TABLE
+           #:TEXT-RENDERER?
+           #:UNORDERED-LIST))
+
 (DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
-  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
+  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
 Provides write-package-file! which writes the current schemeish-packages to a file.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)

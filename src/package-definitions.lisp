@@ -26,7 +26,7 @@ prefix it with the schemish prefix."
   (with-schemeish-designators
     (extend-package :basic-syntax
 		    (package-use :cl)
-		    (package-use-and-export-shadowing :for-macros :named-let :syntax :document))
+		    (package-use-and-export-shadowing :for-macros :named-let :syntax))
     (extend-package :base
 		    (package-use :cl)
 		    (package-use-and-export-shadowing :basic-syntax :define))
@@ -44,8 +44,7 @@ prefix it with the schemish prefix."
 			  :if-exists :supersede)
     (format stream "~A" (package-file-contents (schemeish-packages)))))
 
-#+nil
-(write-package-file!)
+;;(write-package-file!)
 
 
 #+nil

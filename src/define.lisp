@@ -206,6 +206,8 @@
 							    (t `(,(second form) ,(third form)))))
 						    definitions)))
 			   ,@(expand-define-let-or-let* body)))))))))
+
+;; TODO: break up into expand-lexical-body
 (for-macros (defun expand-function-body (body)
 	      (destructuring-bind (declarations definitions body) (split-function-body body)
 		`(,@declarations
