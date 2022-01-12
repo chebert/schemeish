@@ -9,6 +9,9 @@
 Each clause is an unevaluated form. When evaluated each form should return a boolean."
   clauses)
 
+(setf (fdefinition 'documentation-tag?) #'documentation-tag-p)
+(setf (fdefinition 'guard-tag?) #'guard-tag-p)
+(export '(documentation-tag? documentation-tag documentation-tag-form guard-tag? guard-tag guard-tag-clauses))
 
 (defun read-documentation-tag (stream char n)
   (declare (ignore char n))

@@ -14,7 +14,14 @@
 (DEFPACKAGE #:SCHEMEISH.SYNTAX
   (:DOCUMENTATION "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
   (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:INSTALL-SYNTAX! #:UNINSTALL-SYNTAX!))
+  (:EXPORT #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
+           #:INSTALL-SYNTAX!
+           #:UNINSTALL-SYNTAX!))
 
 (DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
   (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
@@ -23,7 +30,13 @@
         #:SCHEMEISH.FOR-MACROS
         #:SCHEMEISH.NAMED-LET
         #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:FOR-MACROS
+  (:EXPORT #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
+           #:FOR-MACROS
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
            #:INSTALL-SYNTAX!
            #:LET
            #:UNINSTALL-SYNTAX!
@@ -42,7 +55,7 @@
   (:EXPORT #:DEFINE
            #:DEFINE-FORM
            #:DROPF
-           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-DEFINES-IN-LEXICAL-BODY
            #:EXPAND-TOP-LEVEL-DEFINE
            #:LAMBDA
            #:SPLITF-AT
@@ -95,13 +108,16 @@
            #:DISPLAY
            #:DISPLAYLN
            #:DOCUMENT-PROC
+           #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
            #:DROP
            #:DROPF
            #:EMPTY?
            #:EQ?
            #:EQUAL?
            #:EVEN?
-           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-DEFINES-IN-LEXICAL-BODY
            #:EXPAND-TOP-LEVEL-DEFINE
            #:FILTER
            #:FILTER-MAP
@@ -116,6 +132,9 @@
            #:FOR-MACROS
            #:FORCE
            #:GROUP
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
            #:HAS-SPECIFIC-ARITY?
            #:HASH->ALIST
            #:HASH-CLEAR!
@@ -276,7 +295,8 @@
 (DEFPACKAGE #:SCHEMEISH.LEXICALLY
   (:DOCUMENTATION "Provides the lexically and expose macros.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE
+                          #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
   (:EXPORT #:EXPOSE #:LEXICALLY))
@@ -399,8 +419,15 @@
 (DEFPACKAGE #:SCHEMEISH.SCHEMEISH
   (:DOCUMENTATION "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE
+                          #:EXPAND-DEFINES-IN-LEXICAL-BODY
+                          #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SYNTAX
+                          #:DOCUMENTATION-TAG-FORM
+                          #:DOCUMENTATION-TAG?
+                          #:GUARD-TAG-CLAUSES
+                          #:GUARD-TAG?)
   (:USE #:COMMON-LISP
         #:SCHEMEISH.AND-LET
         #:SCHEMEISH.BASE
@@ -777,6 +804,9 @@
            #:DO-SYMBOLS
            #:DOCUMENT-PROC
            #:DOCUMENTATION
+           #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
            #:DOLIST
            #:DOTIMES
            #:DOUBLE-FLOAT
@@ -816,7 +846,7 @@
            #:EVENP
            #:EVERY
            #:EXP
-           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-DEFINES-IN-LEXICAL-BODY
            #:EXPAND-TOP-LEVEL-DEFINE
            #:EXPORT
            #:EXPOSE
@@ -911,6 +941,9 @@
            #:GRAPHIC-CHAR-P
            #:GROUP
            #:GROUP-BY-PACKAGE
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
            #:HANDLER-BIND
            #:HANDLER-CASE
            #:HAS-SPECIFIC-ARITY?

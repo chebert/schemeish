@@ -7,12 +7,12 @@
   (define (lexical-name->parameter-name symbol)
     (intern (string-append "*" (symbol->string symbol) "*"))))
 
-
-(defmacro lexically (&body body)
-  "Evaluate body in a lexical scope, expanding defines as if inside of a define or lambda.
+(defmacro lexically (&body lexical-body)
+  "Evaluate lexical-body. Expanding defines as if inside of a define or lambda.
+See documentation of DEFINE.
 Use in conjunction with EXPOSE to expose lexical definitions to the package."
   `(let ()
-     ,@(expand-function-body body)))
+     ,@(expand-defines-in-lexical-body lexical-body)))
 
 (defmacro expose ((&rest fn-specs) &rest var-specs)
   "Define var-specs as parameters in the global scope.
@@ -55,7 +55,7 @@ Used in conjunction with LEXICALLY you can do something like:
 
 (progn
   (assert (equal? (lexically
-		    (define test-x 1 "test-x")
+		    (define test-x 1)
 		    (define (test-y) "test-y" (+ test-x 2))
 		    (define (lexical-test-z) "tests z" (+ [test-y] test-x))
 		    (define lexical-test-w 1)
