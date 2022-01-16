@@ -32,11 +32,20 @@
 (assert (define? '(define name var)))
 
 (for-macros
+  (defun define-name-field (form)
+    "Return the name-field of a (define name-field  body...)."
+    (second form))
   (defun define-name (form)
     "Return the name of a (define name ...) or (define (name . args) ...) 
 or (define (((name . args) . args) . args) ...) style form."
-    (let ((name-form (second form)))
-      (first (flatten name-form)))))
+    (first (flatten (define-name-field form))))
+
+  (defun define-value-field (form)
+    "Return the value of a (define name value) style form."
+    (third form))
+  (defun define-body (form)
+    "Return the body of a (define name-field body...) style form."
+    (cddr form)))
 
 (assert (equal (define-name '(define (((nested-fn) x) y) z))
 	       'nested-fn))
@@ -91,7 +100,7 @@ or (define (((name . args) . args) . args) ...) style form."
 (for-macros (defun define-function? (form)
 	      "True if form is (define (name . args) ...) or (define (((name . args) . args) . args) ...) style form."
 	      (and (define? form)
-		   (consp (second form)))))
+		   (consp (define-name-field form)))))
 
 
 (for-macros (defun ignorable-declaration (ignorable-args)
@@ -105,22 +114,24 @@ or (define (((name . args) . args) . args) ...) style form."
 
 (for-macros
   (defparameter *define-form-hash-table* (make-hash-table)
-    "A hash table from name -> define-form.")
+    "A hash table from function -> define-form.")
 
-  (defun register-define-form (form)
+  (defun register-define-form (function form)
     "Register the define-form in the *define-form-hash-table*."
-    (setf (gethash (define-name form) *define-form-hash-table*) form))
+    (assert (functionp function))
+    (assert (define? form))
+    (setf (gethash function *define-form-hash-table*) form))
 
-  (defun unregister-define-form (symbol)
+  (defun unregister-define-form (function)
     "Removes any registered define-form associated with symbol from the
 *DEFINE-FORM-HASH-TABLE*"
-    (remhash symbol *define-form-hash-table*))
+    (remhash function *define-form-hash-table*))
 
-  (defun define-form (symbol)
-    "Retrieve the DEFINE form used to define symbol's function.
+  (defun define-form (function)
+    "Retrieve the DEFINE form used to define function.
 Returns nil if not defined using DEFINE. Does not include any outer
 lexical environment, and so it may not always be used to redefine the function."
-    (gethash symbol *define-form-hash-table*)))
+    (gethash function *define-form-hash-table*)))
 
 (defmacro undefine (&rest symbols)
   "Undefines globally defined functions using fmakunbound."
@@ -128,7 +139,7 @@ lexical environment, and so it may not always be used to redefine the function."
      ,@(mapcar (lambda (name)
 		 `(progn
 		    (fmakunbound ',name)
-		    (unregister-define-form ',name)))
+		    (unregister-define-form #',name)))
 	       symbols)))
 
 (for-macros
@@ -150,36 +161,119 @@ lexical environment, and so it may not always be used to redefine the function."
 (for-macros
   (defgeneric documentation-string (documentation)
     (:documentation "Returns a documentation string given the provided documentation object."))
-  (defmethod documentation-string ((documentation string)) documentation))
+  (defmethod documentation-string ((documentation string)) documentation)
+  (defun documentation-source? (object)
+    "An object is a documentation-source if it has a method implemented for documentation-string."
+    (compute-applicable-methods #'documentation-string (list object))))
 
 (for-macros
+  (defvar *variable-documentation-hash-table* (make-hash-table))
+  (defvar *type-documentation-hash-table* (make-hash-table))
+  (defvar *compiler-macro-documentation-hash-table* (make-hash-table))
+  (defvar *setf-documentation-hash-table* (make-hash-table))
+  (defvar *object-documentation-hash-table* (make-hash-table :weakness :key))
+
+  (defun check-symbol (symbol)
+    (unless (symbolp symbol)
+      (error "Symbol expected to be a symbol type, but got: ~S" (type-of symbol))))
+  (defun check-name (name)
+    (unless (or (symbolp name) (and (listp name)
+				    (= 2 (length name))
+				    (eq 'cl:setf (first name))
+				    (symbolp (second name))))
+      (error "Name expected to be a symbol or a list (setf symbol) but got: ~S" name)))
+  (defun check-object (object)
+    (typecase object
+      (function)
+      (method-combination)
+      (standard-method)
+      (package)
+      (t (error "Object expected to be of type: function, method-combination, standard-method, or package. But got ~S" (type-of object)))))
+  
+  (defun variable-documentation-source (symbol)
+    "Returns the documentation source associated with the constant or dynamic variable named symbol."
+    (check-symbol symbol)
+    (gethash symbol *variable-documentation-hash-table* nil))
+  (defun type-documentation-source (symbol)
+    "Returns the documentation source associated with the type named by symbol."
+    (check-symbol symbol)
+    (gethash symbol *type-documentation-hash-table* nil))
+  (defun compiler-macro-documentation-source (name)
+    "Returns the documentation source associated with the compiler-macro named by NAME."
+    (check-name name)
+    (gethash name *compiler-macro-documentation-hash-table* nil))
+  (defun setf-documentation-source (symbol)
+    "Returns the documentation source associated with the setf-expansion named by symbol."
+    (check-symbol symbol)
+    (gethash symbol *setf-documentation-hash-table* nil))
+  (defun object-documentation-source (object)
+    "Returns the documentation source associated with the given object.
+Object may be a function, method-combination, standard-method, or package."
+    (check-object object)
+    (gethash object *object-documentation-hash-table* nil))
+
+  (defun set-variable-documentation-source! (symbol documentation-source)
+    "Updates the documentation source associated with the constant or dynamic variable named symbol."
+    (check-symbol symbol)
+    (setf (gethash symbol *variable-documentation-hash-table*) documentation-source))
+  (defun set-type-documentation-source! (symbol documentation-source)
+    "Updates the documentation source associated with the type named by symbol."
+    (check-symbol symbol)
+    (setf (gethash symbol *type-documentation-hash-table*) documentation-source))
+  (defun set-compiler-macro-documentation-source! (name documentation-source)
+    "Updates the documentation source associated with the compiler-macro named by NAME."
+    (check-name name)
+    (setf (gethash name *compiler-macro-documentation-hash-table*) documentation-source))
+  (defun set-setf-documentation-source! (symbol documentation-source)
+    "Updates the documentation source associated with the setf-expansion named by symbol."
+    (check-symbol symbol)
+    (setf (gethash symbol *setf-documentation-hash-table*) documentation-source))
+  (defun set-object-documentation-source! (object documentation-source)
+    "Updates the documentation source associated with the given object.
+Object may be a function, method-combination, standard-method, or package."
+    (check-object object)
+    (setf (gethash object *object-documentation-hash-table*) documentation-source)))
+
+(for-macros
+  (defun documentation-string-for-define-function (name function documentation-string)
+    (assert (stringp documentation-string))
+    (concatenate 'string
+		 documentation-string
+		 (let ((form (define-form function)))
+		   (if form
+		       (format nil "~&~%~%Form: ~S" (define-name-field form))
+		       ""))
+		 (let ((guards (guard-clauses function)))
+		   (if guards
+		       (format nil "~&~%~%~S has the following guard clauses:~%~S" name guards)
+		       "")))))
+
+(for-macros
+  (defun documentation-source-form (string-or-documentation-tag)
+    (assert (or (stringp string-or-documentation-tag)
+		(documentation-tag? string-or-documentation-tag)))
+    (if (stringp string-or-documentation-tag)
+	string-or-documentation-tag
+	(documentation-tag-form string-or-documentation-tag)))
   (defun documentation-string-form (name documentation)
-    (assert (or (stringp documentation)
-		(documentation-tag? documentation)))
-    `(concatenate 'string
-		  ,(if (stringp documentation)
-		       documentation
-		       `(documentation-string ,(documentation-tag-form documentation)))
-		  (let ((form (define-form ',name)))
-		    (if form
-			;; TODO: accessors for define-form
-			(format nil "~&~%~%Form: ~S" (second form))
-			""))
-		  (let ((guards (guard-clauses #',name)))
-		    (if guards
-			(format nil "~&~%~%~S has the following guard clauses:~%~S" ',name guards)
-			""))))
+    `(documentation-string-for-define-function ',name #',name (documentation-string ,(documentation-source-form documentation))))
+
   (defun set-function-documentation-form-for-symbol-and-function (name documentation)
     "Form that sets the documentation of 'name and #'name."
-    `(setf (documentation ',name 'function) ,(documentation-string-form name documentation)
-	   (documentation #',name t) (documentation ',name 'function)))
+    `(progn
+       (setf (documentation ',name 'function) ,(documentation-string-form name documentation)
+	     (documentation #',name t) (documentation ',name 'function))
+       (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
   (defun set-function-documentation-form-for-symbol (name documentation)
     "Form that sets the documentation of 'name."
-    `(setf (documentation ',name 'function) ,(documentation-string-form name documentation)))
+    `(progn
+       (setf (documentation ',name 'function) ,(documentation-string-form name documentation))
+       (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
   (defun set-function-documentation-form-for-function (name documentation)
     "Form that sets the documentation of #'name."
-    `(setf (documentation #',name t) ,(documentation-string-form name documentation))))
-
+    `(progn
+       (setf (documentation #',name t) ,(documentation-string-form name documentation))
+       (set-object-documentation-source! #',name ,(documentation-source-form documentation)))))
 
 (for-macros
   (defun top-level-define-name-form (name documentation body)
@@ -192,10 +286,9 @@ lexical environment, and so it may not always be used to redefine the function."
 	   (unless (functionp ,function-value)
 	     (error "DEFINE: Expected a function value as the second argument to (DEFINE ~S [documentation] function-value), but got ~S."
 		    ',name ,function-value))
-	   (register-define-form '(define ,name ,@body))
+	   (register-define-form #',name '(define ,name ,@body))
 	   ;; Set the function definition
 	   (setf (fdefinition ',name) ,function-value)
-	   ;; TODO: Decide whether to also set the documentation of the function (possibly overriding existing documentation)
 	   ,@(when documentation (list (set-function-documentation-form-for-symbol name documentation)))
 	   ;; Return the name.
 	   ',name)))))
@@ -359,7 +452,7 @@ and the first element of remaining-list does not satisfy keep?"
 	 ;; IF this is a function definition,
 	 ;; parse the define form, and recursively expand the function body.
 	 (multiple-value-bind (name lambda-list documentation guard-clauses expanded-body)
-	     (parse-define-function-or-closure (second define) (cddr define))
+	     (parse-define-function-or-closure (define-name-field define) (define-body define))
 	   (make-local-function-definition :name name
 					   :form (local-function-form name lambda-list expanded-body)
 					   :guard-clauses guard-clauses
@@ -384,7 +477,7 @@ and the first element of remaining-list does not satisfy keep?"
 	((define-function? define)`(,name #',name))
 	;; If the definition is a variable,
 	;; set the variable to the definition's value.
-	(t `(,name ,(third define))))))
+	(t `(,name ,(define-value-field define))))))
   (defun lexical-variable-assignments-form (defines)
     `(setq ,@(append* (mapcar #'lexical-variable-assignment-form defines)))))
 
@@ -412,9 +505,9 @@ and the first element of remaining-list does not satisfy keep?"
   (defun expand-defines-in-body (defines declares body)
     "Returns an expanded body."
     (dolist (define defines)
-      (unless (or (and (symbolp (second define))
+      (unless (or (and (symbolp (define-name-field define))
 		       (= 3 (length define)))
-		  (consp (second define)))
+		  (consp (define-name-field define)))
 	(error "Malformed DEFINE ~S. Expected (DEFINE symbol-name value) or (DEFINE (name . args) ...)" define)))
     (cond
       ((null defines) `(,@declares ,@body))
@@ -433,7 +526,10 @@ and the first element of remaining-list does not satisfy keep?"
 		 ,@declares
 		 ;; Assign values to all lexical variables
 		 ,(lexical-variable-assignments-form defines)
-		 ;; TODO: register define-forms for (define (...) ...) style forms
+		 ;; Register define-forms for defines.
+		 ,@(mapcar (lambda (define-form)
+			     `(register-define-form #',(define-name define-form) ',define-form))
+			   defines)
 		 ;; Register guard-clauses
 		 ,@(append-map #'register-local-function-guard-clauses-forms local-functions)
 		 ;; Register documentation for local functions
@@ -478,7 +574,7 @@ and the first element of remaining-list does not satisfy keep?"
 	   (parse-define-function-or-closure name-field body)
 	 `(for-macros
 	    (defun ,name ,lambda-list ,@expanded-body)
-	    (register-define-form '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
+	    (register-define-form #',name '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
 	    ,@(when guard-clauses (register-guard-clauses-forms name guard-clauses))
 	    ,@(when documentation (list (set-function-documentation-form-for-symbol-and-function name documentation)))
 	    ',name)))
@@ -640,3 +736,6 @@ See DEFINE for more information on function-bodies and lambda-lists."
 (assert (eq :yeah-its-kay (definition-with-definitions-nested-inside-let)))
 
 ;;(uninstall-syntax!)
+
+
+;; TODO: selectively disable debug features: REGISTER-DEFINE-FORM, GUARDs, etc.

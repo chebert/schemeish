@@ -169,9 +169,3 @@ Symbol may name a function, macro-function, generic-function, or method."
 (document-package
  (doc "Provides tools for creating marked up documentation.")
  :schemeish.document)
-
-
-;; TODO: Markup language
-;; TODO: look at restructured text
-;; (RENDER-MARKUP-STRING markup line-width stream)
-;; (CONVERT-TO-HTML markup)
