@@ -2,17 +2,6 @@
 
 (install-syntax!)
 
-(import '(schemeish.syntax:documentation-tag
-	  schemeish.syntax:documentation-tag?
-	  schemeish.syntax:documentation-tag-form
-	  schemeish.syntax:guard-tag
-	  schemeish.syntax:guard-tag?
-	  schemeish.syntax:guard-tag-clauses))
-
-(unexport 'expand-function-body)
-
-(export 'expand-defines-in-lexical-body)
-
 (for-macros
   (defun flatten (v)
     "Flatten tree v into a list."
@@ -136,7 +125,7 @@ lexical environment, and so it may not always be used to redefine the function."
 (defmacro undefine (&rest symbols)
   "Undefines globally defined functions using fmakunbound."
   `(progn
-     ,@(mapcar (lambda (name)
+     ,@(mapcar (cl:lambda (name)
 		 `(progn
 		    (fmakunbound ',name)
 		    (unregister-define-form #',name)))
@@ -246,34 +235,44 @@ Object may be a function, method-combination, standard-method, or package."
 		 (let ((guards (guard-clauses function)))
 		   (if guards
 		       (format nil "~&~%~%~S has the following guard clauses:~%~S" name guards)
+		     "")))))
+(for-macros
+  (defun documentation-string-for-lambda (arg-list function documentation-string)
+    (assert (stringp documentation-string))
+    (concatenate 'string
+		 documentation-string
+		 (format nil "~&~%~%Form: ~S" (cons 'lambda arg-list))
+		 (let ((guards (guard-clauses function)))
+		   (if guards
+		       (format nil "~&~%~%~S has the following guard clauses:~%~S" 'lambda guards)
 		       "")))))
 
 (for-macros
-  (defun documentation-source-form (string-or-documentation-tag)
-    (assert (or (stringp string-or-documentation-tag)
-		(documentation-tag? string-or-documentation-tag)))
-    (if (stringp string-or-documentation-tag)
-	string-or-documentation-tag
-	(documentation-tag-form string-or-documentation-tag)))
-  (defun documentation-string-form (name documentation)
-    `(documentation-string-for-define-function ',name #',name (documentation-string ,(documentation-source-form documentation))))
+ (defun documentation-source-form (string-or-documentation-tag)
+   (assert (or (stringp string-or-documentation-tag)
+	       (documentation-tag? string-or-documentation-tag)))
+   (if (stringp string-or-documentation-tag)
+       string-or-documentation-tag
+     (documentation-tag-form string-or-documentation-tag)))
+ (defun documentation-string-form (name documentation)
+   `(documentation-string-for-define-function ',name #',name (documentation-string ,(documentation-source-form documentation))))
 
-  (defun set-function-documentation-form-for-symbol-and-function (name documentation)
-    "Form that sets the documentation of 'name and #'name."
-    `(progn
-       (setf (documentation ',name 'function) ,(documentation-string-form name documentation)
-	     (documentation #',name t) (documentation ',name 'function))
-       (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
-  (defun set-function-documentation-form-for-symbol (name documentation)
-    "Form that sets the documentation of 'name."
-    `(progn
-       (setf (documentation ',name 'function) ,(documentation-string-form name documentation))
-       (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
-  (defun set-function-documentation-form-for-function (name documentation)
-    "Form that sets the documentation of #'name."
-    `(progn
-       (setf (documentation #',name t) ,(documentation-string-form name documentation))
-       (set-object-documentation-source! #',name ,(documentation-source-form documentation)))))
+ (defun set-function-documentation-form-for-symbol-and-function (name documentation)
+   "Form that sets the documentation of 'name and #'name."
+   `(progn
+      (setf (documentation ',name 'function) ,(documentation-string-form name documentation)
+	    (documentation #',name t) (documentation ',name 'function))
+      (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
+ (defun set-function-documentation-form-for-symbol (name documentation)
+   "Form that sets the documentation of 'name."
+   `(progn
+      (setf (documentation ',name 'function) ,(documentation-string-form name documentation))
+      (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
+ (defun set-function-documentation-form-for-function (name documentation)
+   "Form that sets the documentation of #'name."
+   `(progn
+      (setf (documentation #',name t) ,(documentation-string-form name documentation))
+      (set-object-documentation-source! #',name ,(documentation-source-form documentation)))))
 
 (for-macros
   (defun top-level-define-name-form (name documentation body)
@@ -527,7 +526,7 @@ and the first element of remaining-list does not satisfy keep?"
 		 ;; Assign values to all lexical variables
 		 ,(lexical-variable-assignments-form defines)
 		 ;; Register define-forms for defines.
-		 ,@(mapcar (lambda (define-form)
+		 ,@(mapcar (cl:lambda (define-form)
 			     `(register-define-form #',(define-name define-form) ',define-form))
 			   defines)
 		 ;; Register guard-clauses
@@ -652,12 +651,19 @@ The following forms receive special treatment if they appear in the body-forms o
 
 (defmacro lambda (arg-list &body body)
   "A lambda with scheme style argument lists.
-See DEFINE for more information on function-bodies and lambda-lists."
-  (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
-    `(cl:lambda ,lambda-list
-       ,@(when ignorable-args (list (ignorable-declaration ignorable-args)))
-       ,@(expand-defines-in-lexical-body body))))
-
+See DEFINE for more information on function-bodies and lambda-lists.
+NOTE: LAMBDA cannot be used as the name of a function. i.e. it cannot be called ((lambda ...) args...)."
+  (multiple-value-bind (lambda-list documentation guard-clauses expanded-body) 
+      (parse-define-function arg-list body)
+    (let ((fn (unique-symbol 'function)))
+      `(let ((,fn (cl:lambda ,lambda-list ,@expanded-body)))
+	 ,@(when guard-clauses (list `(register-guard-clauses ,fn ',guard-clauses)))
+	 ,@(when documentation 
+	     (list `(progn
+		      (setf (documentation ,fn t)
+			    (documentation-string-for-lambda ',arg-list ,fn (documentation-string ,(documentation-source-form documentation))))
+		      (set-object-documentation-source! ,fn ,(documentation-source-form documentation)))))
+	 ,fn))))
 
 (define ((((nested-foo _a) . _bs) _c) _)
   #d"documentation"
