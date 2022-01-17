@@ -286,9 +286,9 @@ Object may be a function, method-combination, standard-method, or package."
 	   (unless (functionp ,function-value)
 	     (error "DEFINE: Expected a function value as the second argument to (DEFINE ~S [documentation] function-value), but got ~S."
 		    ',name ,function-value))
-	   (register-define-form #',name '(define ,name ,@body))
 	   ;; Set the function definition
 	   (setf (fdefinition ',name) ,function-value)
+	   (register-define-form #',name '(define ,name ,@body))
 	   ,@(when documentation (list (set-function-documentation-form-for-symbol name documentation)))
 	   ;; Return the name.
 	   ',name)))))
