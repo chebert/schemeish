@@ -735,7 +735,54 @@ See DEFINE for more information on function-bodies and lambda-lists."
 
 (assert (eq :yeah-its-kay (definition-with-definitions-nested-inside-let)))
 
-;;(uninstall-syntax!)
-
 
 ;; TODO: selectively disable debug features: REGISTER-DEFINE-FORM, GUARDs, etc.
+
+;; NOTE: Only works if we are at the top level (or in a top level progn)
+#;
+(defmacro macro-params (bindings &body body)
+  (let* ((symbols (mapcar #'first bindings))
+	 (values (mapcar #'second bindings))
+	 (bound-list (mapcar #'boundp symbols))
+	 (old-values (mapcar (lambda (symbol bound?)
+			       (when bound? (symbol-value symbol)))
+			     symbols bound-list))
+	 (body-values (unique-symbol 'body-values)))
+    `(progn
+       ,@(mapcar (lambda (symbol value)
+		   `(setq ,symbol ,value))
+		 symbols values)
+       (let ((,body-values (multiple-value-list (progn ,@body))))
+	 ,@(mapcar (lambda (symbol old-value bound?)
+		     (if bound?
+			 `(setq ,symbol ,old-value)
+			 `(makunbound ',symbol)))
+		   symbols old-values bound-list)
+	 (values-list ,body-values)))))
+
+#;(progn
+    (defvar *foo-print?*)
+    (defvar *foo-value*)
+    (defmacro foo ()
+      (let ((value (or (and (boundp '*foo-value*) *foo-value*)
+		       :no-value)))
+	(if (and (boundp '*foo-print?*) *foo-print?*)
+	    `(print ,value)
+	    `(values ,value :at :all)))))
+
+;; Idea: (WITH-CONTINUATIONS K body...)
+;; Expand body into a form that takes/recieves implicit continuations
+;; adds (call/cc fn) special form
+
+;; would need to handle at least some of the special forms:
+;; block      let*                  return-from      
+;; catch      load-time-value       setq             
+;; eval-when  locally               symbol-macrolet  
+;; flet       macrolet              tagbody          
+;; function   multiple-value-call   the              
+;; go         multiple-value-prog1  throw            
+;; if         progn                 unwind-protect   
+;; labels     progv                                  
+;; let        quote                          
+
+(uninstall-syntax!)
