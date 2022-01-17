@@ -14,7 +14,14 @@
 (DEFPACKAGE #:SCHEMEISH.SYNTAX
   (:DOCUMENTATION "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
   (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:INSTALL-SYNTAX! #:UNINSTALL-SYNTAX!))
+  (:EXPORT #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
+           #:INSTALL-SYNTAX!
+           #:UNINSTALL-SYNTAX!))
 
 (DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
   (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
@@ -23,7 +30,13 @@
         #:SCHEMEISH.FOR-MACROS
         #:SCHEMEISH.NAMED-LET
         #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:FOR-MACROS
+  (:EXPORT #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
+           #:FOR-MACROS
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
            #:INSTALL-SYNTAX!
            #:LET
            #:UNINSTALL-SYNTAX!
@@ -40,8 +53,9 @@
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX)
   (:EXPORT #:DEFINE
+           #:DEFINE-FORM
            #:DROPF
-           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-DEFINES-IN-LEXICAL-BODY
            #:EXPAND-TOP-LEVEL-DEFINE
            #:LAMBDA
            #:SPLITF-AT
@@ -52,20 +66,21 @@
   (:SHADOW #:LAMBDA))
 
 (DEFPACKAGE #:SCHEMEISH.BASE
-  (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
-  - symbols
-  - lists
-  - procedures
-  - alists
-  - sets
-  - strings
-  - output
+  (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
+  - symbols
+  - lists
+  - procedures
+  - alists
+  - sets
+  - strings
+  - output
   - mutation")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.DEFINE)
   (:EXPORT #:*THE-EMPTY-STREAM*
            #:ALIST
+           #:ALIST-FOR-EACH
            #:ALIST-HAS-KEY?
            #:ALIST-KEYS
            #:ALIST-MAP
@@ -78,26 +93,31 @@
            #:ANDMAP
            #:APPEND*
            #:APPEND-MAP
+           #:CHARS-STRING
            #:COMPOSE
            #:COMPOSE*
            #:CONJOIN
            #:CONJOIN*
            #:CONST
            #:DEFINE
+           #:DEFINE-FORM
            #:DEGREES->RADIANS
            #:DELAY
            #:DISJOIN
            #:DISJOIN*
            #:DISPLAY
            #:DISPLAYLN
-           #:DOCUMENT!
+           #:DOCUMENT-PROC
+           #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
            #:DROP
            #:DROPF
            #:EMPTY?
            #:EQ?
            #:EQUAL?
            #:EVEN?
-           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-DEFINES-IN-LEXICAL-BODY
            #:EXPAND-TOP-LEVEL-DEFINE
            #:FILTER
            #:FILTER-MAP
@@ -112,6 +132,9 @@
            #:FOR-MACROS
            #:FORCE
            #:GROUP
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
            #:HAS-SPECIFIC-ARITY?
            #:HASH->ALIST
            #:HASH-CLEAR!
@@ -120,12 +143,15 @@
            #:HASH-KEYS
            #:HASH-MAP
            #:HASH-REF
+           #:HASH-REF-DEFAULT
            #:HASH-REMOVE!
            #:HASH-SET!
            #:HASH-UPDATE!
            #:HASH-VALUES
            #:IGNORE-ARGS
            #:INSTALL-SYNTAX!
+           #:INTERSPERSE
+           #:JOIN-STRINGS
            #:LAMBDA
            #:LCURRY
            #:LET
@@ -152,6 +178,7 @@
            #:ODD?
            #:ORMAP
            #:PAIR?
+           #:PARAMETER?
            #:PARTITION
            #:POSITIVE?
            #:PROCEDURE-ARGUMENTS
@@ -164,12 +191,12 @@
            #:PROCEDURE?
            #:QUOTIENT
            #:RADIANS->DEGREES
-           #:RANDOM-STREAM
            #:RANGE
            #:RCURRY
            #:REMOVE*
            #:REMQ
            #:REMQ*
+           #:REPEAT
            #:SAFE-VECTOR-REF
            #:SET!
            #:SET->STREAM
@@ -187,6 +214,8 @@
            #:SGN
            #:SORT
            #:SPLIT-AT
+           #:SPLIT-STRING
+           #:SPLIT-STRING-IF
            #:SPLITF-AT
            #:SQR
            #:STREAM
@@ -213,6 +242,10 @@
            #:STREAM?
            #:STRING->LIST
            #:STRING-APPEND
+           #:STRING-APPEND*
+           #:STRING-EMPTY?
+           #:STRING-FOR-EACH
+           #:STRING-MAP
            #:STRING-STARTS-WITH?
            #:STRING?
            #:SUBSET?
@@ -241,7 +274,7 @@
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:CUT))
+  (:EXPORT #:? #:CUT))
 
 (DEFPACKAGE #:SCHEMEISH.EXPAND-STREAM-COLLECT
   (:DOCUMENTATION "Provides tools to expand a stream-collect macro form.")
@@ -262,7 +295,8 @@
 (DEFPACKAGE #:SCHEMEISH.LEXICALLY
   (:DOCUMENTATION "Provides the lexically and expose macros.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE
+                          #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
   (:EXPORT #:EXPOSE #:LEXICALLY))
@@ -340,7 +374,6 @@
            #:DEFINE-PACKAGE
            #:DEFINE-PACKAGE-FORM
            #:DEFPACKAGE-FORM
-           #:DOCUMENT
            #:ENSURE-STRING
            #:EXTEND-PACKAGE
            #:EXTEND-PACKAGE*
@@ -350,6 +383,7 @@
            #:INDEPENDENT-PACKAGE?
            #:INDEPENDENT-PACKAGES
            #:NICKNAME-PACKAGE
+           #:PACKAGE-DEFINED-AND-EXPORTED-SYMBOLS
            #:PACKAGE-DELETE
            #:PACKAGE-DEPENDENCIES
            #:PACKAGE-EXPORT
@@ -371,6 +405,7 @@
            #:PACKAGE-SYMBOLS
            #:PACKAGE-UNUSED-SYMBOLS
            #:PACKAGE-USE
+           #:PACKAGE-USE-AND-EXPORT-SHADOWING
            #:PACKAGE-USE-SHADOWING
            #:PACKAGE-USED-SYMBOLS
            #:PACKAGE?
@@ -384,8 +419,15 @@
 (DEFPACKAGE #:SCHEMEISH.SCHEMEISH
   (:DOCUMENTATION "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE
+                          #:EXPAND-DEFINES-IN-LEXICAL-BODY
+                          #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SYNTAX
+                          #:DOCUMENTATION-TAG-FORM
+                          #:DOCUMENTATION-TAG?
+                          #:GUARD-TAG-CLAUSES
+                          #:GUARD-TAG?)
   (:USE #:COMMON-LISP
         #:SCHEMEISH.AND-LET
         #:SCHEMEISH.BASE
@@ -406,6 +448,8 @@
            #:&REST
            #:&WHOLE
            #:*
+           #:**
+           #:***
            #:*BREAK-ON-SIGNALS*
            #:*COMPILE-FILE-PATHNAME*
            #:*COMPILE-FILE-TRUENAME*
@@ -453,8 +497,12 @@
            #:*THE-EMPTY-STREAM*
            #:*TRACE-OUTPUT*
            #:+
+           #:++
+           #:+++
            #:-
            #:/
+           #://
+           #:///
            #:/=
            #:1+
            #:1-
@@ -463,6 +511,7 @@
            #:=
            #:>
            #:>=
+           #:?
            #:ABORT
            #:ABS
            #:ACONS
@@ -473,6 +522,7 @@
            #:ADJUST-ARRAY
            #:ADJUSTABLE-ARRAY-P
            #:ALIST
+           #:ALIST-FOR-EACH
            #:ALIST-HAS-KEY?
            #:ALIST-KEYS
            #:ALIST-MAP
@@ -635,6 +685,7 @@
            #:CHAR>=
            #:CHARACTER
            #:CHARACTERP
+           #:CHARS-STRING
            #:CHECK-TYPE
            #:CIS
            #:CLASS
@@ -705,6 +756,7 @@
            #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-COMPILER-MACRO
            #:DEFINE-CONDITION
+           #:DEFINE-FORM
            #:DEFINE-METHOD-COMBINATION
            #:DEFINE-MODIFY-MACRO
            #:DEFINE-PACKAGE
@@ -750,9 +802,11 @@
            #:DO-ALL-SYMBOLS
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
-           #:DOCUMENT
-           #:DOCUMENT!
+           #:DOCUMENT-PROC
            #:DOCUMENTATION
+           #:DOCUMENTATION-TAG
+           #:DOCUMENTATION-TAG-FORM
+           #:DOCUMENTATION-TAG?
            #:DOLIST
            #:DOTIMES
            #:DOUBLE-FLOAT
@@ -792,7 +846,7 @@
            #:EVENP
            #:EVERY
            #:EXP
-           #:EXPAND-FUNCTION-BODY
+           #:EXPAND-DEFINES-IN-LEXICAL-BODY
            #:EXPAND-TOP-LEVEL-DEFINE
            #:EXPORT
            #:EXPOSE
@@ -887,6 +941,9 @@
            #:GRAPHIC-CHAR-P
            #:GROUP
            #:GROUP-BY-PACKAGE
+           #:GUARD-TAG
+           #:GUARD-TAG-CLAUSES
+           #:GUARD-TAG?
            #:HANDLER-BIND
            #:HANDLER-CASE
            #:HAS-SPECIFIC-ARITY?
@@ -897,6 +954,7 @@
            #:HASH-KEYS
            #:HASH-MAP
            #:HASH-REF
+           #:HASH-REF-DEFAULT
            #:HASH-REMOVE!
            #:HASH-SET!
            #:HASH-TABLE
@@ -935,11 +993,13 @@
            #:INTERN
            #:INTERNAL-TIME-UNITS-PER-SECOND
            #:INTERSECTION
+           #:INTERSPERSE
            #:INVALID-METHOD-ERROR
            #:INVOKE-DEBUGGER
            #:INVOKE-RESTART
            #:INVOKE-RESTART-INTERACTIVELY
            #:ISQRT
+           #:JOIN-STRINGS
            #:KEYWORD
            #:KEYWORDP
            #:LABELS
@@ -1148,6 +1208,7 @@
            #:OTHERWISE
            #:OUTPUT-STREAM-P
            #:PACKAGE
+           #:PACKAGE-DEFINED-AND-EXPORTED-SYMBOLS
            #:PACKAGE-DELETE
            #:PACKAGE-DEPENDENCIES
            #:PACKAGE-ERROR
@@ -1174,6 +1235,7 @@
            #:PACKAGE-SYMBOLS
            #:PACKAGE-UNUSED-SYMBOLS
            #:PACKAGE-USE
+           #:PACKAGE-USE-AND-EXPORT-SHADOWING
            #:PACKAGE-USE-LIST
            #:PACKAGE-USE-SHADOWING
            #:PACKAGE-USED-BY-LIST
@@ -1182,6 +1244,7 @@
            #:PACKAGEP
            #:PAIR?
            #:PAIRLIS
+           #:PARAMETER?
            #:PARSE-ERROR
            #:PARSE-INTEGER
            #:PARSE-NAMESTRING
@@ -1257,7 +1320,6 @@
            #:RANDOM
            #:RANDOM-STATE
            #:RANDOM-STATE-P
-           #:RANDOM-STREAM
            #:RANGE
            #:RASSOC
            #:RASSOC-IF
@@ -1299,6 +1361,7 @@
            #:REMQ*
            #:RENAME-FILE
            #:RENAME-PACKAGE
+           #:REPEAT
            #:REPLACE
            #:REQUIRE
            #:REST
@@ -1397,6 +1460,8 @@
            #:SPECIAL-OPERATOR-P
            #:SPEED
            #:SPLIT-AT
+           #:SPLIT-STRING
+           #:SPLIT-STRING-IF
            #:SPLITF-AT
            #:SQR
            #:SQRT
@@ -1442,12 +1507,16 @@
            #:STRING
            #:STRING->LIST
            #:STRING-APPEND
+           #:STRING-APPEND*
            #:STRING-CAPITALIZE
            #:STRING-DOWNCASE
+           #:STRING-EMPTY?
            #:STRING-EQUAL
+           #:STRING-FOR-EACH
            #:STRING-GREATERP
            #:STRING-LEFT-TRIM
            #:STRING-LESSP
+           #:STRING-MAP
            #:STRING-NOT-EQUAL
            #:STRING-NOT-GREATERP
            #:STRING-NOT-LESSP
@@ -1604,26 +1673,70 @@
            #:YES-OR-NO-P
            #:ZERO?
            #:ZEROP)
-  (:SHADOW #:* #:** #:*** #:+ #:++ #:+++ #:- #:/ #:// #:///)
   (:NICKNAMES #:SCHEMEISH))
 
+(DEFPACKAGE #:SCHEMEISH.MARKUP
+  (:USE #:SCHEMEISH.SCHEMEISH)
+  (:EXPORT #:*ESCAPE-CHARS*
+           #:*MARKUP-RENDER-WIDTH*
+           #:BLOCK-QUOTE
+           #:BOLD
+           #:BR
+           #:CODE
+           #:CODE-BLOCK
+           #:COPY-RENDERER-WITH-NEW-STREAM
+           #:HEADING
+           #:HORIZONTAL-BAR
+           #:HTML-TAG
+           #:HTML-TAG-ATTRIBUTE-ALIST
+           #:HTML-TAG-INNER-TAGS-AND-TEXTS
+           #:HTML-TAG-NAME
+           #:HTML-TAG?
+           #:INLINE-MARKUP
+           #:INLINE-MARKUP?
+           #:INLINE-TEXT
+           #:INLINE-TEXT?
+           #:ITALIC
+           #:LINK
+           #:LIST-ITEM-TAG
+           #:MAKE-HTML-TAG
+           #:MAKE-INLINE-MARKUP
+           #:MAKE-MARKUP
+           #:MARKUP
+           #:MARKUP-CONSTRUCTOR
+           #:MARKUP-CONSTRUCTOR-FORM
+           #:MARKUP-HTML-TAG
+           #:MARKUP-RENDER-TEXT
+           #:MARKUP-STRING-RENDERER
+           #:MARKUP?
+           #:ORDERED-LIST
+           #:PARAGRAPH
+           #:POP-RENDER-PREFIX
+           #:PUSH-RENDER-PREFIX
+           #:RENDER-FRESHLINE
+           #:RENDER-HTML-TAG
+           #:RENDER-HTML-TAG-TO-STRING
+           #:RENDER-INLINE
+           #:RENDER-INLINE-ESCAPED
+           #:RENDER-LENGTH
+           #:RENDER-MARKUP
+           #:RENDER-MARKUP-HTML-TAG-TO-STRING
+           #:RENDER-MARKUP-TO-STRING
+           #:RENDER-NEWLINE
+           #:RENDER-PREFIX
+           #:RENDER-PREFORMATTED-TEXT
+           #:RENDER-WITHOUT-WORD-WRAP
+           #:SEQ
+           #:TABLE
+           #:TEXT-RENDERER?
+           #:UNORDERED-LIST))
+
 (DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
-  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
+  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
 Provides write-package-file! which writes the current schemeish-packages to a file.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SCHEMEISH
-                          #:*
-                          #:**
-                          #:***
-                          #:+
-                          #:++
-                          #:+++
-                          #:-
-                          #:/
-                          #://
-                          #:///)
   (:USE #:SCHEMEISH.PACKAGE-UTILS #:SCHEMEISH.SCHEMEISH)
   (:EXPORT #:SCHEMEISH-PACKAGES #:WRITE-PACKAGE-FILE!))
 

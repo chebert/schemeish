@@ -14,6 +14,7 @@ and a struct-option is one of:
   :mutable
   :opaque
   :super super-struct-type-name-form
+  :documentation documentation-string
 
 If mutable is provided for fields or the whole structure, 
 setters are generated of the form SET-<type-name>-<field-name>!

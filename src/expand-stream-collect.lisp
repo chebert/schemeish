@@ -1,6 +1,6 @@
 (in-package #:schemeish.expand-stream-collect)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (define (stream-collect-bindings-fn binding-names body)
   (let ((arg-name (gensym)))
@@ -120,4 +120,4 @@
     (STREAM-RANGE 1 N))))
 
 
-(for-macros (uninstall-syntax!))
+(uninstall-syntax!)

@@ -1,24 +1,35 @@
 (in-package #:schemeish.base)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (define (make-keyword symbol)
   (intern (symbol-name symbol) :keyword))
 
-(define (symbol->string symbol) (symbol-name symbol))
+(define symbol->string #'symbol-name)
+(define symbol? #'symbolp)
+(define procedure? #'functionp)
 
-(define (symbol? datum) (symbolp datum))
+(define (parameter? symbol)
+  "Returns true if symbol is a parameter i.e. dynamically scoped."
+  #+sbcl
+  (eq? :special (sb-cltl2:variable-information symbol))
+  #-sbcl
+  (and (not (constantp symbol))
+       ;; If we have an error, its because the parameter has a type
+       ;; associated with it. Therefore we know its a parameter.
+       (eval `(not (ignore-errors
+		    (let (,symbol)
+		      (let ((f (lambda () ,symbol)))
+			(let ((,symbol t))
+			  (not (eq? [f] t))))))))))
 
-
-(define (procedure? datum) (functionp datum))
-
-(define (document! proc docstring)
+(define (document-proc proc docstring)
   "Attach documentation to proc before returning it."
   (setf (documentation proc 'function) docstring)
   proc)
 
 
-(define (eq? obj1 obj2) (eq obj1 obj2))
+(define eq? #'eq)
 
 (defgeneric equal? (object1 object2)
   (:documentation "Provides a generic interface to EQUAL."))
@@ -30,7 +41,7 @@
 (define (append* lists)
   (apply #'append lists))
 
-(define (empty? datum) (null datum))
+(define empty? #'null)
 
 (define (for-each proc . lists)
   "Apply proc to each element of lists. Arity of proc should match the number of lists."
@@ -46,15 +57,18 @@
 		     '(1 2 3)))
 	 "(A 1)(B 2)(C 3)"))
 
+(define (repeat fn count)
+  "Repeatedly call fn count times."
+  (assert (not (negative? count)))
+  (for-each (lambda (_) [fn]) (range count)))
+
 (define (filter predicate list)
   "Keep elements of list that satisfy predicate."
   (remove-if-not predicate list))
 
-(define (pair? datum) "T if datum is a cons." (consp datum))
-(define (null? datum) "T if datum is nil." (null datum))
-(define (list? datum) "Alias for (listp datum)." (listp datum))
-
-
+(define pair? "T if datum is a cons." #'consp)
+(define null? "T if datum is nil." #'null)
+(define list? "Alias for (listp datum)." #'listp)
 
 (define (list-ref list pos)
   "Return the value of list at pos."
@@ -97,8 +111,8 @@
 (assert (equal (foldr (lambda (v l) (cons (1+ v) l)) '() '(1 2 3 4))
 	       '(2 3 4 5)))
 
-(define (negative? num) (minusp num))
-(define (positive? num) (plusp num))
+(define negative? #'minusp)
+(define positive? #'plusp)
 
 (define (andmap proc . lists)
   "Return the last non-nil result of mapping proc across lists, or nil if some result is nil."
@@ -143,7 +157,7 @@
 
 (define (remq* v-list list) (remove* v-list list #'eq?))
 
-(define (sort list less-than? (:extract-key (lambda (x) x)))
+(define (sort list less-than? (:extract-key #'identity))
   "Returns a sorted list."
   (cl:sort (copy-list list) less-than? :key extract-key))
 
@@ -231,9 +245,33 @@
   "Returns (list (take list pos) (drop list pos))"
   (list (take list pos) (drop list pos)))
 
-(define (even? x) (evenp x))
-(define (odd? x) (oddp x))
-(define (zero? x) (zerop x))
+
+(define (intersperse element list)
+  "Return list with element placed between every other element."
+  (define (intersperse-loop list result)
+    (cond
+      ((empty? list) (nreverse result))
+      (t (intersperse-loop (rest list)
+			   (list* (first list) element result)))))
+
+  (assert (list? list))
+  (cond
+    ((empty? list) ())
+    (t
+     (cons (first list) (intersperse-loop (rest list) ())))))
+
+(assert (equal? (intersperse :a ())
+		()))
+(assert (equal? (intersperse :a '(:b))
+		'(:b)))
+(assert (equal? (intersperse :b '(:a :c))
+		'(:a :b :c)))
+(assert (equal? (intersperse :i '(:e :e :o))
+		'(:e :i :e :i :o)))
+
+(define even? #'evenp)
+(define odd? #'oddp)
+(define zero? #'zerop)
 
 (define (compose* procs)
   "Function compositions. Mulitple values of one function are used as arguments to the next."
@@ -382,6 +420,10 @@ Applies updater to failure-result if key is not present."
   "Alist with proc applied to all values of alist."
   (map (lambda (binding) [proc (car binding) (cdr binding)]) alist))
 
+(define (alist-for-each alist proc)
+  "Proc applied to all values of alist."
+  (for-each (lambda (binding) [proc (car binding) (cdr binding)]) alist))
+
 (define (alist-keys alist)
   "A list of all keys in alist."
   (alist-map alist (lambda (key value) (declare (ignore value)) key)))
@@ -505,8 +547,7 @@ Applies updater to failure-result if key is not present."
     ((negative? x) -1)
     ((zero? x) 0)))
 
-(define (number? datum) (numberp datum))
-
+(define number? #'numberp)
 
 (define (set-member? set value)
   "True if value is a member of set."
@@ -559,18 +600,78 @@ Applies updater to failure-result if key is not present."
     ((null? tree) ())
     ((pair? tree) (append (flatten (car tree)) (flatten (cdr tree))))
     (t (list tree))))
-
-
-
 (define (string-append . strings)
   (apply 'concatenate 'string strings))
 
-(define (string? datum) (stringp datum))
+(define (string-append* strings)
+  "Applies string-append to strings."
+  (apply #'string-append strings))
+
+(define string? #'stringp)
 
 (define (string-starts-with? string sub-string)
   (and (>= (length string) (length sub-string))
        (string= (subseq string 0 (length sub-string))
 		sub-string)))
+
+(define (chars-string char count)
+  "Return a string with char repeated count times."
+  (make-string count :initial-element char))
+
+(define (join-strings strings separator)
+  "Joins strings with the character separator in between each pair of strings."
+  (string-append* (intersperse (chars-string separator 1) strings)))
+
+(define (string-empty? string)
+  "True if string is empty."
+  (zero? (length string)))
+
+(define (split-string-if string split-char?)
+  "Return a list of strings that have been split whenever split-char? is true.
+Chars that satisfy split-char? will be removed, and empty strings will not be returned."
+  (define (not-split-char? char) (not [split-char? char]))
+  (define (first-char string) (aref string 0))
+
+  (define (split-string-iter string result)
+    (cond
+      ((string-empty? string) result)
+      ([split-char? (first-char string)]
+       ;; Remove initial split-char?
+       (let ((start (position-if not-split-char? string)))
+	 (cond
+	   ((null? start) result)
+	   (t (split-string-iter (subseq string start) result)))))
+      (t
+       (let ((end (position-if split-char? string)))
+	 (cond
+	   ((null? end) (cons string result))
+	   (t (split-string-iter (subseq string (1+ end)) (cons (subseq string 0 end) result))))))))
+
+  (nreverse (split-string-iter string ())))
+
+(define (split-string string split-char)
+  "Splits the string on each occurrence of split-char in string."
+  (split-string-if string (lcurry #'char= split-char)))
+
+(assert (equal? (split-string-if "     the three     wise    men   joined hands in holy matrimony.    " (lcurry #'char= #\space))
+		'("the" "three" "wise" "men" "joined" "hands" "in" "holy" "matrimony.")))
+
+
+(define (string-for-each proc string)
+  "Apply proc to each character in string."
+  (define end (length string))
+  (define (iter index)
+    (when (< index end)
+      [proc (aref string index)]
+      (iter (1+ index))))
+  (iter 0))
+(define (string-map proc string)
+  "Applies proc to each character in string, returning a new string 
+of the results appended together. Proc is expected to return a character or string"
+  (with-output-to-string (s)
+    (string-for-each (lambda (char)
+		       (format s "~A" [proc char]))
+		     string)))
 
 (define (string->list string)
   (coerce string 'list))
@@ -799,15 +900,16 @@ Applies updater to failure-result if key is not present."
 		'((1 2 3) (2 3 4))))
 
 
-(define (random-stream limit)
-  "Return a stream of random numbers below limit.
+(unexport
+ (define (random-stream limit)
+   "Return a stream of random numbers below limit.
 If limit is an integer, returns integers.
 If limit is a float returns floats.
 Does not affect the random-state."
-  (define (%random-stream rs)
-    (stream-cons (random limit rs)
-		 (%random-stream rs)))
-  (%random-stream (make-random-state)))
+   (define (%random-stream rs)
+     (stream-cons (random limit rs)
+		  (%random-stream rs)))
+   (%random-stream (make-random-state))))
 
 ;; Random-stream does not affect the random-state
 (assert (equal (stream->list (stream-take (random-stream 1.0) 10))
@@ -815,10 +917,6 @@ Does not affect the random-state."
 
 (assert (stream-empty? (stream-filter (lambda (x) (not (<= 0.0 x 1.0)))
 				      (stream-take (random-stream 1.0) 10))))
-
-
-
-
 
 (defparameter *lambda-list-keywords*
   '(&optional &rest &key &allow-other-keys &aux))
@@ -1014,6 +1112,7 @@ Does not affect the random-state."
 
 (define (has-specific-arity? arity-list fixed-arity-n)
   "Returns true if an arity-list (retrieved from procedure-arity) has the specific fixed arity."
+  (assert (or (zero? fixed-arity-n) (positive? fixed-arity-n)))
   (cond ((empty? arity-list) nil)
 	(t
 	 (let ((arity (first arity-list)))
@@ -1067,7 +1166,7 @@ Does not affect the random-state."
 	value
 	failure-result)))
 (define (hash-set! table key value)
-  "Sets the value associated with key in hash-table table to value."
+  "Sets the value associated with key in hash-table table to value. Returns the value."
   (setf (gethash key table) value))
 (define (hash-find-keyf table predicate (failure-result))
   "Returns the first key that satisfies [predicate key] in table."
@@ -1075,6 +1174,16 @@ Does not affect the random-state."
 	do (when [predicate key]
 	     (return-from hash-find-keyf key)))
   failure-result)
+
+(define (hash-ref-default table key delayed-value)
+  "Return the value associated with key in table.
+If there is no value, computes [delayed-value] and stores it in the table
+before returning it."
+  (let* ((no-value (gensym))
+	 (value (hash-ref table key no-value)))
+    (if (eq? no-value value)
+	(hash-set! table key [delayed-value])
+	value)))
 
 (define (hash-update! table key updater (failure-result))
   "Updates the value in table associated with key using [updater value].
@@ -1126,5 +1235,4 @@ If no value is associated with key, failure-result is used instead."
 (define (list->vector list)
   (coerce list 'vector))
 
-
-(for-macros (uninstall-syntax!))
+(uninstall-syntax!)

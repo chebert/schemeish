@@ -103,11 +103,6 @@ This package may need to be USEd before it can be re-exported." (package-name re
        (map 'package-find re-exported-packages))
   package)
 
-(define ((document documentation) package)
-  "Sets the package documentation for package. Returns a closure that takes and returns the package."
-  (setf (documentation package t) documentation)
-  package)
-
 (define ((package-export . symbols) package)
   "Interns and exports each symbol-name in symbols.
 Returns a closure that takes and returns the package."
@@ -263,7 +258,8 @@ Returns the package-name."
 
 (define (package-dependencies package)
   "Return a list of packages which package has a dependency on."
-  (map (compose 'find-package 'car) (group-by-package (package-symbols package))))
+  (append (map (compose 'find-package 'car) (group-by-package (package-symbols package)))
+	  (package-use-list package)))
 
 (define (independent-package? package packages)
   "True if package does not have any dependencies on packages."
@@ -316,6 +312,18 @@ Cyclic dependencies throw an error."
 		(format s "~&~S~%~%" form))
 	      (hierarchical-defpackage-forms packages))))
 
+(define (package-defined-and-exported-symbols package)
+  "All symbols exported by package that were not imported or used."
+  (set-difference (package-exported-symbols package)
+		  (union (package-used-symbols package)
+			 (package-imported-symbols package))))
 
+(define ((package-use-and-export-shadowing . packages) package)
+  "Package will use each of packages and re-export shadowing. 
+See package-use-shadowing and package-re-export-shadowing."
+  [(compose
+    (apply 'package-re-export-shadowing packages)
+    (apply 'package-use-shadowing packages))
+   package])
 
 (uninstall-syntax!)

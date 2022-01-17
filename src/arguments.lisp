@@ -217,13 +217,14 @@ Calls (iterate args reversed-lambda-list ignorable-args continue)."
 ;; Bad arg-name for optional args
 (assert (null (ignore-errors (arg-list->lambda-list '(arg1 ((oops-arg) "form"))))))
 
-;; Invalid argument lists
 (assert (equal (arg-list->lambda-list '(a1 a2 :k1 :k2))
 	       '(A1 A2 &KEY K1 K2)))
 (assert (equal (arg-list->lambda-list '(:k1))
 	       '(&key k1)))
 (assert (equal (arg-list->lambda-list '(a1 a2 (:k1 "default") :k2 (:k3 "default2")))
 	       '(A1 A2 &KEY (K1 "default") K2 (K3 "default2"))))
+
+;; Invalid argument lists
 (assert (null (ignore-errors (arg-list->lambda-list '(a1 a2 (:k1 "default") bad-positional)))))
 (assert (null (ignore-errors (arg-list->lambda-list '(a1 a2 (:k1 "default") (bad-optional))))))
 

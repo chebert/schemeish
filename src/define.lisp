@@ -15,13 +15,26 @@
 	       '(a b c d e)))
 
 (for-macros
-  (defun define? (form) (and (consp form) (eq (first form) 'schemeish.define:define))))
+  (defun define? (form)
+    "True if form is a (define ...) form."
+    (and (consp form) (eq (first form) 'schemeish.define:define))))
 (assert (define? '(define name var)))
 
 (for-macros
+  (defun define-name-field (form)
+    "Return the name-field of a (define name-field  body...)."
+    (second form))
   (defun define-name (form)
-    (let ((name-form (second form)))
-      (first (flatten name-form)))))
+    "Return the name of a (define name ...) or (define (name . args) ...) 
+or (define (((name . args) . args) . args) ...) style form."
+    (first (flatten (define-name-field form))))
+
+  (defun define-value-field (form)
+    "Return the value of a (define name value) style form."
+    (third form))
+  (defun define-body (form)
+    "Return the body of a (define name-field body...) style form."
+    (cddr form)))
 
 (assert (equal (define-name '(define (((nested-fn) x) y) z))
 	       'nested-fn))
@@ -33,7 +46,15 @@
 	 (append* '((1 2 3) (4 5 6)))
 	 '(1 2 3 4 5 6)))
 
-(for-macros (defun declaration? (form) (and (consp form) (eq 'declare (first form)))))
+(for-macros (defun append-map (proc list)
+	      (append* (mapcar proc list))))
+
+(for-macros (defun declaration? (form)
+	      "True if form is a (declare ...) special-form."
+	      (and (consp form) (eq 'cl:declare (first form)))))
+(for-macros (defun declare? (form)
+	      "True if form is a (declare ...) special-form."
+	      (and (consp form) (eq 'cl:declare (first form)))))
 (assert (declaration? '(declare (ignore x))))
 
 (for-macros (defun takef (list predicate)
@@ -65,346 +86,632 @@
 	      (list (takef list predicate) (dropf list predicate))))
 
 
-(for-macros (defun split-function-body (body)
-	      "Split the function body into '(declarations defines body)"
-	      (let* ((doc-list (cond
-				 ((stringp (first body))
-				  (cond ((null (rest body)) ())
-					(t (list (first body)))))
-				 (t ())))
-		     (body (if doc-list (rest body) body)))
-		(destructuring-bind (declarations body) (splitf-at body 'declaration?)
-		  (unless (null (remove-if-not 'declaration? body))
-		    (error "declarations intermixed with definitions or code."))
-		  (destructuring-bind (defines body) (splitf-at body 'define?)
-		    (unless body
-		      (error "Empty body."))
-		    (unless (null (remove-if-not 'define? body))
-		      (error "definitions intermixed with code."))
-		    (list (append doc-list declarations)
-			  defines
-			  body))))))
-
-;; if the body is just a string, then it's code.
-(assert (equal (split-function-body '("result"))
-	       '(() () ("result"))))
-
-;; otherwise the string is a docstring
-(assert (equal (split-function-body '("doc" result))
-	       '(("doc") () (result))))
-
-(assert (equal (split-function-body '("doc" (declare) "result"))
-	       '(("doc" (DECLARE)) NIL ("result"))))
-
-(assert (equal (split-function-body '("doc" (declare) (define) result))
-	       '(("doc" (DECLARE)) ((DEFINE)) (RESULT))))
-
-
-(assert (null (ignore-errors (split-function-body '((declare) (define) (declare) result)))))
-(assert (null (ignore-errors (split-function-body '((declare) (define) result (define))))))
-(assert (null (ignore-errors (split-function-body '("doc" (declare) result (declare))))))
-(assert (null (ignore-errors (split-function-body '("doc" (declare) (define))))))
-
 (for-macros (defun define-function? (form)
+	      "True if form is (define (name . args) ...) or (define (((name . args) . args) . args) ...) style form."
 	      (and (define? form)
-		   (consp (second form)))))
+		   (consp (define-name-field form)))))
 
-(for-macros (defun expand-define-closure-or-function (name-and-arg-list body expand-define-function)
-	      (let ((name (first name-and-arg-list))
-		    (arg-list (rest name-and-arg-list)))
-		(cond
-		  ;; e.g. name-and-arglist is (((nested-fn x) y) z)
-		  ((consp name)
-		   (expand-define-closure-or-function
-		    name
-		    (list (expand-define-closure arg-list body))
-		    expand-define-function))
-		  ;; e.g. name-and-arglist is (fn x y z)
-		  ((symbolp name) [expand-define-function name arg-list body])
-		  (t (error "Bad thing to define: ~s" name))))))
 
-(for-macros (defun expand-define-function-for-labels (name arg-list body)
-	      (list* name (arg-list->lambda-list arg-list) body)))
+(for-macros (defun ignorable-declaration (ignorable-args)
+	      "Returns a declaration which marks ignorable-args as ignorable."
+	      `(declare (ignorable ,@ignorable-args))))
 
-(for-macros (defun named-let? (form)
-	      (and (listp form)
-		   (>= (length form) 3)
-		   (eq (first form) 'let)
-		   (symbolp (second form))
-		   (consp (third form)))))
-(for-macros (defun let? (form)
-	      (and (listp form)
-		   (>= (length form) 2)
-		   (member (first form) '(cl:let let))
-		   (consp (second form)))))
-(for-macros (defun let*? (form)
-	      (and (listp form)
-		   (>= (length form) 2)
-		   (eq (first form) 'cl:let*)
-		   (consp (second form)))))
-
-(for-macros (defun make-named-let (name bindings body)
-	      `(let ,name ,bindings ,@body)))
-(for-macros (defun named-let-bindings (form)
-	      (third form)))
-(for-macros (defun named-let-name (form)
-	      (second form)))
-(for-macros (defun named-let-body (form)
-	      (cdddr form)))
-(for-macros (defun let-body (form)
-	      (cddr form)))
-(for-macros (defun let-bindings (form)
-	      (second form)))
-(for-macros (defun make-let (bindings body)
-	      `(let ,bindings ,@body)))
-(for-macros (defun make-let* (bindings body)
-	      `(cl:let* ,bindings ,@body)))
-
-(for-macros (defun expand-define-let-or-let* (body)
-	      (cond
-		((null body) body)
-		(t
-		 (let ((form (first body)))
-		   (cond
-		     ((named-let? form)
-		      (cons (make-named-let (named-let-name form)
-					    (named-let-bindings form)
-					    (expand-function-body (named-let-body form)))
-			    (rest body)))
-		     ((let? form)
-		      (cons (make-let (let-bindings form)
-				      (expand-function-body (let-body form)))
-			    (rest body)))
-		     ((let*? form)
-		      (cons (make-let* (let-bindings form)
-				       (expand-function-body (let-body form)))
-			    (rest body)))
-		     (t body)))))))
-
-(for-macros (defun expand-function-body-definitions (definitions body)
-	      (cond
-		((null definitions) body)
-		(t (let* ((function-definitions (remove-if-not 'define-function? definitions)))
-		     `((let ,(mapcar 'define-name definitions)
-			 (declare (ignorable ,@(mapcar #'define-name definitions)))
-			 (labels ,(append
-				   (mapcar (cl:lambda (form)
-					     (expand-define-closure-or-function (second form)
-										(expand-function-body (cddr form))
-										'expand-define-function-for-labels))
-				     function-definitions)
-				   (mapcar (cl:lambda (form)
-					     (let ((args (unique-symbol 'args)))
-					       `(,(define-name form) (&rest ,args) (apply ,(define-name form) ,args))))
-				     (remove-if 'define-function? definitions)))
-			   (declare (ignorable ,@(mapcar (cl:lambda (definition) `(function ,(define-name definition))) definitions)))
-			   (setq ,@(append* (mapcar (cl:lambda (form)
-						      (cond ((define-function? form)
-							     (let ((name (define-name form)))
-							       `(,name #',name)))
-							    ;; Variable definition.
-							    (t `(,(second form) ,(third form)))))
-						    definitions)))
-			   ,@(expand-define-let-or-let* body)))))))))
-(for-macros (defun expand-function-body (body)
-	      (destructuring-bind (declarations definitions body) (split-function-body body)
-		`(,@declarations
-		  ,@(expand-function-body-definitions definitions body)))))
-
-(for-macros (defun expand-define-closure (arg-list body)
-	      `(lambda ,arg-list
-		 ,@(expand-function-body body))))
-
-(assert (equal (expand-define-closure 'args '((print args)
-					      (apply '+ args)))
-	       '(lambda args
-		 (PRINT args)
-		 (apply '+ args))))
-
-(assert (equal (expand-define-closure '(x y z) '((print (list x y z))
-						 (+ x y z)))
-	       '(lambda (X Y Z)
-		 (PRINT (LIST X Y Z))
-		 (+ X Y Z))))
-
-(assert (equal (expand-function-body-definitions '() '(body))
-	       '(body)))
-
-(assert (equal (with-readable-symbols (expand-function-body-definitions '((define x 1) (define (f x) (+ x 1))) '(body)))
-	       '((LET (X F) (DECLARE (IGNORABLE X F))
-		   (LABELS ((F (X)
-			      (+ X 1))
-			    (X (&REST ARGS)
-			      (APPLY X ARGS)))
-		     (DECLARE (IGNORABLE (FUNCTION X) (FUNCTION F)))
-		     (SETQ X 1
-			   F #'F)
-		     BODY)))))
-(assert (equal (expand-function-body-definitions '((define ((f x) y)
-						     (list x y)))
-						 '([(f 1) 2]))
-	       '((LET (F) (DECLARE (IGNORABLE F))
-		   (LABELS ((F (X)
-			      (LAMBDA (Y)
-				(LIST X Y))))
-		     (DECLARE (IGNORABLE (FUNCTION F)))
-		     (SETQ F #'F)
-		     (FUNCALL (F 1) 2))))))
-
-(for-macros (defun ignorable-declaration-body (ignorable-args)
-	      (when ignorable-args (list `(declare (ignorable ,@ignorable-args))))))
-
-(assert (equal (ignorable-declaration-body '(a b c))
-	       '((DECLARE (IGNORABLE A B C)))))
-(assert (equal (ignorable-declaration-body '())
-	       '()))
-
-(for-macros (defun expand-top-level-define-function (name arg-list body)
-	      (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
-		`(defun ,name ,lambda-list
-		   ,@(ignorable-declaration-body ignorable-args)
-		   ,@(expand-function-body body)))))
-
-(assert (equal (expand-top-level-define-function 'fn-name '(x y z) '(body))
-	       '(DEFUN FN-NAME (X Y Z) BODY)))
-
-(for-macros (defun expand-top-level-define-closure-or-function (name-and-arg-list body)
-	      (expand-define-closure-or-function name-and-arg-list body 'expand-top-level-define-function)))
-
-(assert (equal (expand-top-level-define-closure-or-function '(((nested-fn x) y) z) '(body))
-	       '(DEFUN NESTED-FN (X)
-		 (lambda (Y)
-		   (lambda (Z)
-		     BODY)))))
-(for-macros (defun expand-top-level-define-parameter (name body)
-	      `(defparameter ,name ,@body)))
-
-(assert (equal (expand-top-level-define-parameter '*name* '(value "docs"))
-	       '(DEFPARAMETER *NAME* VALUE "docs")))
+(assert (equal (ignorable-declaration '(a b c))
+	       '(DECLARE (IGNORABLE A B C))))
+(assert (equal (ignorable-declaration '())
+	       '(declare (ignorable))))
 
 (for-macros
-  (defun expand-top-level-define-setf-fdefinition (name body)
-    (let ((function-name (unique-symbol 'fn)))
-      `(let ((,function-name (progn ,@body)))
-	 (assert (functionp ,function-name))
-	 ,@(when (stringp (first body))
-	     `((setf (documentation ',name 'function) ,(first body))))
-	 (setf (fdefinition ',name) ,function-name)
-	 ',name))))
+  (defparameter *define-form-hash-table* (make-hash-table)
+    "A hash table from function -> define-form.")
 
-(assert (equal (with-readable-symbols
-		 (expand-top-level-define-setf-fdefinition '5+ '("returns 5+ a number" (compose 'lcurry + 5))))
-	       '(LET ((FN (PROGN "returns 5+ a number" (COMPOSE 'LCURRY + 5))))
-		 (ASSERT (FUNCTIONP FN))
-		 (SETF (DOCUMENTATION '5+ 'FUNCTION) "returns 5+ a number")
-		 (SETF (FDEFINITION '5+) FN) '5+)))
+  (defun register-define-form (function form)
+    "Register the define-form in the *define-form-hash-table*."
+    (assert (functionp function))
+    (assert (define? form))
+    (setf (gethash function *define-form-hash-table*) form))
 
-(for-macros (defun expand-top-level-define (name body)
+  (defun unregister-define-form (function)
+    "Removes any registered define-form associated with symbol from the
+*DEFINE-FORM-HASH-TABLE*"
+    (remhash function *define-form-hash-table*))
+
+  (defun define-form (function)
+    "Retrieve the DEFINE form used to define function.
+Returns nil if not defined using DEFINE. Does not include any outer
+lexical environment, and so it may not always be used to redefine the function."
+    (gethash function *define-form-hash-table*)))
+
+(defmacro undefine (&rest symbols)
+  "Undefines globally defined functions using fmakunbound."
+  `(progn
+     ,@(mapcar (cl:lambda (name)
+		 `(progn
+		    (fmakunbound ',name)
+		    (unregister-define-form #',name)))
+	       symbols)))
+
+(for-macros
+  (defvar *guard-clauses-hash-table* (make-hash-table :weakness :key)
+    "A table from function to a list of guard-clauses guarding that function.")
+
+  (defun register-guard-clauses (function guard-clauses)
+    "Associates function with guard-clauses in the *guard-clauses-hash-table*"
+    (assert (functionp function))
+    (assert (listp guard-clauses))
+    (setf (gethash function *guard-clauses-hash-table*) guard-clauses)
+    function)
+
+  (defun guard-clauses (function)
+    "Retrieves the guard-clauses associated with function, or NIL if not present."
+    (assert (functionp function))
+    (gethash function *guard-clauses-hash-table*)))
+
+(for-macros
+  (defgeneric documentation-string (documentation)
+    (:documentation "Returns a documentation string given the provided documentation object."))
+  (defmethod documentation-string ((documentation string)) documentation)
+  (defun documentation-source? (object)
+    "An object is a documentation-source if it has a method implemented for documentation-string."
+    (compute-applicable-methods #'documentation-string (list object))))
+
+(for-macros
+  (defvar *variable-documentation-hash-table* (make-hash-table))
+  (defvar *type-documentation-hash-table* (make-hash-table))
+  (defvar *compiler-macro-documentation-hash-table* (make-hash-table))
+  (defvar *setf-documentation-hash-table* (make-hash-table))
+  (defvar *object-documentation-hash-table* (make-hash-table :weakness :key))
+
+  (defun check-symbol (symbol)
+    (unless (symbolp symbol)
+      (error "Symbol expected to be a symbol type, but got: ~S" (type-of symbol))))
+  (defun check-name (name)
+    (unless (or (symbolp name) (and (listp name)
+				    (= 2 (length name))
+				    (eq 'cl:setf (first name))
+				    (symbolp (second name))))
+      (error "Name expected to be a symbol or a list (setf symbol) but got: ~S" name)))
+  (defun check-object (object)
+    (typecase object
+      (function)
+      (method-combination)
+      (standard-method)
+      (package)
+      (t (error "Object expected to be of type: function, method-combination, standard-method, or package. But got ~S" (type-of object)))))
+  
+  (defun variable-documentation-source (symbol)
+    "Returns the documentation source associated with the constant or dynamic variable named symbol."
+    (check-symbol symbol)
+    (gethash symbol *variable-documentation-hash-table* nil))
+  (defun type-documentation-source (symbol)
+    "Returns the documentation source associated with the type named by symbol."
+    (check-symbol symbol)
+    (gethash symbol *type-documentation-hash-table* nil))
+  (defun compiler-macro-documentation-source (name)
+    "Returns the documentation source associated with the compiler-macro named by NAME."
+    (check-name name)
+    (gethash name *compiler-macro-documentation-hash-table* nil))
+  (defun setf-documentation-source (symbol)
+    "Returns the documentation source associated with the setf-expansion named by symbol."
+    (check-symbol symbol)
+    (gethash symbol *setf-documentation-hash-table* nil))
+  (defun object-documentation-source (object)
+    "Returns the documentation source associated with the given object.
+Object may be a function, method-combination, standard-method, or package."
+    (check-object object)
+    (gethash object *object-documentation-hash-table* nil))
+
+  (defun set-variable-documentation-source! (symbol documentation-source)
+    "Updates the documentation source associated with the constant or dynamic variable named symbol."
+    (check-symbol symbol)
+    (setf (gethash symbol *variable-documentation-hash-table*) documentation-source))
+  (defun set-type-documentation-source! (symbol documentation-source)
+    "Updates the documentation source associated with the type named by symbol."
+    (check-symbol symbol)
+    (setf (gethash symbol *type-documentation-hash-table*) documentation-source))
+  (defun set-compiler-macro-documentation-source! (name documentation-source)
+    "Updates the documentation source associated with the compiler-macro named by NAME."
+    (check-name name)
+    (setf (gethash name *compiler-macro-documentation-hash-table*) documentation-source))
+  (defun set-setf-documentation-source! (symbol documentation-source)
+    "Updates the documentation source associated with the setf-expansion named by symbol."
+    (check-symbol symbol)
+    (setf (gethash symbol *setf-documentation-hash-table*) documentation-source))
+  (defun set-object-documentation-source! (object documentation-source)
+    "Updates the documentation source associated with the given object.
+Object may be a function, method-combination, standard-method, or package."
+    (check-object object)
+    (setf (gethash object *object-documentation-hash-table*) documentation-source)))
+
+(for-macros
+  (defun documentation-string-for-define-function (name function documentation-string)
+    (assert (stringp documentation-string))
+    (concatenate 'string
+		 documentation-string
+		 (let ((form (define-form function)))
+		   (if form
+		       (format nil "~&~%~%Form: ~S" (define-name-field form))
+		       ""))
+		 (let ((guards (guard-clauses function)))
+		   (if guards
+		       (format nil "~&~%~%~S has the following guard clauses:~%~S" name guards)
+		     "")))))
+(for-macros
+  (defun documentation-string-for-lambda (arg-list function documentation-string)
+    (assert (stringp documentation-string))
+    (concatenate 'string
+		 documentation-string
+		 (format nil "~&~%~%Form: ~S" (cons 'lambda arg-list))
+		 (let ((guards (guard-clauses function)))
+		   (if guards
+		       (format nil "~&~%~%~S has the following guard clauses:~%~S" 'lambda guards)
+		       "")))))
+
+(for-macros
+ (defun documentation-source-form (string-or-documentation-tag)
+   (assert (or (stringp string-or-documentation-tag)
+	       (documentation-tag? string-or-documentation-tag)))
+   (if (stringp string-or-documentation-tag)
+       string-or-documentation-tag
+     (documentation-tag-form string-or-documentation-tag)))
+ (defun documentation-string-form (name documentation)
+   `(documentation-string-for-define-function ',name #',name (documentation-string ,(documentation-source-form documentation))))
+
+ (defun set-function-documentation-form-for-symbol-and-function (name documentation)
+   "Form that sets the documentation of 'name and #'name."
+   `(progn
+      (setf (documentation ',name 'function) ,(documentation-string-form name documentation)
+	    (documentation #',name t) (documentation ',name 'function))
+      (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
+ (defun set-function-documentation-form-for-symbol (name documentation)
+   "Form that sets the documentation of 'name."
+   `(progn
+      (setf (documentation ',name 'function) ,(documentation-string-form name documentation))
+      (set-object-documentation-source! #',name ,(documentation-source-form documentation))))
+ (defun set-function-documentation-form-for-function (name documentation)
+   "Form that sets the documentation of #'name."
+   `(progn
+      (setf (documentation #',name t) ,(documentation-string-form name documentation))
+      (set-object-documentation-source! #',name ,(documentation-source-form documentation)))))
+
+(for-macros
+  (defun top-level-define-name-form (name documentation body)
+    "Returns a form which sets the function definition of name to the first value of body."
+    (unless (= 1 (length body))
+      (error "Invalid body for (DEFINE ~S function). Expected a single value, but got ~S" name body))
+    (let ((function-value (unique-symbol 'fn)))
+      `(for-macros
+	 (let ((,function-value ,(first body)))
+	   (unless (functionp ,function-value)
+	     (error "DEFINE: Expected a function value as the second argument to (DEFINE ~S [documentation] function-value), but got ~S."
+		    ',name ,function-value))
+	   ;; Set the function definition
+	   (setf (fdefinition ',name) ,function-value)
+	   (register-define-form #',name '(define ,name ,@body))
+	   ,@(when documentation (list (set-function-documentation-form-for-symbol name documentation)))
+	   ;; Return the name.
+	   ',name)))))
+
+(for-macros
+  (defun parse-documentation-from-body (body)
+    "Return (values (or documentation nil) rest-body)."
+    (cond
+      ((null body) (values nil ()))
+      (t
+       (let ((form (first body)))
+	 (cond
+	   ;; If the form is a documentation-tag, remove it from body and return it.
+	   ((documentation-tag? form) (values form (rest body)))
+	   ;; There must be at least 2 forms for a string to be documentation.
+	   ((and (not (null (rest body)))
+		 (stringp form))
+	    (values form (rest body)))
+	   ;; Otherwise no documentation was found.
+	   (t (values nil body))))))))
+
+
+(for-macros
+  (defun parse-guard-clauses-from-body (body)
+    "Return (values (or guard-clauses nil) rest-body)."
+    (cond
+      ((null body) (values nil ()))
+      (t
+       (let ((form (first body)))
+	 (cond
+	   ;; If the form is a guard-tag, remove it from body and return its clauses.
+	   ((guard-tag? form) (values (guard-tag-clauses form) (rest body)))
+	   ;; Otherwise no guard-tag was found.
+	   (t (values nil body))))))))
+
+(for-macros
+  (defun parse-initial (list keep?)
+    "Return (values initial-values remaining-list) where each of initial-values satisfies keep?
+and the first element of remaining-list does not satisfy keep?"
+    (let recurse ((list list)
+		  (result ()))
+      (cond
+	((null list) (values (nreverse result) list))
+	(t (let ((x (first list)))
+	     (cond
+	       ([keep? x] (recurse (rest list) (cons x result)))
+	       (t (values (nreverse result) list)))))))))
+
+(for-macros
+  (defun parse-initial-declares-from-body (body)
+    "Return (values declares rest-body)"
+    (parse-initial body #'declare?)))
+
+(for-macros
+  (defun parse-initial-defines-from-body (body)
+    "Return (values defines rest-body)"
+    (parse-initial body #'define?)))
+
+(for-macros
+  (defun guard-clauses-form (guard-clauses)
+    "Return a form that processes guard-clauses, causing an error if any clause fails."
+    (cons 'progn
+	  (mapcar (cl:lambda (guard-clause)
+		    `(unless ,guard-clause
+		       (error "Failed function guard-clause: ~S" ',guard-clause)))
+		  guard-clauses))))
+
+(guard-clauses-form '((stringp text)
+		      (inline? value)
+		      (consp list)))
+
+(for-macros (defun lexical-form? (form)
+	      "True if form creates a new lexical-scope."
+	      (and (consp form)
+		   (member (first form) '(let cl:let let* flet labels macrolet)))))
+(for-macros (defun map-lexical-form-body (form proc)
+	      "Returns a lexical-form form with proc applied to its body."
 	      (cond
-		;; name is (name . args)
-		((consp name) (expand-top-level-define-closure-or-function name body))
-		((symbolp name) (expand-top-level-define-setf-fdefinition name body))
-		(t (error "Bad thing to define: ~S" name)))))
+		((and (eq 'let (first form))
+		      (not (listp (second form))))
+		 ;; Named-let form
+		 (list* 'let (second form) (third form) [proc (cdddr form)]))
+		(t
+		 ;; Normal LET, LET*, LABELS, FLET, MACROLET form
+		 (list* (first form) (second form) [proc (cddr form)])))))
+
+(for-macros
+  (defun lexical-variables (defines)
+    (mapcar #'define-name defines))
+  (defun ignorable-lexical-variable-functions-declaration (lexical-variables)
+    `(declare (ignorable ,@(mapcar (cl:lambda (variable) `(function ,variable)) lexical-variables))))
+  (defun ignorable-lexical-variables-declaration (lexical-variables)
+    `(declare (ignorable ,@lexical-variables))))
+
+(for-macros
+  (defun body-with-ignorable-args (ignorable-args body)
+    `(,@(when ignorable-args (list (ignorable-declaration ignorable-args)))
+      ,@body)))
+
+(for-macros
+  (defun parse-define-function (arg-list body)
+    "Return (values lambda-list documentation guard-clauses expanded-body)"
+    (multiple-value-bind (documentation body) (parse-documentation-from-body body)
+      (multiple-value-bind (declares body) (parse-initial-declares-from-body body)
+	(multiple-value-bind (guard-clauses body) (parse-guard-clauses-from-body body)
+	  (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
+	    (let ((expanded-body (body-with-ignorable-args
+				  ignorable-args
+				  `(,@declares
+				    ,@(when guard-clauses (list (guard-clauses-form guard-clauses)))
+				    ,@(expand-defines-in-lexical-body body)))))
+	      (values lambda-list documentation guard-clauses expanded-body))))))))
+
+(for-macros
+  (defun parse-define-closure (name-field documentation guard-clauses body)
+    (let ((arg-list (rest name-field))
+	  (name (first name-field)))
+      (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
+	(cond
+	  ((symbolp name)
+	   ;; Base case: we are at the top level function definition
+	   (values name lambda-list documentation guard-clauses
+		   (body-with-ignorable-args ignorable-args body)))
+	  (t
+	   ;; Unravel the next closure.
+	   (parse-define-closure name documentation guard-clauses
+				 `((cl:lambda ,lambda-list
+				     ,@(body-with-ignorable-args ignorable-args body))))))))))
+
+(for-macros
+  (defun parse-define-function-or-closure (name-field body)
+    "Return (values name lambda-list documentation expanded-body)"
+    (multiple-value-bind (lambda-list documentation guard-clauses body)
+	(parse-define-function (rest name-field) body)
+      (cond
+	((symbolp (first name-field))
+	 (values (first name-field) lambda-list documentation guard-clauses body))
+	(t
+	 (parse-define-closure (first name-field)
+			       documentation
+			       guard-clauses
+			       `((cl:lambda ,lambda-list ,@body))))))))
+
+(for-macros
+  (defstruct local-function-definition
+    "Represents a local function definition."
+    name form guard-clauses documentation)
+
+  (defun local-function-form (name lambda-list body)
+    "Form that defines a local function."
+    `(,name ,lambda-list ,@body))
+  (defun local-function-definitions (defines)
+    "A list of local-function-definitions to define local function given defines."
+    (mapcar #'define->local-function-definition defines))
+
+  (defun define->local-function-definition (define)
+    "Convert a DEFINE form to a LOCAL-FUNCTION-DEFINITION structure."
+    (let ((name (define-name define)))
+      (cond
+	((define-function? define)
+	 ;; IF this is a function definition,
+	 ;; parse the define form, and recursively expand the function body.
+	 (multiple-value-bind (name lambda-list documentation guard-clauses expanded-body)
+	     (parse-define-function-or-closure (define-name-field define) (define-body define))
+	   (make-local-function-definition :name name
+					   :form (local-function-form name lambda-list expanded-body)
+					   :guard-clauses guard-clauses
+					   :documentation documentation)))
+	(t
+	 ;; If we are defining a variable,
+	 ;; create a local function that takes an arbitrary number of arguments
+	 ;; and applies the variable to those arguments.
+	 (make-local-function-definition
+	  :name name
+	  :form (let ((args (unique-symbol 'args)))
+		  (local-function-form name `(&rest ,args) `((apply ,name ,args))))
+	  :guard-clauses ()
+	  :documentation (format nil "Applies the lexical variable ~S to the provided arguments." name)))))))
+
+(for-macros
+  (defun lexical-variable-assignment-form (define)
+    (let ((name (define-name define)))
+      (cond
+	;; If the definition is a function,
+	;; set the variable to the function value.
+	((define-function? define)`(,name #',name))
+	;; If the definition is a variable,
+	;; set the variable to the definition's value.
+	(t `(,name ,(define-value-field define))))))
+  (defun lexical-variable-assignments-form (defines)
+    `(setq ,@(append* (mapcar #'lexical-variable-assignment-form defines)))))
+
+(for-macros
+  (defun set-local-function-documentation-forms (local-function)
+    "Return a body of forms to set the local-functions documentation."
+    (let ((name (local-function-definition-name local-function))
+	  (documentation (local-function-definition-documentation local-function)))
+      (when documentation
+	(list (set-function-documentation-form-for-function name documentation))))))
+
+(for-macros
+  (defun register-guard-clauses-forms (name guard-clauses)
+    "Return a body of forms to register the guard-clauses with #'name."
+    (when guard-clauses
+      (list `(register-guard-clauses #',name ',guard-clauses))))
+  
+  (defun register-local-function-guard-clauses-forms (local-function)
+    "Return a body of forms to register the guard-clauses with the local-function."
+    (let ((name (local-function-definition-name local-function))
+	  (guard-clauses (local-function-definition-guard-clauses local-function)))
+      (register-guard-clauses-forms name guard-clauses))))
+
+(for-macros
+  (defun expand-defines-in-body (defines declares body)
+    "Returns an expanded body."
+    (dolist (define defines)
+      (unless (or (and (symbolp (define-name-field define))
+		       (= 3 (length define)))
+		  (consp (define-name-field define)))
+	(error "Malformed DEFINE ~S. Expected (DEFINE symbol-name value) or (DEFINE (name . args) ...)" define)))
+    (cond
+      ((null defines) `(,@declares ,@body))
+      (t (let ((lexical-variables (lexical-variables defines))
+	       (local-functions (local-function-definitions defines)))
+	   `(
+	     ;; Create lexical bindings for all defines.
+	     (let ,lexical-variables
+	       ;; Allow the user to ignore any lexical variable binding
+	       ,(ignorable-lexical-variables-declaration lexical-variables)
+	       ;; Create mutually recursive function definitions for all defines
+	       (labels ,(mapcar #'local-function-definition-form local-functions)
+		 ;; Allow the user to ignore any function bindings
+		 ,(ignorable-lexical-variable-functions-declaration lexical-variables)
+		 ;; Insert declares provided by the user.
+		 ,@declares
+		 ;; Assign values to all lexical variables
+		 ,(lexical-variable-assignments-form defines)
+		 ;; Register define-forms for defines.
+		 ,@(mapcar (cl:lambda (define-form)
+			     `(register-define-form #',(define-name define-form) ',define-form))
+			   defines)
+		 ;; Register guard-clauses
+		 ,@(append-map #'register-local-function-guard-clauses-forms local-functions)
+		 ;; Register documentation for local functions
+		 ,@(append-map #'set-local-function-documentation-forms local-functions)
+		 ,@body))))))))
 
 
-(assert (equal (with-readable-symbols
-		 (expand-top-level-define 'add '('+)))
-	       '(LET ((FN (PROGN '+))) (ASSERT (FUNCTIONP FN)) (SETF (FDEFINITION 'ADD) FN) 'add)))
+(for-macros
+  (defun expand-defines-in-lexical-body (body)
+    "Returns an expanded body."
+    (multiple-value-bind (defines body) (parse-initial-defines-from-body body)
+      (multiple-value-bind (declares body) (parse-initial-declares-from-body body)
+	(when (null body)
+	  (error "DEFINE: Empty body"))
+	(dolist (form body)
+	  (cond
+	    ((define? form) (error "DEFINE definitions mixed with code."))
+	    ((declare? form) (error "DECLARE declarations mixed with code."))
+	    ((guard-tag? form) (error "GUARD clauses mixed with code."))
+	    ((documentation-tag? form) (error "DOCUMENTATION mixed with code."))))
+	(expand-defines-in-body
+	 defines declares
+	 (mapcar
+	  (cl:lambda (form)
+	    (if (lexical-form? form)
+		(map-lexical-form-body form #'expand-defines-in-lexical-body)
+		form))
+	  body))))))
 
-(assert (equal (expand-top-level-define '(test-inner-nested-defines)
-					'("Also returns a thing"
-					  (define ((inner-nested x) y)
-					    (list x y))
-					  inner-nested))
-	       '(DEFUN TEST-INNER-NESTED-DEFINES ()
-		 "Also returns a thing"
-		 (LET (INNER-NESTED) (DECLARE (IGNORABLE INNER-NESTED))
-		   (LABELS ((INNER-NESTED (X)
-			      (LAMBDA (Y)
-				(LIST X Y))))
-		     (DECLARE (IGNORABLE (FUNCTION INNER-NESTED)))
-		     (SETQ INNER-NESTED #'INNER-NESTED)
-		     INNER-NESTED)))))
+(for-macros
+  (defun top-level-define-form (name-field body)
+    "Returns a top-level form that appropriately defines name-field"
+    (cond
+      ((symbolp name-field)
+       ;; (define symbol {documentation} function)
+       (multiple-value-bind (documentation body) (parse-documentation-from-body body)
+	 (top-level-define-name-form name-field documentation body)))
+      ((consp name-field)
+       ;; (define (symbol . args) . function-body) OR
+       ;; (define (((symbol . args) . args) . args) . function-body)
+       (multiple-value-bind (name lambda-list documentation guard-clauses expanded-body)
+	   (parse-define-function-or-closure name-field body)
+	 `(for-macros
+	    (defun ,name ,lambda-list ,@expanded-body)
+	    (register-define-form #',name '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
+	    ,@(when guard-clauses (register-guard-clauses-forms name guard-clauses))
+	    ,@(when documentation (list (set-function-documentation-form-for-symbol-and-function name documentation)))
+	    ',name)))
+      (t (error "DEFINE: Expected one of symbol, function name (symbol args...), or closure name e.g. (((symbol args...) args...) args...) for the name field, but got ~S" name-field)))))
 
+
+(defmacro define (name-field &body body)
+  "DEFINE has two behaviours depending on whether it is being compiled within a lexical-body.
+
+   If un-nested DEFINE can be used to define functions. There are three cases for defining functions:
+
+   DEFINE can define names for function (setting the fdefinition of name to the function).
+   (define name [documentation] #'function)
+   
+   DEFINE can define functions with scheme-inspired lambda lists and a function-body.
+   (define (name . lambda-list) . function-body)
+
+   DEFINE can define nested closures similar to how functions are defined. 
+   (define (((name . lambda-list0) . lambda-list1) . lambda-list2) . function-body)
+      This would define a function similar to:
+         (defun name lambda-list0
+            (lambda lambda-list1
+               (lambda lambda-list2
+                  . body)))
+
+   A lambda-list can be (in this documentation, {} denotes optional values, ... denotes 0 or more values).
+   (positional-arguments... optional-arguments...)
+   (positional-arguments... keyword-arguments...)
+   (positional-arguments... . rest-argument)
+
+   A positional arugment is a symbol.
+   An optional argument is either:  (symbol) OR (symbol default-value)
+   A keyword argument is a keyword:  :name (:name default-value)
+     If the keyword argument :NAME is used, the symbol NAME will be bound in the function body.
+   A rest-argument is a symbol.
+
+   Positional, optional, and rest-arguments may be autmomatically declared as ignorable by prefixing with an _.
+     If a symbol named _ is used without any suffix, a unique symbol is generated for that argument, and it is declared ignorable. 
+
+   A function-body is structured as follows:
+     ({documentation} declare-forms... {guard} . lexical-body)
+
+   Documentation may either be a string or a DOCUMENTATION-TAG
+   Declare-forms are a list of Common Lisp DECLARE forms.
+   A guard is a GUARD-TAG containing a list of guard-clauses.
+    If provided, each guard-clause will be evaluated when the function is called.
+    If any guard-clause evaluates to false, an error is signaled.
+  
+   A lexical-body is of the form:
+     (define-forms... declare-forms... . body-forms)
+
+   It is an error for any of body-forms to be a DEFINE, DECLARE, or GUARD form.
+
+The behavior of DEFINE forms within a lexical-body is slightly modified and extended.
+   Nested DEFINE forms define both lexically scoped variables and functions.
+   A group of DEFINEs in the same lexical-body are mutually recursive.
+
+   To define a non-function lexical variable the following form is used:
+   (define symbol value)
+
+   A local function is also generated for symbol, meaning that if value is a function the following works:
+   (symbol arguments...)
+
+   Similarly, if a function is defined like:
+   (define (symbol . args) . body)
+   A lexical variable is generated with its value set to #'symbol.
+
+The following forms receive special treatment if they appear in the body-forms of a lexical-body: LET, LET*, LABELS, FLET, MACROLET.
+  The bodies of these forms are treated as if they are lexical-bodies, and therefore may contain define-forms.
+  This ONLY true if these forms appear within a lexical-body's body-forms."
+  `(macrolet ((define (&whole inner-whole &body ignored)
+		(declare (ignore ignored))
+		(error "Improperly nested define: ~S in expansion for ~S" inner-whole ',name-field)))
+     ,(top-level-define-form name-field body)))
 
 (defmacro lambda (arg-list &body body)
-  "A lambda with scheme style argument lists. Some examples:
-  (lambda (arg1 arg2 arg3) (list arg1 arg2 arg3)) ; Arity: 3
-  (lambda (arg1 . args) (list* arg1 args)) ; Arity: at least 1
-  (lambda args args) ; Arity: at least 0
+  "A lambda with scheme style argument lists.
+See DEFINE for more information on function-bodies and lambda-lists.
+NOTE: LAMBDA cannot be used as the name of a function. i.e. it cannot be called ((lambda ...) args...)."
+  (multiple-value-bind (lambda-list documentation guard-clauses expanded-body) 
+      (parse-define-function arg-list body)
+    (let ((fn (unique-symbol 'function)))
+      `(let ((,fn (cl:lambda ,lambda-list ,@expanded-body)))
+	 ,@(when guard-clauses (list `(register-guard-clauses ,fn ',guard-clauses)))
+	 ,@(when documentation 
+	     (list `(progn
+		      (setf (documentation ,fn t)
+			    (documentation-string-for-lambda ',arg-list ,fn (documentation-string ,(documentation-source-form documentation))))
+		      (set-object-documentation-source! ,fn ,(documentation-source-form documentation)))))
+	 ,fn))))
 
-  (lambda args args) ; all arguments stored in args
-  (lambda (p1 p2 . args) (list* p1 p2 args)) ; Rest arg
-  (lambda (p1 p2 (o1 \"default\") (o2 \"default\")) (list p1 p2 o1 o2)) ; Optional args
-  (lambda (p1 p2 :k1 (:k2 \"default\")) (list p1 p2 k1 k2)) ; keyword args
-  Rest/Optional/Keyword arguments are not compatible with each other.
-  See DEFINE for more information on argument lists.
-"
-  (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
-    `(cl:lambda ,lambda-list
-       ,@(ignorable-declaration-body ignorable-args)
-       ,@(expand-function-body body))))
+(define ((((nested-foo _a) . _bs) _c) _)
+  #d"documentation"
+  #g((numberp _a)
+     (numberp _c)
+     (< _a _c)
+     (listp _bs))
 
-(defmacro define (name-or-form &body body)
-  "Definition form.
-  (define new-function-name #'function-name) ;; Sets the fdefinition of new-function-name
-  (define (function-name arg1 arg2 . args) 
-    body...) ;; Expands to
-  (defun function-name (arg1 arg2 &rest args)
-    body...)
+  (let ()
+    (define x 3)
+    (define y 4)
+    (print (* x 3)))
+  (let* ()
+    (define v (list* _a _c _bs))
+    v))
 
-  ;; Optional arguments are specified as (arg-name default-value-form) or (arg-name) which defaults to nil.
-  (define (fn pos1 pos2 (opt1) (opt2 \"default\"))
-    (list pos1 pos2 opt1 opt2))
+(define (lexical-bodies)
+  (let ()
+    (define x 3)
+    (define y 4)
+    (print (* x 3)))
+  (labels ()
+    (define x 2)
+    (print x))
+  (flet ()
+    (define y 'y)
+    (print y))
+  (let* ()
+    (define z 'z)
+    (print z))
+  (let recurse ()
+    (define x 2)
+    (print x))
+  (cl:let ()
+    (define x 'x)
+    (print x))
+  (macrolet ()
+    (define z 'z)
+    (print z))
 
-  ;; Keyword arguments are specified as :arg-name, (:arg-name) both of which default to nil, or (:arg-name default-value-form).
-  (define (fn pos1 pos2 (:k1 \"default\") :k2)
-    (list pos1 pos2 k1 k2))
-
-  ;; Rest/Optional/Keyword arguments are not compatible with each other.
-    
-  ;; Defines can be nested like in scheme.
-  (define (outer-function-name oarg1 oarg2 . oargs)
-    (define (inner-function-name a1 a2) (list a1 a2))
-
-    ;; Definitions can be mutually recursive.
-    (define (mutually-recursive-function1 a) (mutually-recursive-function2 a))
-    (define (mutually-recursive-function2 a) (mutually-recursive-function1 a))
-
-    ;; Nested defines bind both function/lexical variable
-    (inner-function-name oarg1 oarg2) ; as a function
-    inner-function-name) ; returned as a value
-  
-  ;; Define can define functions which return closures:
-  (define ((left-curry . args) f)
-    ...)
-  ;; Expands to
-  (defun left-curry (&rest args)
-    (lambda (f)
-       ...))
-
-  ;; Ignoreable arguments:
-  ;; Optional, positional and rest arguments are affected by these rules, but keyword arguments are not.
-  ;; Arguments which have '_' prefixed to their symbol names are automatically declared ignorable.
-  ;; Argument with the name '_' will be replaced with unique symbols.
-  (define ((foo _ . _ignorable-rest) . _) ...)
-  (define (boo _opt1 (_)) ...)
-  
-  It is an error to mix defines with expressions.
-  Special case: if the first form of a post-define body is a let or a let* you can place defines in that form.
-  Example:
-  (define (outer)
-    (let ((x :x) (y :y))
-      (define (inner1) (cons x y))
-      (let ((z :z))
-        (define (inner2) (list x y z))
-        (inner2))
-      (inner1)))"
-  `(for-macros
-     (macrolet ((define (&whole inner-whole &body ignored)
-		  (declare (ignore ignored))
-		  (error "Improperly nested define: ~S in expansion for ~S" inner-whole ',name-or-form)))
-       ,(expand-top-level-define name-or-form body))))
+  (let ()
+    (print 'a)
+    (let ()
+      (print 'b)
+      (let ()
+	(define x 'x)
+	(print x))))
+  :ok)
 
 (define (((test-nested-defines x) y . yargs) . zargs)
   "Returns a thing"
@@ -434,9 +741,54 @@
 
 (assert (eq :yeah-its-kay (definition-with-definitions-nested-inside-let)))
 
-(defmacro undefine (&rest symbols)
-  "Undefines globally defined functions using fmakunbound."
-  `(progn
-     ,@(mapcar (lambda (name) `(fmakunbound ',name)) symbols)))
+
+;; TODO: selectively disable debug features: REGISTER-DEFINE-FORM, GUARDs, etc.
+
+;; NOTE: Only works if we are at the top level (or in a top level progn)
+#;
+(defmacro macro-params (bindings &body body)
+  (let* ((symbols (mapcar #'first bindings))
+	 (values (mapcar #'second bindings))
+	 (bound-list (mapcar #'boundp symbols))
+	 (old-values (mapcar (lambda (symbol bound?)
+			       (when bound? (symbol-value symbol)))
+			     symbols bound-list))
+	 (body-values (unique-symbol 'body-values)))
+    `(progn
+       ,@(mapcar (lambda (symbol value)
+		   `(setq ,symbol ,value))
+		 symbols values)
+       (let ((,body-values (multiple-value-list (progn ,@body))))
+	 ,@(mapcar (lambda (symbol old-value bound?)
+		     (if bound?
+			 `(setq ,symbol ,old-value)
+			 `(makunbound ',symbol)))
+		   symbols old-values bound-list)
+	 (values-list ,body-values)))))
+
+#;(progn
+    (defvar *foo-print?*)
+    (defvar *foo-value*)
+    (defmacro foo ()
+      (let ((value (or (and (boundp '*foo-value*) *foo-value*)
+		       :no-value)))
+	(if (and (boundp '*foo-print?*) *foo-print?*)
+	    `(print ,value)
+	    `(values ,value :at :all)))))
+
+;; Idea: (WITH-CONTINUATIONS K body...)
+;; Expand body into a form that takes/recieves implicit continuations
+;; adds (call/cc fn) special form
+
+;; would need to handle at least some of the special forms:
+;; block      let*                  return-from      
+;; catch      load-time-value       setq             
+;; eval-when  locally               symbol-macrolet  
+;; flet       macrolet              tagbody          
+;; function   multiple-value-call   the              
+;; go         multiple-value-prog1  throw            
+;; if         progn                 unwind-protect   
+;; labels     progv                                  
+;; let        quote                          
 
 (uninstall-syntax!)

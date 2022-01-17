@@ -1,6 +1,6 @@
 (in-package #:schemeish.and-let)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (for-macros
   (define (and-let*-form clauses body)
@@ -29,4 +29,4 @@ Example (and-let* ((list (compute-list))
           (sqrt item))"
   (and-let*-form clauses body))
 
-(for-macros (uninstall-syntax!))
+(uninstall-syntax!)
