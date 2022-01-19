@@ -12,17 +12,39 @@ The values of body will be passed to the final-continuation
 via (multiple-value-call final-continuation-form body-values)"
   (error "TODO"))
 
-(defvar *block-table* ())
-
-(for-macros
-  (defvar *cps-functions* ()))
-(define (cps-function? name)
+(defvar *lexical-cps-function-names* ())
+(define (lexical-cps-function-name? name)
   "True if name names a function defined in CPS style."
-  (member name *cps-functions*))
-(defmacro with-cps-functions (names &body body)
-  "Append names to *CPS-FUNCTIONS* for the duration of body."
-  `(let ((*cps-functions* (append ,names *cps-functions*)))
+  (member name *lexical-cps-function-names*))
+(defmacro with-lexical-cps-function-names (names &body body)
+  "Append names to *LEXICAL-CPS-FUNCTION-NAMES* for the duration of body."
+  `(let ((*lexical-cps-function-names* (append ,names *lexical-cps-function-names*)))
      ,@body))
+
+(defvar *function->cps-function-table* (make-hash-table :weakness :key))
+(define (cps-function function)
+  "Return the cps-function associated with function or nil if there is none."
+  (hash-ref *function->cps-function-table* function nil))
+(define (set-cps-function! function cps-function)
+  "Associate the cps-function with the given function."
+  (hash-set! *function->cps-function-table* function cps-function))
+(define (cps-function->function cps-function)
+  (let ((fn (lcurry cps-function #'values)))
+    (set-cps-function! fn cps-function)
+    fn))
+
+(define (funcall/c continuation function . arguments)
+  "Call function with arguments, passing the resulting values to continuation. 
+If function has an associated CPS-FUNCTION, call it with the given continuation and arguments."
+  (let ((cps-function (cps-function function)))
+    (if cps-function
+	(apply cps-function continuation arguments)
+	(multiple-value-call continuation (apply function arguments)))))
+(define (apply/c continuation function argument . arguments)
+  "Apply function to arguments. If function has a CPS-FUNCTION, apply it with the given continuation."
+  (when (and (empty? arguments) (not (list? argument)))
+    (error "Non-list argument ~S to apply/c" argument))
+  (apply #'funcall/c function continuation argument (nconc (butlast arguments) (first (last arguments)))))
 
 (define (expr->cps expr)
   "Return the form of a function that takes a continuation, 
@@ -37,13 +59,47 @@ and calls that continuation with the values of expr."
     ((labels? expr) (labels->cps (labels-bindings expr) (labels-body expr)))
     ((flet? expr) (flet->cps (flet-bindings expr) (flet-body expr)))
     ((function? expr) (function->cps (function-name expr)))
-
-    ;; Untouched forms
-    ((lambda? expr) (lambda->cps (lambda-parameters expr) (lambda-body expr)))
     ((quote? expr) (quote->cps expr))
+    ((eval-when? expr) (eval-when->cps (eval-when-situations expr) (eval-when-body expr)))
+    ((setq? expr) (setq->cps (setq-pairs expr)))
+    ((if? expr) (if->cps (if-test expr) (if-then expr) (if-else expr)))
+    ((call/cc? expr) (call/cc->cps (call/cc-function expr)))
+
+    ((lambda? expr) (lambda->cps (lambda-parameters expr) (lambda-body expr)))
 
     ((function-application? expr) (function-application->cps (function-application-function expr) (function-application-arguments expr)))
     ((atom? expr) (atom->cps expr))))
+
+(define (check-cps-for-expr expr)
+  (let ((cps-result (funcall (eval (expr->cps expr)) #'list))
+	(result (multiple-value-list (eval expr))))
+    (unless (equal? result cps-result)
+      (error "CPS-RESULT ~S not the same as RESULT ~S" cps-result result))
+    result))
+
+(export 'call/cc)
+
+(define (call/cc? expr)
+  (and (pair? expr)
+       (= 2 (length expr))
+       (eq? (first expr) 'call/cc)))
+(define (call/cc-function expr)
+  (second expr))
+(define (call/cc->cps function)
+  (let ((function-name (unique-symbol 'call-cc-function))
+	(continuation (unique-symbol 'continue-from-call/cc)))
+    `(cl:lambda (,continuation)
+       (funcall ,(expr->cps function)
+		(cl:lambda (,function-name)
+		  (funcall ,continuation (funcall ,function-name ,continuation)))))))
+
+(defvar *the-continuation*)
+(funcall (eval (expr->cps '(progn
+			    (print 'before)
+			    (call/cc (cl:lambda (k) (setq *the-continuation* k)))
+			    (print 'after))))
+	 #'values)
+
 
 (define (quote? expr)
   (and (pair? expr)
@@ -52,6 +108,8 @@ and calls that continuation with the values of expr."
 (define (quote->cps expr)
   (atom->cps expr))
 
+(check-cps-for-expr '(quote (the quick brown fox)))
+
 (define (function? expr)
   (and (pair? expr)
        (= 2 (length expr))
@@ -59,15 +117,12 @@ and calls that continuation with the values of expr."
 (define (function-name expr)
   (second expr))
 (define (function->cps name)
-  (if (cps-function? name)
-      (let ((args (unique-symbol 'args)))
-	(atom->cps `(cl:lambda (&rest ,args) (apply #'name #'values ,args))))
-      (atom->cps `(function ,name))))
-
-(funcall (first (list (cl:lambda (&rest args) args))))
+  (if (lexical-cps-function-name? name)
+      (atom->cps `(cps-function->function #',name))
+      (atom->cps `#',name)))
 
 (define (function-application? expr)
-  (and (list? expr)
+  (and (pair? expr)
        (positive? (length expr))
        (or (not (list? (first expr)))
 	   (error "Can't handle non-symbol function application yet."))))
@@ -83,10 +138,20 @@ and calls that continuation with the values of expr."
       ((empty? arguments)
        (let ((names (nreverse names)))
 	 (cond
-	   ((cps-function? function)
+	   ((lexical-cps-function-name? function)
 	    ;; If function is a cps function, we need to pass the continuation.
 	    (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-~S" function))))
 	      `(cl:lambda (,continuation) (,function ,continuation ,@names))))
+	   ((eq? function 'cl:funcall)
+	    ;; Special case for funcall
+	    (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-~S" function))))
+	      ;; Use funcall/c and pass the continuation
+	      `(cl:lambda (,continuation) (funcall/c ,continuation ,@names))))
+	   ((eq? function 'cl:apply)
+	    ;; Special case for apply
+	    (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-~S" function))))
+	      ;; Use apply/c and pass the continuation
+	      `(cl:lambda (,continuation) (apply/c ,continuation ,@names))))
 	   (t
 	    ;; If function is non-local, just call it.
 	    (atom->cps `(,function ,@names))))))
@@ -97,11 +162,15 @@ and calls that continuation with the values of expr."
 	   `(funcall ,(expr->cps argument)
 		     (cl:lambda (,name)
 		       ,(recurse (rest arguments) (cons name names) (1+ n))))))))
+
   (recurse arguments () 0))
 
-(assert (equal? (funcall (eval (function-application->cps 'values '(1 2 3))) #'list)
-		'(1 2 3)))
+(check-cps-for-expr '(values 1 2 3))
+(check-cps-for-expr '(funcall #'values 1 2 3))
 
+(check-cps-for-expr '(funcall (cl:lambda (&rest args) (values-list args)) 1 2 3))
+(check-cps-for-expr '(apply (cl:lambda (&rest args) (values-list args)) 1 2 '(3 4)))
+(check-cps-for-expr '(apply (cl:lambda (&rest args) (values-list args)) 1 2 3 ()))
 
 (define (atom? expr)
   t)
@@ -109,8 +178,7 @@ and calls that continuation with the values of expr."
   (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-ATOM"))))
     `(cl:lambda (,continuation) (multiple-value-call ,continuation ,atom))))
 
-(assert (equal? (funcall (eval (atom->cps '(values 1 2 3))) #'list)
-		'(1 2 3)))
+(check-cps-for-expr '1)
 
 (define (progn? expr)
   (and (pair? expr)
@@ -134,8 +202,10 @@ and calls that continuation with the values of expr."
 		       ;; Pass the continuation to the rest of the forms
 		       (funcall ,(progn->cps (rest body)) ,continuation))))))))
 
-(assert (equal? (funcall (eval (progn->cps '((values :no) (values nil) (values 1 2 3)))) #'list)
-		'(1 2 3)))
+(check-cps-for-expr '(progn
+		      (values :no)
+		      (values nil)
+		      (values 1 2 3)))
 
 (define (lambda? expr)
   (and (pair? expr)
@@ -149,13 +219,15 @@ and calls that continuation with the values of expr."
 (define (lambda-body expr)
   (cddr expr))
 (define (lambda->cps parameters body)
-  #;(let ((continuation (unique-symbol (format nil "CONTINUE-FROM-LAMBDA"))))
+  ;; Creates a CPS function and a regular function (with #'VALUES as the continuation).
+  (define cps-lambda
+    (let ((continuation (unique-symbol 'continue-from-lambda)))
       `(cl:lambda ,(cons continuation parameters)
-	 (funcall ,(progn->cps body) ,continuation)))
-  `(cl:lambda ,parameters ,@body))
+	 (funcall ,(progn->cps body) ,continuation))))
+  
+  (atom->cps `(cps-function->function ,cps-lambda)))
 
-(assert (equal? (multiple-value-list (funcall (eval (lambda->cps '(&rest args) '((values-list args)))) 1 2 3))
-		'(1 2 3)))
+(check-cps-for-expr '(funcall (cl:lambda (&rest args) args) 1 2 3))
 
 (define (let? expr)
   (and (pair? expr)
@@ -224,15 +296,13 @@ and calls that continuation with the values of expr."
   (recurse bindings ()))
 
 
-(assert (equal? (funcall (eval (let->cps '((x 1)
-					   y
-					   (z))
-					 '((print x)
-					   (print y)
-					   (print z)
-					   (values x 2 3))))
-			 #'list)
-		'(1 2 3)))
+(check-cps-for-expr '(cl:let ((x 1)
+			      y
+			      (z))
+		      (print x)
+		      (print y)
+		      (print z)
+		      (values x 2 3)))
 
 (define (let*->cps bindings body)
   (define (recurse bindings)
@@ -244,19 +314,18 @@ and calls that continuation with the values of expr."
 		(name (let-binding-name binding))
 		(value (let-binding-value binding)))
 	   ;; Evaluate the next binding's value, binding it to name.
-	   `(funcall ,(expr->cps value) (cl:lambda (,name) ,(recurse (rest bindings))))))))
+	   `(funcall ,(expr->cps value)
+		     (cl:lambda (,name) ,(recurse (rest bindings))))))))
   (recurse bindings))
 
-(assert (equal? (funcall (eval (let*->cps '((x 1)
-					    (y (1+ x))
-					    (z (1+ y)))
-					  '((values x y z))))
-			 #'list)
-		'(1 2 3)))
+(check-cps-for-expr '(cl:let* ((x 1)
+			       (y (1+ x))
+			       (z (1+ y)))
+		      (values x y z)))
 
 (define (block? expr)
   (and (pair? expr)
-       (>= 2 (length expr))
+       (>= (length expr) 2)
        (eq? (first expr) 'cl:block)
        (symbol? (block-name expr))
        (list? (block-body expr))))
@@ -264,11 +333,6 @@ and calls that continuation with the values of expr."
   (second expr))
 (define (block-body expr)
   (cddr expr))
-(define (block->cps name body)
-  (let* ((continuation (unique-symbol (format nil "CONTINUE-FROM-BLOCK-~S-" name)))
-	 (*block-table* (alist-set *block-table* name continuation)))
-    `(lambda (,continuation)
-       (funcall ,(progn->cps body) ,continuation))))
 
 (define (return-from? expr)
   (and (pair? expr)
@@ -280,6 +344,14 @@ and calls that continuation with the values of expr."
 (define (return-from-value expr)
   (or (and (= (length expr) 3) (third expr))
       nil))
+
+(defvar *block-table* ())
+(define (block->cps name body)
+  (let* ((continuation (unique-symbol (format nil "CONTINUE-FROM-BLOCK-~S-" name)))
+	 (*block-table* (alist-set *block-table* name continuation)))
+    `(lambda (,continuation)
+       (funcall ,(progn->cps body) ,continuation))))
+
 (define (return-from->cps name value)
   (let ((continuation (alist-ref *block-table* name))
 	(ignored-continuation (unique-symbol 'ignored-continuation)))
@@ -289,10 +361,9 @@ and calls that continuation with the values of expr."
        (declare (ignore ,ignored-continuation))
        (multiple-value-call ,continuation ,value))))
 
-(assert (equal? (funcall (eval (block->cps 'name '((return-from name (values 1 2 3))
-						   (return-from name :nope))))
-			 #'list)
-		'(1 2 3)))
+(check-cps-for-expr '(cl:block name
+		      (cl:return-from name (values 1 2 3))
+		      (cl:return-from name :nope)))
 
 (define (flet? expr)
   (and (pair? expr)
@@ -309,7 +380,7 @@ and calls that continuation with the values of expr."
   (cddr expr))
 (define (flet-binding? expr)
   (and (pair? expr)
-       (>= 2 (length expr))
+       (>= (length expr) 2)
        (and (not (null? (flet-binding-name expr)))
 	    (symbol? (flet-binding-name expr)))
        (list? (flet-binding-parameters expr))
@@ -324,30 +395,27 @@ and calls that continuation with the values of expr."
   ;; Each binding must be modified to take a continuation
   (define (binding->cps binding)
     (define name (flet-binding-name binding))
-    (define continuation
-      (unique-symbol (format nil "CONTINUE-FROM-FLET-~S-" name)))
+    
+    (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-FLET-~S-" name))))
+      ;; Take continuation as the first parameter
+      (define parameters (cons continuation (flet-binding-parameters binding)))
+      ;; Replace the body with CPS.
+      (define body
+	`((funcall ,(block->cps name (flet-binding-body binding)) ,continuation)))
 
-    ;; Take continuation as the first parameter
-    (define parameters (cons continuation (flet-binding-parameters binding)))
-    ;; Replace the body with CPS.
-    (define body
-      `((funcall ,(block->cps name (flet-binding-body binding)) ,continuation)))
-
-    (list* name parameters body))
+      (list* name parameters body)))
 
   (define names (map #'flet-binding-name bindings))
-  (define continuation (unique-symbol 'continue-from-flet))
-  `(cl:lambda (,continuation)
-     (cl:flet ,(map binding->cps bindings)
-       (funcall
-	;; Lexically bind names for local functions in body. 
-	,(with-cps-functions names (progn->cps body))
-	,continuation))))
+  (let ((continuation (unique-symbol 'continue-from-flet)))
+    `(cl:lambda (,continuation)
+       (cl:flet ,(map binding->cps bindings)
+	 (funcall
+	  ;; Lexically bind names for local functions in body. 
+	  ,(with-lexical-cps-function-names names (progn->cps body))
+	  ,continuation)))))
 
-(assert (equal? (funcall (eval (flet->cps '((foo (x y z) (values x y z)))
-					  '((foo 1 2 3))))
-			 #'list)
-		'(1 2 3)))
+(check-cps-for-expr '(flet ((foo (x y z) (values x y z)))
+		      (foo 1 2 3)))
 
 (define (labels? expr)
   (and (pair? expr)
@@ -364,7 +432,7 @@ and calls that continuation with the values of expr."
   (cddr expr))
 (define (labels-binding? expr)
   (and (pair? expr)
-       (>= 2 (length expr))
+       (>= (length expr) 2)
        (and (not (null? (labels-binding-name expr)))
 	    (symbol? (labels-binding-name expr)))
        (list? (labels-binding-parameters expr))
@@ -380,42 +448,120 @@ and calls that continuation with the values of expr."
   ;; Each binding must be modified to take a continuation
   (define (binding->cps binding)
     (define name (labels-binding-name binding))
-    (define continuation
-      (unique-symbol (format nil "CONTINUE-FROM-LABELS-~S-" name)))
+    (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-LABELS-~S-" name))))
+      ;; Take continuation as the first parameter
+      (define parameters (cons continuation (labels-binding-parameters binding)))
+      ;; Replace the body with CPS.
+      (define body
+	`((funcall ,(block->cps name (labels-binding-body binding)) ,continuation)))
 
-    ;; Take continuation as the first parameter
-    (define parameters (cons continuation (labels-binding-parameters binding)))
-    ;; Replace the body with CPS.
-    (define body
-      `((funcall ,(block->cps name (labels-binding-body binding)) ,continuation)))
-
-    (list* name parameters body))
+      (list* name parameters body)))
 
   (define names (map #'labels-binding-name bindings))
-  (define continuation (unique-symbol 'continue-from-labels))
-  ;; Lexically bind names in body AND in bindings.
-  (with-cps-functions names
-    `(cl:lambda (,continuation)
-       (cl:labels ,(map binding->cps bindings)
-	 (funcall
-	  ,(progn->cps body)
-	  ,continuation)))))
+  (let ((continuation (unique-symbol 'continue-from-labels)))
+    ;; Lexically bind names in body AND in bindings.
+    (with-lexical-cps-function-names names
+      `(cl:lambda (,continuation)
+	 (cl:labels ,(map binding->cps bindings)
+	   (funcall
+	    ,(progn->cps body)
+	    ,continuation))))))
 
-(assert (equal? (funcall (eval (labels->cps '((foo (x y z) (foo2 x y z))
-					      (foo2 (&rest args) (values-list args)))
-					    '((foo 1 2 3))))
-			 #'list)
-		'(1 2 3)))
+(check-cps-for-expr '(labels ((foo (x y z) (foo2 x y z))
+			      (foo2 (&rest args) (values-list args)))
+		      (foo 1 2 3)))
+
+(define (eval-when? expr)
+  (and (pair? expr)
+       (eq? (first expr) 'cl:eval-when)
+       (>= (length expr) 2)
+       (or (list? (eval-when-situations expr))
+	   (error "Badly-formed eval-when situations: ~S" expr))))
+(define (eval-when-situations expr)
+  (second expr))
+(define (eval-when-body expr)
+  (cddr expr))
+(define (eval-when->cps situations body)
+  `(eval-when ,situations
+     (progn->cps ,body)))
+
+(define (setq? expr)
+  (and (pair? expr)
+       (eq (first expr) 'cl:setq)
+       (>= (length expr) 3)
+       (or (odd? (length expr))
+	   (error "badly formed setq pairs: ~S" expr))
+       (or (for-all (lambda (pair) (symbol? (first pair))) (setq-pairs expr))
+	   (error "badly formed setq pairs: ~S" expr))))
+(define (setq-pairs expr)
+  (define (recurse expr pairs)
+    (if (empty? expr)
+	pairs
+	(recurse (cddr expr) (cons (list (first expr) (second expr)) pairs))))
+  (nreverse (recurse (rest expr) ())))
+(define (setq->cps pairs)
+  (define (pairs->cps pairs)
+    (define (pair->cps pair last-pair?)
+      (define name (first pair))
+      (define value (second pair))
+      (define value-name (unique-symbol (format nil "SETQ-~S-VALUE" name)))
+      (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-SETQ-~S" name))))
+	`(cl:lambda (,continuation)
+	   (funcall ,(expr->cps value)
+		    (cl:lambda (,value-name)
+		      (setq ,name ,value-name)
+		      ,(if last-pair?
+			   ;; If this is the last pair, call the continuation with the value.
+			   `(funcall ,continuation ,value-name)
+			   ;; Otherwise pass the continuation along.
+			   `(funcall ,(pairs->cps (rest pairs)) ,continuation)))))))
+
+    (cond
+      ;; Base case: 1 pair remaining
+      ((empty? (rest pairs)) (pair->cps (first pairs) t))
+      (t (pair->cps (first pairs) nil))))
+  (pairs->cps pairs))
+
+(check-cps-for-expr '(cl:let (name name2 name3)
+		      (list (setq name 1
+			     name2 2
+			     name3 3)
+		       name name2 name3)))
+
+(define (if? expr)
+  (and (pair? expr)
+       (eq? (first expr) 'cl:if)
+       (member (length expr) '(3 4))))
+(define (if-test expr)
+  (second expr))
+(define (if-then expr)
+  (third expr))
+(define (if-else expr)
+  (fourth expr))
+(define (if->cps test then else)
+  (let ((continuation (unique-symbol 'continue-from-if))
+	(test-result (unique-symbol 'if-test-result)))
+    `(lambda (,continuation)
+       (funcall ,(expr->cps test)
+		(cl:lambda (,test-result)
+		  (funcall (cl:if ,test-result
+				  ,(expr->cps then)
+				  ,(expr->cps else))
+			   ,continuation))))))
+
+(check-cps-for-expr (if (or t nil)
+			:true
+			:false))
+(check-cps-for-expr (if (and t nil)
+			:true
+			:false))
 
 ;; Forms I will handle.
 
-;;(eval-when (situation...) implicit-progn-forms...)
 ;;(macrolet bindings implicit-progn-forms...)
-;;(locally declarations... implicit-progn-forms...)
 ;;(symbol-macrolet ((symbol expansion-form)...) declarations... implicit-progn-forms...)
+;;(locally declarations... implicit-progn-forms...)
 
-;;(setq pairs...)
-;; Where a pair is symbolic-name value-form
 ;;(if test-form then-form [else-form])
 ;;(multiple-value-prog1 first-form forms...)
 ;;(the value-type form)
