@@ -12,6 +12,8 @@ The values of body will be passed to the final-continuation
 via (multiple-value-call final-continuation-form body-values)"
   (error "TODO"))
 
+
+
 (defvar *lexical-cps-function-names* ())
 (define (lexical-cps-function-name? name)
   "True if name names a function defined in CPS style."
@@ -46,7 +48,7 @@ If function has an associated CPS-FUNCTION, call it with the given continuation 
     (error "Non-list argument ~S to apply/c" argument))
   (apply #'funcall/c function continuation argument (nconc (butlast arguments) (first (last arguments)))))
 
-(define (expr->cps expr)
+(define (expr->cps expr (environment))
   "Return the form of a function that takes a continuation, 
 and calls that continuation with the values of expr."
   (cond
@@ -64,11 +66,22 @@ and calls that continuation with the values of expr."
     ((setq? expr) (setq->cps (setq-pairs expr)))
     ((if? expr) (if->cps (if-test expr) (if-then expr) (if-else expr)))
     ((call/cc? expr) (call/cc->cps (call/cc-function expr)))
-
+    ((macrolet? expr) (macrolet->cps (macrolet-bindings expr) (macrolet-body expr)))
+    
     ((lambda? expr) (lambda->cps (lambda-parameters expr) (lambda-body expr)))
 
+    ((macro-function-application? expr environment) (macro-function-application->cps expr environment))
     ((function-application? expr) (function-application->cps (function-application-function expr) (function-application-arguments expr)))
     ((atom? expr) (atom->cps expr))))
+
+(defmacro expr->cps-in-current-environment (&environment environment expr block-table lexical-cps-function-names)
+  (let ((*block-table* block-table)
+	(*lexical-cps-function-names* lexical-cps-function-names))
+    (expr->cps expr environment)))
+
+(define (expr->cps-form expr)
+  "Return a form that converts expr to cps in the current lexical environment."
+  `(expr->cps-in-current-environment ,expr ,*block-table* ,*lexical-cps-function-names*))
 
 (define (check-cps-for-expr expr)
   (let ((cps-result (funcall (eval (expr->cps expr)) #'list))
@@ -77,8 +90,17 @@ and calls that continuation with the values of expr."
       (error "CPS-RESULT ~S not the same as RESULT ~S" cps-result result))
     result))
 
-(export 'call/cc)
+(define (macro-function-application? expr environment)
+  (and (pair? expr)
+       (macro-function (first expr) environment)))
+(define (macro-function-application->cps expr environment)
+  (expr->cps-form (macroexpand expr environment)))
 
+(defmacro foob (a b c)
+  `(+ ,a ,b ,c))
+(check-cps-for-expr '(+ 1 (foob 1 (foob 2 3 4) 3)))
+
+(export 'call/cc)
 (define (call/cc? expr)
   (and (pair? expr)
        (= 2 (length expr))
@@ -89,17 +111,19 @@ and calls that continuation with the values of expr."
   (let ((function-name (unique-symbol 'call-cc-function))
 	(continuation (unique-symbol 'continue-from-call/cc)))
     `(cl:lambda (,continuation)
-       (funcall ,(expr->cps function)
+       (funcall ,(expr->cps-form function)
 		(cl:lambda (,function-name)
-		  (funcall ,continuation (funcall ,function-name ,continuation)))))))
+		  (multiple-value-call ,continuation (funcall ,function-name ,continuation)))))))
 
-(defvar *the-continuation*)
-(funcall (eval (expr->cps '(progn
-			    (print 'before)
-			    (call/cc (cl:lambda (k) (setq *the-continuation* k)))
-			    (print 'after))))
-	 #'values)
-
+(progn
+  (defvar *the-continuation*)
+  (funcall (eval (expr->cps '(progn
+			      (print 'before)
+			      (print (call/cc (cl:lambda (k) (setq *the-continuation* k) 'during)))
+			      (print 'after)
+			      (values))))
+	   #'values)
+  (funcall [*the-continuation* :again] #'values))
 
 (define (quote? expr)
   (and (pair? expr)
@@ -159,7 +183,7 @@ and calls that continuation with the values of expr."
       (t (let ((argument (first arguments))
 	       (name (unique-symbol (format nil "~A-ARGUMENT-~A-" (symbol->string function) n))))
 	   ;; Evaluate the next argument and store the name of it.
-	   `(funcall ,(expr->cps argument)
+	   `(funcall ,(expr->cps-form argument)
 		     (cl:lambda (,name)
 		       ,(recurse (rest arguments) (cons name names) (1+ n))))))))
 
@@ -190,13 +214,13 @@ and calls that continuation with the values of expr."
     ;; Base case: (progn) => NIL
     ((empty? body) (atom->cps nil))
     ;; Base case: (progn FORM) => FORM
-    ((empty? (rest body)) (expr->cps (first body)))
+    ((empty? (rest body)) (expr->cps-form (first body)))
     ;; Iteration: (progn form forms...)
     (t (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-PROGN")))
 	     (ignored (unique-symbol 'ignored)))
 	 `(cl:lambda (,continuation)
 	    ;; Evaluate first form, discarding result
-	    (funcall ,(expr->cps (first body))
+	    (funcall ,(expr->cps-form (first body))
 		     (cl:lambda (&rest ,ignored)
 		       (declare (ignore ,ignored))
 		       ;; Pass the continuation to the rest of the forms
@@ -289,7 +313,7 @@ and calls that continuation with the values of expr."
 		(name (unique-symbol (format nil "LET-BINDING-VALUE-~S-" (let-binding-name binding))))
 		(value (let-binding-value binding)))
 	   ;; Evaluate the next binding's value
-	   `(funcall ,(expr->cps value)
+	   `(funcall ,(expr->cps-form value)
 		     (cl:lambda (,name)
 		       ,(recurse (rest bindings) (cons name names))))))))
 
@@ -314,7 +338,7 @@ and calls that continuation with the values of expr."
 		(name (let-binding-name binding))
 		(value (let-binding-value binding)))
 	   ;; Evaluate the next binding's value, binding it to name.
-	   `(funcall ,(expr->cps value)
+	   `(funcall ,(expr->cps-form value)
 		     (cl:lambda (,name) ,(recurse (rest bindings))))))))
   (recurse bindings))
 
@@ -507,7 +531,7 @@ and calls that continuation with the values of expr."
       (define value-name (unique-symbol (format nil "SETQ-~S-VALUE" name)))
       (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-SETQ-~S" name))))
 	`(cl:lambda (,continuation)
-	   (funcall ,(expr->cps value)
+	   (funcall ,(expr->cps-form value)
 		    (cl:lambda (,value-name)
 		      (setq ,name ,value-name)
 		      ,(if last-pair?
@@ -542,11 +566,11 @@ and calls that continuation with the values of expr."
   (let ((continuation (unique-symbol 'continue-from-if))
 	(test-result (unique-symbol 'if-test-result)))
     `(lambda (,continuation)
-       (funcall ,(expr->cps test)
+       (funcall ,(expr->cps-form test)
 		(cl:lambda (,test-result)
 		  (funcall (cl:if ,test-result
-				  ,(expr->cps then)
-				  ,(expr->cps else))
+				  ,(expr->cps-form then)
+				  ,(expr->cps-form else))
 			   ,continuation))))))
 
 (check-cps-for-expr (if (or t nil)
@@ -556,9 +580,27 @@ and calls that continuation with the values of expr."
 			:true
 			:false))
 
+(define (macrolet? expr)
+  (and (pair? expr)
+       (>= (length expr) 2)
+       (eq? (first expr) 'cl:macrolet)
+       (or (list? (macrolet-bindings expr))
+	   (error "Badly formed bindings for macrolet: ~S" expr))))
+(define (macrolet-bindings expr)
+  (second expr))
+(define (macrolet-body expr)
+  (cddr expr))
+(define (macrolet->cps bindings body)
+  (define continuation (unique-symbol 'continue-from-macrolet))
+  `(cl:lambda (,continuation)
+     (cl:macrolet ,bindings
+       (funcall ,(progn->cps body) ,continuation))))
+
+(check-cps-for-expr '(macrolet ((foo (x y z) `(values ,x ,y ,z)))
+		      (foo 1 2 3)))
+
 ;; Forms I will handle.
 
-;;(macrolet bindings implicit-progn-forms...)
 ;;(symbol-macrolet ((symbol expansion-form)...) declarations... implicit-progn-forms...)
 ;;(locally declarations... implicit-progn-forms...)
 
