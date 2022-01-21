@@ -6,13 +6,27 @@
 
 (install-syntax!)
 
-(defmacro with-continuations (final-continuation-form &body body)
-  "Convert body into an equivalent expression that uses continuation-passing-style.
+#;(defmacro with-continuations (final-continuation-form &body body)
+    "Convert body into an equivalent expression that uses continuation-passing-style.
 The values of body will be passed to the final-continuation 
 via (multiple-value-call final-continuation-form body-values)"
-  (error "TODO"))
+    (error "TODO"))
 
+(define (declare? form) (and (pair? form) (eq? (first form) 'cl:declare)))
 
+(define (body-declarations body)
+  (takef body #'declare?))
+(define (body-forms body)
+  (dropf body #'declare?))
+
+(define (function-body-declarations body)
+  (if (and (string? (first body)) (not (empty? (rest body))))
+      (cons (first body) (body-declarations (rest body)))
+      (body-declarations body)))
+(define (function-body-forms body)
+  (if (and (string? (first body)) (not (empty? (rest body))))
+      (body-forms (rest body))
+      (body-forms body)))
 
 (defvar *lexical-cps-function-names* ())
 (define (lexical-cps-function-name? name)
@@ -53,7 +67,7 @@ If function has an associated CPS-FUNCTION, call it with the given continuation 
 and calls that continuation with the values of expr."
   (cond
     ;; Special Forms
-    ((progn? expr) (progn->cps (progn-body expr)))
+    ((progn? expr) (progn->cps (progn-forms expr)))
     ((let? expr) (let->cps (let-bindings expr) (let-body expr)))
     ((let*? expr) (let*->cps (let*-bindings expr) (let*-body expr)))
     ((block? expr) (block->cps (block-name expr) (block-body expr)))
@@ -62,11 +76,15 @@ and calls that continuation with the values of expr."
     ((flet? expr) (flet->cps (flet-bindings expr) (flet-body expr)))
     ((function? expr) (function->cps (function-name expr)))
     ((quote? expr) (quote->cps expr))
-    ((eval-when? expr) (eval-when->cps (eval-when-situations expr) (eval-when-body expr)))
+    ((eval-when? expr) (eval-when->cps (eval-when-situations expr) (eval-when-forms expr)))
     ((setq? expr) (setq->cps (setq-pairs expr)))
     ((if? expr) (if->cps (if-test expr) (if-then expr) (if-else expr)))
     ((call/cc? expr) (call/cc->cps (call/cc-function expr)))
     ((macrolet? expr) (macrolet->cps (macrolet-bindings expr) (macrolet-body expr)))
+    ((symbol-macrolet? expr) (symbol-macrolet->cps (symbol-macrolet-bindings expr) (symbol-macrolet-body expr)))
+    ((locally? expr) (locally->cps (locally-body expr)))
+    ((tagbody? expr) (tagbody->cps (tagbody-tags-and-statements expr)))
+    ((go? expr) (go->cps (go-tag expr)))
     
     ((lambda? expr) (lambda->cps (lambda-parameters expr) (lambda-body expr)))
 
@@ -74,14 +92,15 @@ and calls that continuation with the values of expr."
     ((function-application? expr) (function-application->cps (function-application-function expr) (function-application-arguments expr)))
     ((atom? expr) (atom->cps expr))))
 
-(defmacro expr->cps-in-current-environment (&environment environment expr block-table lexical-cps-function-names)
+(defmacro expr->cps-in-current-environment (&environment environment expr block-table lexical-cps-function-names tag->function-name-table)
   (let ((*block-table* block-table)
+	(*tag->function-name-table* tag->function-name-table)
 	(*lexical-cps-function-names* lexical-cps-function-names))
     (expr->cps expr environment)))
 
 (define (expr->cps-form expr)
-  "Return a form that converts expr to cps in the current lexical environment."
-  `(expr->cps-in-current-environment ,expr ,*block-table* ,*lexical-cps-function-names*))
+  "Return a form that, when evaluted, converts expr to cps in the current lexical environment."
+  `(expr->cps-in-current-environment ,expr ,*block-table* ,*lexical-cps-function-names* ,*tag->function-name-table*))
 
 (define (check-cps-for-expr expr)
   (let ((cps-result (funcall (eval (expr->cps expr)) #'list))
@@ -207,24 +226,24 @@ and calls that continuation with the values of expr."
 (define (progn? expr)
   (and (pair? expr)
        (eq? (car expr) 'cl:progn)))
-(define (progn-body expr)
+(define (progn-forms expr)
   (rest expr))
-(define (progn->cps body)
+(define (progn->cps forms)
   (cond
     ;; Base case: (progn) => NIL
-    ((empty? body) (atom->cps nil))
+    ((empty? forms) (atom->cps nil))
     ;; Base case: (progn FORM) => FORM
-    ((empty? (rest body)) (expr->cps-form (first body)))
+    ((empty? (rest forms)) (expr->cps-form (first forms)))
     ;; Iteration: (progn form forms...)
     (t (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-PROGN")))
 	     (ignored (unique-symbol 'ignored)))
 	 `(cl:lambda (,continuation)
 	    ;; Evaluate first form, discarding result
-	    (funcall ,(expr->cps-form (first body))
+	    (funcall ,(expr->cps-form (first forms))
 		     (cl:lambda (&rest ,ignored)
 		       (declare (ignore ,ignored))
 		       ;; Pass the continuation to the rest of the forms
-		       (funcall ,(progn->cps (rest body)) ,continuation))))))))
+		       (funcall ,(progn->cps (rest forms)) ,continuation))))))))
 
 (check-cps-for-expr '(progn
 		      (values :no)
@@ -244,14 +263,17 @@ and calls that continuation with the values of expr."
   (cddr expr))
 (define (lambda->cps parameters body)
   ;; Creates a CPS function and a regular function (with #'VALUES as the continuation).
+  (define declarations (function-body-declarations body))
+  (define forms (function-body-forms body))
   (define cps-lambda
     (let ((continuation (unique-symbol 'continue-from-lambda)))
       `(cl:lambda ,(cons continuation parameters)
-	 (funcall ,(progn->cps body) ,continuation))))
+	 ,@declarations
+	 (funcall ,(progn->cps forms) ,continuation))))
   
   (atom->cps `(cps-function->function ,cps-lambda)))
 
-(check-cps-for-expr '(funcall (cl:lambda (&rest args) args) 1 2 3))
+(check-cps-for-expr '(funcall (cl:lambda (&rest args) (declare (ignorable args)) args) 1 2 3))
 
 (define (let? expr)
   (and (pair? expr)
@@ -298,16 +320,20 @@ and calls that continuation with the values of expr."
 
 (define (let->cps bindings body)
   (define binding-names (map #'let-binding-name bindings))
+  
   (define (recurse bindings names)
     (cond
       ;; Base case: Assign bindings to evaluated values.
       ((empty? bindings)
        (let* ((continuation (unique-symbol (format nil "CONTINUE-FROM-LET")))
-	      (new-bindings (map #'list binding-names (nreverse names))))
+	      (new-bindings (map #'list binding-names (nreverse names)))
+	      (declarations (body-declarations body))
+	      (forms (body-forms body)))
 	 `(cl:lambda (,continuation)
 	    ;; Use LET to assign bindings so that we automatically handle dynamic variables.
 	    (cl:let ,new-bindings
-	      (funcall ,(progn->cps body) ,continuation)))))
+	      ,@declarations
+	      (funcall ,(progn->cps forms) ,continuation)))))
       ;; Iteration case: evaluate value of next binding, and store its name
       (t (let* ((binding (first bindings))
 		(name (unique-symbol (format nil "LET-BINDING-VALUE-~S-" (let-binding-name binding))))
@@ -319,20 +345,33 @@ and calls that continuation with the values of expr."
 
   (recurse bindings ()))
 
-
 (check-cps-for-expr '(cl:let ((x 1)
 			      y
 			      (z))
+		      (declare (ignorable x))
+		      (declare (ignorable z))
 		      (print x)
 		      (print y)
 		      (print z)
 		      (values x 2 3)))
 
 (define (let*->cps bindings body)
+  (define binding-names (map #'let-binding-name bindings))
   (define (recurse bindings)
     (cond
       ;; Base case: Evaluate body
-      ((empty? bindings) (progn->cps body))
+      ;; Unfortunately declarations can only apply to the body.
+      ;; This is inevitable, since each binding depends on the previous binding.
+      ((empty? bindings)
+       ;; Create a let that binds (name name), so that we can add declarations.
+       (let* ((continuation (unique-symbol (format nil "CONTINUE-FROM-LET")))
+	      (new-bindings (map #'list binding-names binding-names))
+	      (declarations (body-declarations body))
+	      (forms (body-forms body)))
+	 `(cl:lambda (,continuation)
+	    (cl:let ,new-bindings
+	      ,@declarations
+	      (funcall ,(progn->cps forms) ,continuation)))))
       ;; Iteration case: evaluate value of next binding, and bind it.
       (t (let* ((binding (first bindings))
 		(name (let-binding-name binding))
@@ -345,7 +384,8 @@ and calls that continuation with the values of expr."
 (check-cps-for-expr '(cl:let* ((x 1)
 			       (y (1+ x))
 			       (z (1+ y)))
-		      (values x y z)))
+		      (declare (type number y))
+		      (values x z)))
 
 (define (block? expr)
   (and (pair? expr)
@@ -385,16 +425,12 @@ and calls that continuation with the values of expr."
        (declare (ignore ,ignored-continuation))
        (multiple-value-call ,continuation ,value))))
 
-(check-cps-for-expr '(cl:block name
-		      (cl:return-from name (values 1 2 3))
-		      (cl:return-from name :nope)))
-
 (define (flet? expr)
   (and (pair? expr)
        (eq? (first expr) 'cl:flet)
        (or (pair? (flet-bindings expr))
 	   (error "Malformed FLET bindings: ~S" expr))
-       (or (for-all #'flet-binding? (flet-bindings expr))
+       (or (for-all #'function-binding? (flet-bindings expr))
 	   (error "Malformed FLET bindings: ~S" expr))
        (or (list? (flet-body expr))
 	   (error "Malformed FLET body: ~S" expr))))
@@ -402,43 +438,52 @@ and calls that continuation with the values of expr."
   (second expr))
 (define (flet-body expr)
   (cddr expr))
-(define (flet-binding? expr)
+
+(define (function-binding? expr)
   (and (pair? expr)
        (>= (length expr) 2)
-       (and (not (null? (flet-binding-name expr)))
-	    (symbol? (flet-binding-name expr)))
-       (list? (flet-binding-parameters expr))
-       (list? (flet-binding-body expr))))
-(define (flet-binding-name expr)
+       (and (not (null? (function-binding-name expr)))
+	    (symbol? (function-binding-name expr)))
+       (list? (function-binding-parameters expr))
+       (list? (function-binding-body expr))))
+(define (function-binding-name expr)
   (first expr))
-(define (flet-binding-parameters expr)
+(define (function-binding-parameters expr)
   (second expr))
-(define (flet-binding-body expr)
+(define (function-binding-body expr)
   (cddr expr))
+
+
+(define (function-binding->cps binding)
+  (define name (function-binding-name binding))
+  (define continuation (unique-symbol (format nil "CONTINUE-FROM-LOCAL-FUNCTION-~S-" name)))
+  ;; Take continuation as the first parameter
+  (define parameters (cons continuation (function-binding-parameters binding)))
+  (define body (function-binding-body binding))
+  (define declarations (function-body-declarations body))
+  (define forms (function-body-forms body))
+  `(,name ,parameters
+	  ,@declarations
+	  (funcall ,(block->cps name forms) ,continuation)))
+
 (define (flet->cps bindings body)
-  ;; Each binding must be modified to take a continuation
-  (define (binding->cps binding)
-    (define name (flet-binding-name binding))
-    
-    (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-FLET-~S-" name))))
-      ;; Take continuation as the first parameter
-      (define parameters (cons continuation (flet-binding-parameters binding)))
-      ;; Replace the body with CPS.
-      (define body
-	`((funcall ,(block->cps name (flet-binding-body binding)) ,continuation)))
-
-      (list* name parameters body)))
-
   (define names (map #'flet-binding-name bindings))
-  (let ((continuation (unique-symbol 'continue-from-flet)))
-    `(cl:lambda (,continuation)
-       (cl:flet ,(map binding->cps bindings)
-	 (funcall
-	  ;; Lexically bind names for local functions in body. 
-	  ,(with-lexical-cps-function-names names (progn->cps body))
-	  ,continuation)))))
+  (define continuation (unique-symbol 'continue-from-flet))
+  (define declarations (body-declarations body))
+  (define forms (body-forms body))
+  `(cl:lambda (,continuation)
+     (cl:flet ,(map #'function-binding->cps bindings)
+       ,@declarations
+       (funcall
+	;; Lexically bind names for local functions in body only. 
+	,(with-lexical-cps-function-names names (progn->cps forms))
+	,continuation))))
 
-(check-cps-for-expr '(flet ((foo (x y z) (values x y z)))
+(check-cps-for-expr '(flet ((foo (x y z)
+			     "docstring"
+			     (declare (ignorable y))
+			     (values x y z)))
+		      (declare (ignorable (function foo)))
 		      (foo 1 2 3)))
 
 (define (labels? expr)
@@ -446,7 +491,7 @@ and calls that continuation with the values of expr."
        (eq? (first expr) 'cl:labels)
        (or (pair? (labels-bindings expr))
 	   (error "Malformed LABELS bindings: ~S" expr))
-       (or (for-all #'labels-binding? (labels-bindings expr))
+       (or (for-all #'function-binding? (labels-bindings expr))
 	   (error "Malformed LABELS bindings: ~S" expr))
        (or (list? (labels-body expr))
 	   (error "Malformed LABELS body: ~S" expr))))
@@ -454,45 +499,22 @@ and calls that continuation with the values of expr."
   (second expr))
 (define (labels-body expr)
   (cddr expr))
-(define (labels-binding? expr)
-  (and (pair? expr)
-       (>= (length expr) 2)
-       (and (not (null? (labels-binding-name expr)))
-	    (symbol? (labels-binding-name expr)))
-       (list? (labels-binding-parameters expr))
-       (list? (labels-binding-body expr))))
-(define (labels-binding-name expr)
-  (first expr))
-(define (labels-binding-parameters expr)
-  (second expr))
-(define (labels-binding-body expr)
-  (cddr expr))
 
 (define (labels->cps bindings body)
-  ;; Each binding must be modified to take a continuation
-  (define (binding->cps binding)
-    (define name (labels-binding-name binding))
-    (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-LABELS-~S-" name))))
-      ;; Take continuation as the first parameter
-      (define parameters (cons continuation (labels-binding-parameters binding)))
-      ;; Replace the body with CPS.
-      (define body
-	`((funcall ,(block->cps name (labels-binding-body binding)) ,continuation)))
-
-      (list* name parameters body)))
-
   (define names (map #'labels-binding-name bindings))
-  (let ((continuation (unique-symbol 'continue-from-labels)))
-    ;; Lexically bind names in body AND in bindings.
-    (with-lexical-cps-function-names names
-      `(cl:lambda (,continuation)
-	 (cl:labels ,(map binding->cps bindings)
-	   (funcall
-	    ,(progn->cps body)
-	    ,continuation))))))
+  (define continuation (unique-symbol 'continue-from-labels))
+  (define declarations (body-declarations body))
+  (define forms (body-forms body))
+  ;; Lexically bind names in body AND in bindings.
+  (with-lexical-cps-function-names names
+    `(cl:lambda (,continuation)
+       (cl:labels ,(map #'function-binding->cps bindings)
+	 ,@declarations
+	 (funcall ,(progn->cps forms) ,continuation)))))
 
-(check-cps-for-expr '(labels ((foo (x y z) (foo2 x y z))
-			      (foo2 (&rest args) (values-list args)))
+(check-cps-for-expr '(labels ((foo (x y z) "docstring" (declare (ignorable x z)) (foo2 x y z))
+			      (foo2 (&rest args) "docstring" (declare (ignorable args)) (values-list args)))
+		      (declare (ignorable (function foo2)))
 		      (foo 1 2 3)))
 
 (define (eval-when? expr)
@@ -503,11 +525,11 @@ and calls that continuation with the values of expr."
 	   (error "Badly-formed eval-when situations: ~S" expr))))
 (define (eval-when-situations expr)
   (second expr))
-(define (eval-when-body expr)
+(define (eval-when-forms expr)
   (cddr expr))
-(define (eval-when->cps situations body)
+(define (eval-when->cps situations forms)
   `(eval-when ,situations
-     (progn->cps ,body)))
+     (progn->cps ,forms)))
 
 (define (setq? expr)
   (and (pair? expr)
@@ -592,27 +614,233 @@ and calls that continuation with the values of expr."
   (cddr expr))
 (define (macrolet->cps bindings body)
   (define continuation (unique-symbol 'continue-from-macrolet))
+  (define declarations (body-declarations body))
+  (define forms (body-forms body))
   `(cl:lambda (,continuation)
      (cl:macrolet ,bindings
-       (funcall ,(progn->cps body) ,continuation))))
+       ,@declarations
+       (funcall ,(progn->cps forms) ,continuation))))
 
 (check-cps-for-expr '(macrolet ((foo (x y z) `(values ,x ,y ,z)))
 		      (foo 1 2 3)))
 
+(define (symbol-macrolet? expr)
+  (and (pair? expr)
+       (>= (length expr) 2)
+       (eq? (first expr) 'cl:symbol-macrolet)
+       (or (list? (symbol-macrolet-bindings expr))
+	   (error "Badly formed bindings for macrolet: ~S" expr))))
+(define (symbol-macrolet-bindings expr)
+  (second expr))
+(define (symbol-macrolet-body expr)
+  (cddr expr))
+(define (symbol-macrolet->cps bindings body)
+  (define continuation (unique-symbol 'continue-from-symbol-macrolet))
+  (define declarations (body-declarations body))
+  (define forms (body-forms body))
+  `(cl:lambda (,continuation)
+     (cl:symbol-macrolet ,bindings
+       ,@declarations
+       (funcall ,(progn->cps forms) ,continuation))))
+
+(check-cps-for-expr '(symbol-macrolet ((foo (+ 1 2 3))) foo))
+
+(define (locally? expr)
+  (and (pair? expr)
+       (eq? (first expr) 'cl:locally)))
+(define (locally-body expr)
+  (cdr expr))
+(define (locally->cps body)
+  (define continuation (unique-symbol 'continue-from-locally))
+  (define declarations (body-declarations body))
+  (define forms (body-forms body))
+  `(cl:lambda (,continuation)
+     (cl:locally ,@declarations (funcall ,(progn->cps forms) ,continuation))))
+
+(check-cps-for-expr '(locally
+		      (declare (special *lexical-cps-function-names*))
+		      (values 1 2 3)))
+
+
+(define (tagbody? expr)
+  (and (pair? expr)
+       (eq? (first expr) 'cl:tagbody)))
+(define (tagbody-tags-and-statements expr)
+  (cdr expr))
+
+(defvar *tag->function-name-table* ())
+
+(define (parse-tagbody tags-and-statements)
+  "Return (untagged-statements . (tag . statements)...)."
+  (define (tag? tag-or-statement)
+    (or (symbol? tag-or-statement)
+	(integerp tag-or-statement)))
+  (define (statement? tag-or-statement)
+    (not (tag? tag-or-statement)))
+
+  (define untagged-statements (takef tags-and-statements statement?))
+  (define tagged-statements (dropf tags-and-statements statement?))
+
+  (define (tagged-forms-iter tags-and-statements tagged-forms)
+    (define (parse-next-tagged-form)
+      (define tag (first tags-and-statements))
+      (define statements-and-tagged-statements (rest tags-and-statements))
+      (define statements (takef statements-and-tagged-statements statement?))
+      (define rest-tags-and-statements (dropf statements-and-tagged-statements statement?))
+
+      (tagged-forms-iter rest-tags-and-statements (cons (cons tag statements) tagged-forms)))
+    
+    (cond
+      ((empty? tags-and-statements) tagged-forms)
+      (t (parse-next-tagged-form))))
+  
+  (define tagged-forms
+    (nreverse (tagged-forms-iter tagged-statements ())))
+
+  (cons untagged-statements tagged-forms))
+
+(define (alist-union alist new-alist)
+  (foldl (lambda (pair alist)
+	   (alist-set alist (car pair) (cdr pair)))
+	 alist new-alist))
+
+(define (tagbody->cps tags-and-statements)
+  (define parsed (parse-tagbody tags-and-statements))
+  (define untagged-statements (first parsed))
+  (define tagged-forms (rest parsed))
+
+  (define (tagged-form->name form) (first form))
+  (define (tagged-form->statements form) (rest form))
+
+  (define untagged-function-name (unique-symbol 'untagged-statements))
+  (define tagged-form-names (map tagged-form->name tagged-forms))
+  (define tagged-form-statements (map tagged-form->statements tagged-forms))
+
+  (define tagged-function-names
+    (map (lambda (name) (unique-symbol (format nil "TAG-~S-" name))) tagged-form-names))
+
+  ;; The continuation passed to the tagbody
+  (define tagbody-continuation (unique-symbol 'continue-from-tagbody))
+  ;; Continues from tagbody-statements, calls tagbody-continuation with nil.
+  (define tagbody-statements-continuation (unique-symbol 'continue-from-tagbody-statements))
+
+  ;; The untagged-form continues to the first tagged-form,
+  ;; or if there are no tagged-forms, it continues to the tagbody-statements-continuation.
+  (define untagged-form-continuation
+    (if (empty? tagged-function-names)
+	tagbody-statements-continuation
+	`(function ,(first tagged-function-names))))
+  ;; Each tagged-form continues to the next tagged-form,
+  ;; except the last tagged-form continues to the tagbody-statements-continuation.
+  (define tagged-form-continuations
+    (append (map (lambda (name) `(function ,name)) (rest tagged-function-names))
+	    (list tagbody-statements-continuation)))
+
+  (define (continuation-function-binding-form function-name statements continuation)
+    "Creates a function-binding in the form of a continuation whose results are ignored."
+    (define ignored-parameter (unique-symbol 'ignored))
+    `(,function-name (&rest ,ignored-parameter)
+		     (declare (ignore ,ignored-parameter))
+		     (funcall ,(progn->cps statements) ,continuation)))
+
+  ;; Add the tags from the tagged-forms to the *tag->function-name-table* for (GO ...) forms
+  (let ((*tag->function-name-table* (alist-union *tag->function-name-table*
+						 (map #'cons tagged-form-names tagged-function-names))))
+
+    ;; Function-binding definitions of continuations for each tagged-form.
+    (define tagged-function-bindings (map continuation-function-binding-form
+					  tagged-function-names tagged-form-statements tagged-form-continuations))
+
+    ;; Function-binding definitions of continuations for the untagged and tagged-forms.
+    (define function-bindings
+      (cond
+	((empty? untagged-statements) tagged-function-bindings)
+	(t (cons (continuation-function-binding-form untagged-function-name
+						     untagged-statements
+						     untagged-form-continuation)
+		 tagged-function-bindings))))
+
+    ;; The first continuation to call: Either the untagged form, or the first tagged form.
+    (define start-function-name
+      (cond
+	((empty? untagged-statements) (first tagged-function-names))
+	(t untagged-function-name)))
+    
+    (cond
+      ;; Empty tagbody:
+      ((and (empty? untagged-statements) (empty? tagged-forms)) (atom->cps nil))
+      (t (let ((ignored-parameter (unique-symbol 'ignored)))
+	   `(cl:lambda (,tagbody-continuation)
+	      ;; Create an intermediate continuation that calls the tagbody-continuation with NIL.
+	      (cl:let ((,tagbody-statements-continuation
+			 (cl:lambda (&rest ,ignored-parameter)
+			   (declare (ignore ,ignored-parameter))
+			   (funcall ,tagbody-continuation nil))))
+		;; Establish the continuations as function bindings.
+		(cl:labels ,function-bindings
+		  ;; Call the first continuation.
+		  (,start-function-name)))))))))
+
+(define (go? expr)
+  (and (pair? expr)
+       (eq? (first expr) 'cl:go)
+       (or (= 2 (length expr))
+	   (error "Improperly formed GO: ~S" expr))))
+(define (go-tag expr)
+  (second expr))
+(define (go->cps tag)
+  (unless (alist-has-key? *tag->function-name-table* tag)
+    (error "TAG ~S not found" tag))
+  (let ((function-name (alist-ref *tag->function-name-table* tag))
+	(ignored-continuation (unique-symbol 'go-ignored-continuation)))
+    `(cl:lambda (,ignored-continuation)
+       (declare (ignore ,ignored-continuation))
+       (,function-name))))
+
+(check-cps-for-expr '(tagbody))
+(check-cps-for-expr '(let (vals)
+		      (tagbody
+		       point-a
+			 (setq vals '(1 2 3)))
+		      vals))
+(check-cps-for-expr '(tagbody (values 1 2 3)))
+
+(check-cps-for-expr '(let (vals)
+		      (tagbody
+			 (push 1 vals)
+		       point-a
+			 (push 2 vals)
+		       point-b
+			 (go point-d)
+		       point-c
+			 (push 'do-not-push vals)
+		       point-d
+			 (push 3 vals))
+		      (nreverse vals)))
+
+(check-cps-for-expr '(cl:let (val)
+		      (tagbody
+			 (setq val 1)
+			 (go point-a)
+			 (incf val 16)
+		       point-c
+			 (incf val 04)
+			 (go point-b)
+			 (incf val 32)
+		       point-a
+			 (incf val 02)
+			 (go point-c)
+			 (incf val 64)
+		       point-b
+			 (incf val 08))
+		      val))
+
+
 ;; Forms I will handle.
 
-;;(symbol-macrolet ((symbol expansion-form)...) declarations... implicit-progn-forms...)
-;;(locally declarations... implicit-progn-forms...)
-
-;;(if test-form then-form [else-form])
 ;;(multiple-value-prog1 first-form forms...)
 ;;(the value-type form)
 ;;(multiple-value-call function arg arguments...)
-
-;; Enables (go tag) form anywhere within the tagbody.
-;;(tagbody tags-or-statements...)
-
-;; I can handle statements easily, but go is complicated, and tagbody doesn't really allow for re-entrance.
 
 ;; No idea what to do with load-time-value
 ;;(load-time-value form read-only-p)
