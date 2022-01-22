@@ -60,7 +60,9 @@ If function has an associated CPS-FUNCTION, call it with the given continuation 
   "Apply function to arguments. If function has a CPS-FUNCTION, apply it with the given continuation."
   (when (and (empty? arguments) (not (list? argument)))
     (error "Non-list argument ~S to apply/c" argument))
-  (apply #'funcall/c function continuation argument (nconc (butlast arguments) (first (last arguments)))))
+  (if (empty? arguments)
+      (apply #'funcall/c continuation function argument)
+      (apply #'funcall/c continuation function argument (nconc (butlast arguments) (first (last arguments))))))
 
 (define (expr->cps expr (environment))
   "Return the form of a function that takes a continuation, 
@@ -85,6 +87,14 @@ and calls that continuation with the values of expr."
     ((locally? expr) (locally->cps (locally-body expr)))
     ((tagbody? expr) (tagbody->cps (tagbody-tags-and-statements expr)))
     ((go? expr) (go->cps (go-tag expr)))
+    ((the? expr) (the->cps (the-value-type expr) (the-form expr)))
+    ((progv? expr) (progv->cps (progv-vars expr) (progv-vals expr) (progv-forms expr)))
+    ((unwind-protect? expr) (unwind-protect->cps (unwind-protect-cleanup expr) (unwind-protect-protected expr)))
+    ((catch? expr) (catch->cps (catch-tag expr) (catch-forms expr)))
+    ((throw? expr) (throw->cps (throw-tag expr) (throw-result expr)))
+    ((load-time-value? expr) (load-time-value->cps (load-time-value-form expr) (load-time-value-read-only-p expr)))
+    ((multiple-value-call? expr) (multiple-value-call->cps (multiple-value-call-function expr) (multiple-value-call-arguments expr)))
+    ((multiple-value-prog1? expr) (multiple-value-prog1->cps (multiple-value-prog1-values-form expr) (multiple-value-prog1-forms expr)))
     
     ((lambda? expr) (lambda->cps (lambda-parameters expr) (lambda-body expr)))
 
@@ -643,7 +653,9 @@ and calls that continuation with the values of expr."
        ,@declarations
        (funcall ,(progn->cps forms) ,continuation))))
 
-(check-cps-for-expr '(symbol-macrolet ((foo (+ 1 2 3))) foo))
+(check-cps-for-expr '(symbol-macrolet ((x 'foo))
+		      (list x (let ((x 'bar)) x))))
+
 
 (define (locally? expr)
   (and (pair? expr)
@@ -835,17 +847,177 @@ and calls that continuation with the values of expr."
 			 (incf val 08))
 		      val))
 
+(define (the? expr)
+  (and (pair? expr)
+       (= 3 (length expr))
+       (eq? (first expr) 'cl:the)))
+(define (the-value-type expr)
+  (second expr))
+(define (the-form expr)
+  (third expr))
+(define (the->cps value-type form)
+  (define continuation (unique-symbol 'continue-from-the))
+  (define form-values (unique-symbol 'the-form-values))
+  `(cl:lambda (,continuation)
+     (funcall ,(expr->cps-form form)
+	      (cl:lambda (&rest ,form-values)
+		(multiple-value-call ,continuation (the ,value-type (values-list ,form-values)))))))
+(check-cps-for-expr '(the fixnum (+ 5 7)))
+(check-cps-for-expr '(the (values integer float symbol t null list) (truncate 3.2 2)))
+(check-cps-for-expr '(let* ((x (list 'a 'b 'c))
+			    (y 5))
+		      (setf (the fixnum (car x)) y)
+		      x))
 
-;; Forms I will handle.
+(define (multiple-value-prog1? expr)
+  (and (pair? expr)
+       (>= (length expr) 2)
+       (eq? (first expr) 'cl:multiple-value-prog1)))
+(define (multiple-value-prog1-values-form expr)
+  (second expr))
+(define (multiple-value-prog1-forms expr)
+  (cddr expr))
+(define (multiple-value-prog1->cps values-form forms)
+  (define continuation (unique-symbol 'continue-from-multiple-value-prog1))
+  (define results (unique-symbol 'multiple-value-results))
+  (define ignored (unique-symbol 'ignored))
+  `(cl:lambda (,continuation)
+     ;; Evaluate the values form...
+     (funcall ,(expr->cps-form values-form)
+	      (cl:lambda (&rest ,results)
+		;; ...saving the results
+		;; evalute forms from left to right
+		(funcall ,(progn->cps forms)
+			 (cl:lambda (&rest ,ignored)
+			   (declare (ignore ,ignored))
+			   ;; Return the saved results
+			   (apply ,continuation ,results)))))))
+
+(check-cps-for-expr '(let (temp)
+		      (setq temp '(1 2 3))
+		      (multiple-value-prog1
+			  (values-list temp)
+			(setq temp nil)
+			(values-list temp))))
+
+(define (multiple-value-call? expr)
+  (and (pair? expr)
+       (>= (length expr) 3)
+       (eq? (first expr) 'cl:multiple-value-call)))
+(define (multiple-value-call-function expr)
+  (second expr))
+(define (multiple-value-call-arguments expr)
+  (cddr expr))
+(define (multiple-value-call->cps function arguments)
+  ;; evaluate function
+  ;; evaluate each argument
+  ;; all values from each argument are gathered together and given to function
+  (define continuation (unique-symbol 'continue-from-multiple-value-call))
+  (define function-result (unique-symbol 'multiple-value-call-function))
+  (define arguments-results (unique-symbol 'multiple-value-call-arguments))
+
+  (define (arguments->cps arguments)
+    "Return a function that takes a continuation and calls that continuation 
+with a list of all values of each argument in arguments."
+    (define (arguments->cps-iter arguments n)
+      (cond
+	;; Base Case: no arguments, just return nil.
+	((empty? arguments) (atom->cps nil))
+	(t (let ((continuation (unique-symbol (format nil "~S~S-" 'continue-from-multiple-value-call-argument- n)))
+		 (argument-values (unique-symbol (format nil "~S~S-" 'argument-values n)))
+		 (arguments-values (unique-symbol (format nil "~S~S+-" 'arguments-values (1+ n)))))
+	     `(cl:lambda (,continuation)
+		;; evaluate the next argument...
+		(funcall ,(expr->cps-form (first arguments))
+			 (cl:lambda (&rest ,argument-values)
+			   ;; ...capturing the values in argument-values
+			   ;; Then evaluate the rest of the argument-values...
+			   (funcall ,(arguments->cps-iter (rest arguments) (1+ n))
+				    (cl:lambda (,arguments-values)
+				      ;; ...capturing the values in arguments-values
+				      ;; Return the first argument-values appended to the rest of the arguments-values 
+				      (funcall ,continuation (append ,argument-values ,arguments-values)))))))))))
+    (arguments->cps-iter arguments 0))
+  
+  `(cl:lambda (,continuation)
+     ;; Evalute the function argument...
+     (funcall ,(expr->cps-form function)
+	      ;; TODO: handle multiple values for explicit continuations
+	      (cl:lambda (,function-result)
+		;; ...capturing the value in function-result
+		;; evaluate all arguments
+		(funcall ,(arguments->cps arguments)
+			 (cl:lambda (,arguments-results)
+			   ;; capturing the values in arguments-results
+			   ;; Apply the function to the arguments-results with the given continuation.
+			   (apply/c ,continuation ,function-result ,arguments-results)))))))
+
+(check-cps-for-expr '(multiple-value-call #'list (values 1 2) (values 3 4)))
+(check-cps-for-expr '(multiple-value-call #'+ (floor 5 3) (floor 19 4)))
+
+(define (load-time-value? expr)
+  (and (pair? expr)
+       (member (length expr) '(2 3))
+       (eq? (first expr) 'cl:load-time-value)))
+(define (load-time-value-form expr)
+  (second expr))
+(define (load-time-value-read-only-p expr)
+  (third expr))
+(define (load-time-value->cps form read-only-p)
+  (error "TODO"))
+
+(define (catch? expr)
+  (and (pair? expr)
+       (>= (length expr) 2)
+       (eq? (first expr) 'cl:catch)))
+(define (catch-tag expr)
+  (second expr))
+(define (catch-forms expr)
+  (cddr expr))
+(define (catch->cps tag forms)
+  (error "TODO"))
+
+(define (throw? expr)
+  (and (pair? expr)
+       (= (length expr) 3)
+       (eq? (first expr) 'cl:throw)))
+(define (throw-tag expr)
+  (second expr))
+(define (throw-result expr)
+  (third expr))
+(define (throw->cps tag result)
+  (error "TODO"))
+
+(define (unwind-protect? expr)
+  (and (pair? expr)
+       (>= (length expr) 2)
+       (eq? (first expr) 'cl:unwind-protect)))
+(define (unwind-protect-protected expr)
+  (second expr))
+(define (unwind-protect-cleanup expr)
+  (cddr expr))
+(define (unwind-protect->cps protected cleanup)
+  (error "TODO"))
+
+(define (progv? expr)
+  (and (pair? expr)
+       (>= (length expr) 3)
+       (eq? (first expr) 'cl:progv)
+       (list? (progv-vars expr))
+       (list? (progv-vals expr))))
+(define (progv-vars expr) (second expr))
+(define (progv-vals expr) (third expr))
+(define (progv-forms expr) (cdddr expr))
+(define (progv->cps vars vals forms)
+  (error "TODO"))
 
 ;;(multiple-value-prog1 first-form forms...)
-;;(the value-type form)
 ;;(multiple-value-call function arg arguments...)
 
 ;; No idea what to do with load-time-value
 ;;(load-time-value form read-only-p)
 
-;; CATCH/THROW/UNWIND-PROTECT all involve manipulating the dynamic stack and therefore cannot be used with continuations
+;; CATCH/THROW/UNWIND-PROTECT all involve manipulating the dynamic stack
 ;; PROGV Creates new dynamic bindings, but it has an implicit-progn body.
 #;(let ((*x* 3)) 
     (progv '(*x*) '(4) 
