@@ -6,12 +6,6 @@
 
 (install-syntax!)
 
-#;(defmacro with-continuations (final-continuation-form &body body)
-    "Convert body into an equivalent expression that uses continuation-passing-style.
-The values of body will be passed to the final-continuation 
-via (multiple-value-call final-continuation-form body-values)"
-    (error "TODO"))
-
 (define (declare? form) (and (pair? form) (eq? (first form) 'cl:declare)))
 
 (define (body-declarations body)
@@ -89,7 +83,7 @@ and calls that continuation with the values of expr."
     ((go? expr) (go->cps (go-tag expr)))
     ((the? expr) (the->cps (the-value-type expr) (the-form expr)))
     ((progv? expr) (progv->cps (progv-vars expr) (progv-vals expr) (progv-forms expr)))
-    ((unwind-protect? expr) (unwind-protect->cps (unwind-protect-cleanup expr) (unwind-protect-protected expr)))
+    ((unwind-protect? expr) (unwind-protect->cps (unwind-protect-protected expr) (unwind-protect-cleanup expr)))
     ((catch? expr) (catch->cps (catch-tag expr) (catch-forms expr)))
     ((throw? expr) (throw->cps (throw-tag expr) (throw-result expr)))
     ((load-time-value? expr) (load-time-value->cps (load-time-value-form expr) (load-time-value-read-only-p expr)))
@@ -100,7 +94,7 @@ and calls that continuation with the values of expr."
 
     ((macro-function-application? expr environment) (macro-function-application->cps expr environment))
     ((function-application? expr) (function-application->cps (function-application-function expr) (function-application-arguments expr)))
-    ((atom? expr) (atom->cps expr))))
+    (t (atom->cps expr))))
 
 (defmacro expr->cps-in-current-environment (&environment environment expr block-table lexical-cps-function-names tag->function-name-table)
   (let ((*block-table* block-table)
@@ -225,8 +219,6 @@ and calls that continuation with the values of expr."
 (check-cps-for-expr '(apply (cl:lambda (&rest args) (values-list args)) 1 2 '(3 4)))
 (check-cps-for-expr '(apply (cl:lambda (&rest args) (values-list args)) 1 2 3 ()))
 
-(define (atom? expr)
-  t)
 (define (atom->cps atom)
   (let ((continuation (unique-symbol (format nil "CONTINUE-FROM-ATOM"))))
     `(cl:lambda (,continuation) (multiple-value-call ,continuation ,atom))))
@@ -427,13 +419,16 @@ and calls that continuation with the values of expr."
        (funcall ,(progn->cps body) ,continuation))))
 
 (define (return-from->cps name value)
-  (let ((continuation (alist-ref *block-table* name))
-	(ignored-continuation (unique-symbol 'ignored-continuation)))
-    (unless continuation
-      (error "RETURN-FROM: No block named ~S" name))
-    `(cl:lambda (,ignored-continuation)
-       (declare (ignore ,ignored-continuation))
-       (multiple-value-call ,continuation ,value))))
+  (define continuation (alist-ref *block-table* name))
+  (define ignored-continuation (unique-symbol 'ignored-continuation-from-return-from))
+  (define values-name (unique-symbol 'return-from-value))
+  (unless continuation
+    (error "RETURN-FROM: No block named ~S" name))
+  `(cl:lambda (,ignored-continuation)
+     (declare (ignore ,ignored-continuation))
+     (funcall ,(expr->cps-form value)
+	      (cl:lambda (&rest ,values-name)
+		(apply ,continuation ,values-name)))))
 
 (define (flet? expr)
   (and (pair? expr)
@@ -477,7 +472,7 @@ and calls that continuation with the values of expr."
 	  (funcall ,(block->cps name forms) ,continuation)))
 
 (define (flet->cps bindings body)
-  (define names (map #'flet-binding-name bindings))
+  (define names (map #'function-binding-name bindings))
   (define continuation (unique-symbol 'continue-from-flet))
   (define declarations (body-declarations body))
   (define forms (body-forms body))
@@ -511,7 +506,7 @@ and calls that continuation with the values of expr."
   (cddr expr))
 
 (define (labels->cps bindings body)
-  (define names (map #'labels-binding-name bindings))
+  (define names (map #'function-binding-name bindings))
   (define continuation (unique-symbol 'continue-from-labels))
   (define declarations (body-declarations body))
   (define forms (body-forms body))
@@ -539,7 +534,7 @@ and calls that continuation with the values of expr."
   (cddr expr))
 (define (eval-when->cps situations forms)
   `(eval-when ,situations
-     (progn->cps ,forms)))
+     ,(progn->cps forms)))
 
 (define (setq? expr)
   (and (pair? expr)
@@ -804,7 +799,7 @@ and calls that continuation with the values of expr."
   (unless (alist-has-key? *tag->function-name-table* tag)
     (error "TAG ~S not found" tag))
   (let ((function-name (alist-ref *tag->function-name-table* tag))
-	(ignored-continuation (unique-symbol 'go-ignored-continuation)))
+	(ignored-continuation (unique-symbol 'ignored-continuation-from-go)))
     `(cl:lambda (,ignored-continuation)
        (declare (ignore ,ignored-continuation))
        (,function-name))))
@@ -964,7 +959,18 @@ with a list of all values of each argument in arguments."
 (define (load-time-value-read-only-p expr)
   (third expr))
 (define (load-time-value->cps form read-only-p)
-  (error "TODO"))
+  (atom->cps `(cl:load-time-value (funcall ,(expr->cps-form form) #'values) ,read-only-p)))
+
+;; Check load-time-value
+(assert (let* ((form '(cl:lambda (n) (+ n (load-time-value (random 42) nil))))
+	       (fn [(eval (expr->cps form)) #'values]))
+	  (for-all (lambda (n) (= n [fn 0]))
+		   (list [fn 0]
+			 [fn 0]
+			 [fn 0]
+			 [fn 0]))))
+
+;; TODO: Term primary-value
 
 (define (catch? expr)
   (and (pair? expr)
@@ -975,7 +981,18 @@ with a list of all values of each argument in arguments."
 (define (catch-forms expr)
   (cddr expr))
 (define (catch->cps tag forms)
-  (error "TODO"))
+  (define continuation (unique-symbol 'continue-from-catch))
+  (define tag-value (unique-symbol 'catch-tag-value))
+  `(cl:lambda (,continuation)
+     ;; Evaluate tag...
+     (funcall ,(expr->cps-form tag)
+	      (cl:lambda (,tag-value)
+		;; ...capturing the result in tag-value
+		(multiple-value-call ,continuation
+		  ;; Return the results of the catch to the continuation.
+		  (cl:catch ,tag-value
+		    ;; Convert FORMS to a progn, but only return to catch once.
+		    (funcall ,(progn->cps forms) #'values)))))))
 
 (define (throw? expr)
   (and (pair? expr)
@@ -986,7 +1003,30 @@ with a list of all values of each argument in arguments."
 (define (throw-result expr)
   (third expr))
 (define (throw->cps tag result)
-  (error "TODO"))
+  (define continuation (unique-symbol 'ignored-continue-from-throw))
+  (define tag-value (unique-symbol 'throw-tag-value))
+  (define result-values (unique-symbol 'throw-result-values))
+  `(cl:lambda (,continuation)
+     (declare (ignore ,continuation))
+     ;; Evaluate tag...
+     (funcall ,(expr->cps-form tag)
+	      (cl:lambda (,tag-value)
+		;; ...capturing the result in tag-value
+		;; Evaluate result...
+		(funcall ,(expr->cps-form result)
+			 (cl:lambda (&rest ,result-values)
+			   ;; Capturing the results in result-values
+			   ;; Evaluate throw, ignoring the continuation.
+			   (throw ,tag-value (values-list ,result-values))))))))
+
+(check-cps-for-expr '(catch 'dummy-tag 1 2 (throw 'dummy-tag (values 3 3 3)) 4))
+(check-cps-for-expr '(catch 'dummy-tag 1 2 3 (values 4 4 4 4)))
+(defun test-throw-back (tag) (throw tag t))
+(check-cps-for-expr '(catch 'dummy-tag (test-throw-back 'dummy-tag) 2))
+(check-cps-for-expr '(catch 'c
+		      (flet ((c1 () (throw 'c 1)))
+			(catch 'c (c1) (print 'unreachable))
+			2)))
 
 (define (unwind-protect? expr)
   (and (pair? expr)
@@ -996,8 +1036,68 @@ with a list of all values of each argument in arguments."
   (second expr))
 (define (unwind-protect-cleanup expr)
   (cddr expr))
-(define (unwind-protect->cps protected cleanup)
-  (error "TODO"))
+(define (unwind-protect->cps protected-form cleanup-forms)
+  (define continuation (unique-symbol 'continue-from-unwind-protect))
+  `(cl:lambda (,continuation)
+     ;; Call continuation with the results of unwind-protect.
+     (apply ,continuation
+	    (unwind-protect
+		 ;; Evaluate the protected form, but only return to unwind-protect once.
+		 (funcall ,(expr->cps-form protected-form) #'values)
+	      ;; Evaluate the cleanup forms, but only return to unwind-protect once.
+	      (funcall ,(progn->cps cleanup-forms) #'values)))))
+
+(check-cps-for-expr '(catch 'bar
+		      (catch 'foo
+			(unwind-protect (throw 'foo 3)
+			  (throw 'bar 4)
+			  (error "UNREACHED")))))
+
+(check-cps-for-expr '(catch 'foo
+		      (format t "The inner catch returns ~s.~%"
+		       (catch 'foo
+			 (unwind-protect (throw 'foo :first-throw)
+			   (throw 'foo :second-throw))))
+		      :outer-catch))
+
+(check-cps-for-expr '(catch nil 
+		      (unwind-protect (throw nil 1)
+			(throw nil 2))))
+(check-cps-for-expr (block nil   
+		      (unwind-protect (progn
+					(return 1)
+					(return 2))
+			(return 3))))
+(check-cps-for-expr '(cl:let (state)
+		      (flet ((dummy-function (x)
+			       (setq state 'running)
+			       (unless (numberp x) (throw 'abort 'not-a-number))
+			       (setq state (1+ x))))
+			(list
+			 (catch 'abort (dummy-function 1))
+			 state
+
+			 (catch 'abort (dummy-function 'trash))
+			 state
+
+			 (catch 'abort (unwind-protect (dummy-function 'trash) 
+					 (setq state 'aborted)))
+			 state))))
+(check-cps-for-expr '(block nil
+		      (let ((x 5))
+			(declare (special x))
+			(unwind-protect (return)
+			  (print x)))))
+
+;; NOTE: Not possible to goto tags from within unwind-protect or catch
+#;(check-cps-for-expr '(cl:let (results)
+			(tagbody
+			   (cl:let ((x 3))
+			     (unwind-protect
+				  (when (numberp x) (go out))
+			       (push x results)))
+			 out (push :out results))
+			(nreverse results)))
 
 (define (progv? expr)
   (and (pair? expr)
@@ -1009,19 +1109,80 @@ with a list of all values of each argument in arguments."
 (define (progv-vals expr) (third expr))
 (define (progv-forms expr) (cdddr expr))
 (define (progv->cps vars vals forms)
-  (error "TODO"))
+  (atom->cps `(cl:progv ,vars ,vals ,@forms)))
 
-;;(multiple-value-prog1 first-form forms...)
-;;(multiple-value-call function arg arguments...)
+(defmacro with-continuations (&body body)
+  "Convert body into a similar expression that uses continuation-passing-style.
+The values of body will be returned.
 
-;; No idea what to do with load-time-value
-;;(load-time-value form read-only-p)
+Be careful with dynamic forms such as CATCH and UNWIND-PROTECT.
+Throwing should work correctly, but RETURN-FROM and GO will both exhibit
+different behavior from CL when RETURNing-to or GOing-to a form outside of
+the CATCH/UNWIND-PROTECT. This is because within a WITH-CONTINUATIONS form,
+TAGBODY and BLOCK are lexical rather than dynamic.
 
-;; CATCH/THROW/UNWIND-PROTECT all involve manipulating the dynamic stack
-;; PROGV Creates new dynamic bindings, but it has an implicit-progn body.
-#;(let ((*x* 3)) 
-    (progv '(*x*) '(4) 
-      (list *x* (symbol-value '*x*))))
-#;(progv symbols values implicit-progn-forms...)
+TAGBODY and BLOCK are no longer dynamic-extent. Because of continuations
+they can be re-entered at any time. RETURN-FROM can therefore be called any number of times."
+  `(funcall ,(progn->cps body) #'values))
+
+
+(define (simple-test)
+  (define the-continuation nil)
+  
+  (define (test)
+    (with-continuations
+      (let ((i 0))
+	(call/cc (lambda (k) (set! the-continuation k)))
+	(set! i (1+ i))
+	i)))
+
+  (define another-continuation nil)
+  (list (test)
+	(the-continuation)
+	(the-continuation)
+	(progn
+	  (set! another-continuation the-continuation)
+	  (test))
+	(the-continuation)
+	(another-continuation)))
+(simple-test)
+;; => (1 2 3 1 2 4)
+
+(with-continuations
+  (define (coroutine-test)
+    (define queue ())
+    (define (empty-queue?)
+      (empty? queue))
+    (define (enqueue x)
+      (set! queue (append queue (list x))))
+    (define (dequeue)
+      (let ((x (first queue)))
+	(set! queue (rest queue))
+	x))
+
+    (define (fork proc)
+      (call/cc (lambda (k) (enqueue k) [proc])))
+
+    (define (yield)
+      (call/cc (lambda (k) (enqueue k) [(dequeue)])))
+
+    (define (thread-exit)
+      (if (empty-queue?)
+	  (return-from coroutine-test)
+	  [(dequeue)]))
+
+    (define (do-stuff-n-print str)
+      (lambda ()
+	(let recurse ((n 0))
+	  (cond
+	    ((> n 10) (thread-exit))
+	    (t (format t "~A ~A~%" str n)
+	       (yield)
+	       (recurse (+ n 1)))))))
+
+    (fork (do-stuff-n-print "This is AAA"))
+    (fork (do-stuff-n-print "Hello from BBB"))
+    (thread-exit)))
+(coroutine-test)
 
 (uninstall-syntax!)

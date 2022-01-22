@@ -572,8 +572,9 @@ and the first element of remaining-list does not satisfy keep?"
        (multiple-value-bind (name lambda-list documentation guard-clauses expanded-body)
 	   (parse-define-function-or-closure name-field body)
 	 `(for-macros
-	    (defun ,name ,lambda-list ,@expanded-body)
-	    (register-define-form #',name '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
+	   (cl:labels ((,name ,lambda-list ,@expanded-body)) (setf (symbol-function ',name) #',name))
+	   ;;(defun ,name ,lambda-list ,@expanded-body)
+	   (register-define-form #',name '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
 	    ,@(when guard-clauses (register-guard-clauses-forms name guard-clauses))
 	    ,@(when documentation (list (set-function-documentation-form-for-symbol-and-function name documentation)))
 	    ',name)))
