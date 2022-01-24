@@ -9,6 +9,8 @@
 (define symbol? #'symbolp)
 (define procedure? #'functionp)
 
+
+
 (define (parameter? symbol)
   "Returns true if symbol is a parameter i.e. dynamically scoped."
   #+sbcl
@@ -69,6 +71,30 @@
 (define pair? "T if datum is a cons." #'consp)
 (define null? "T if datum is nil." #'null)
 (define list? "Alias for (listp datum)." #'listp)
+
+(define (list-type list)
+  "Returns one of (:proper :cyclic :dotted (values :dotted :cons))"
+  #g((list? list))
+  ;; Field is a list, list*, cons, or a cycle
+  (let recurse ((xs list)
+		(visited ())
+		(result ()))
+    (cond
+      ((empty? xs) :proper)
+      ((member xs visited) :cyclic)
+      ((pair? xs)
+       ;; In the middle of the list, keep looking.
+       (recurse (rest xs) (cons xs visited) (cons (first xs) result)))
+      (t
+       (cond
+	 ;; Dotted-lists
+	 ((pair? (rest list)) :dotted)
+	 (t (values :dotted :cons)))))))
+
+(define (proper-list? list)
+  (and (list? list)
+       (eq? :proper (list-type list))))
+
 
 (define (list-ref list pos)
   "Return the value of list at pos."
@@ -410,6 +436,12 @@
 (define (alist-set alist key value)
   "Returns an alist with key set to value."
   (acons key value (alist-remove alist key)))
+
+
+(define (alist-union alist new-alist)
+  (foldl (lambda (pair alist)
+	   (alist-set alist (car pair) (cdr pair)))
+	 alist new-alist))
 
 (define (alist-update alist key updater (failure-result))
   "Applies updater to the value associated with key and updates the result in alist.

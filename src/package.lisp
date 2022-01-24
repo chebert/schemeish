@@ -88,6 +88,7 @@
            #:ALIST-REMOVE
            #:ALIST-SET
            #:ALIST-SET*
+           #:ALIST-UNION
            #:ALIST-UPDATE
            #:ALIST-VALUES
            #:ANDMAP
@@ -161,6 +162,7 @@
            #:LIST-REF
            #:LIST-SET
            #:LIST-TAIL
+           #:LIST-TYPE
            #:LIST-UPDATE
            #:LIST?
            #:MAKE-KEYWORD
@@ -189,6 +191,7 @@
            #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
            #:PROCEDURE-ARITY
            #:PROCEDURE?
+           #:PROPER-LIST?
            #:QUOTIENT
            #:RADIANS->DEGREES
            #:RANGE
@@ -295,8 +298,7 @@
 (DEFPACKAGE #:SCHEMEISH.LEXICALLY
   (:DOCUMENTATION "Provides the lexically and expose macros.")
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE
-                          #:LAMBDA)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
   (:EXPORT #:EXPOSE #:LEXICALLY))
@@ -530,6 +532,7 @@
            #:ALIST-REMOVE
            #:ALIST-SET
            #:ALIST-SET*
+           #:ALIST-UNION
            #:ALIST-UPDATE
            #:ALIST-VALUES
            #:ALL-PACKAGES-WITH-STRING-PREFIX
@@ -1044,6 +1047,7 @@
            #:LIST-REF
            #:LIST-SET
            #:LIST-TAIL
+           #:LIST-TYPE
            #:LIST-UPDATE
            #:LIST?
            #:LISTEN
@@ -1304,6 +1308,7 @@
            #:PROGN
            #:PROGRAM-ERROR
            #:PROGV
+           #:PROPER-LIST?
            #:PROVIDE
            #:PSETF
            #:PSETQ
@@ -1674,6 +1679,9 @@
            #:ZERO?
            #:ZEROP)
   (:NICKNAMES #:SCHEMEISH))
+
+(DEFPACKAGE #:SCHEMEISH.CONTINUATIONS
+  (:USE #:SCHEMEISH.SCHEMEISH))
 
 (DEFPACKAGE #:SCHEMEISH.MARKUP
   (:USE #:SCHEMEISH.SCHEMEISH)

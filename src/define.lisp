@@ -572,8 +572,11 @@ and the first element of remaining-list does not satisfy keep?"
        (multiple-value-bind (name lambda-list documentation guard-clauses expanded-body)
 	   (parse-define-function-or-closure name-field body)
 	 `(for-macros
-	    (defun ,name ,lambda-list ,@expanded-body)
-	    (register-define-form #',name '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
+	   ;; NOTE: Use LABELS and (SETF SYMBOl-FUNCTION) instead of 
+	   ;; DEFUN so that the generated code is not implentation-dependent.
+	   (cl:labels ((,name ,lambda-list ,@expanded-body))
+		      (setf (symbol-function ',name) #',name))
+	   (register-define-form #',name '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
 	    ,@(when guard-clauses (register-guard-clauses-forms name guard-clauses))
 	    ,@(when documentation (list (set-function-documentation-form-for-symbol-and-function name documentation)))
 	    ',name)))
@@ -775,20 +778,5 @@ NOTE: LAMBDA cannot be used as the name of a function. i.e. it cannot be called 
 	(if (and (boundp '*foo-print?*) *foo-print?*)
 	    `(print ,value)
 	    `(values ,value :at :all)))))
-
-;; Idea: (WITH-CONTINUATIONS K body...)
-;; Expand body into a form that takes/recieves implicit continuations
-;; adds (call/cc fn) special form
-
-;; would need to handle at least some of the special forms:
-;; block      let*                  return-from      
-;; catch      load-time-value       setq             
-;; eval-when  locally               symbol-macrolet  
-;; flet       macrolet              tagbody          
-;; function   multiple-value-call   the              
-;; go         multiple-value-prog1  throw            
-;; if         progn                 unwind-protect   
-;; labels     progv                                  
-;; let        quote                          
 
 (uninstall-syntax!)
