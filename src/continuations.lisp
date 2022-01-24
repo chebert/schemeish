@@ -93,30 +93,7 @@ If function has an associated CPS-FUNCTION, call it with the given continuation 
   (if (empty? arguments)
       (apply #'funcall/c continuation function argument)
     (apply #'funcall/c continuation function argument (nconc (butlast arguments) (first (last arguments))))))
-
-(define (list-type list)
-  "Returns one of (:proper :cyclic :dotted (values :dotted :cons))"
-  #g((list? list))
-  ;; Field is a list, list*, cons, or a cycle
-  (let recurse ((xs list)
-		(visited ())
-		(result ()))
-       (cond
-	((empty? xs) :proper)
-	((member xs visited) :cyclic)
-	((pair? xs)
-	 ;; In the middle of the list, keep looking.
-	 (recurse (rest xs) (cons xs visited) (cons (first xs) result)))
-	(t
-	 (cond
-	  ;; Dotted-lists
-	  ((pair? (rest list)) :dotted)
-	  (t (values :dotted :cons)))))))
-
-(define (proper-list? list)
-  (and (list? list)
-       (eq? :proper (list-type list))))
-
+		
 ;; TODO: fix these so they are more helpful
 #;(progn
     (define (progn-valid? expr)
@@ -310,17 +287,17 @@ and calls that continuation with the values of expr."
   (let ((function-name (unique-symbol 'call-cc-function))
 	(continuation (unique-symbol 'continue-from-call/cc)))
     `(cl:lambda (,continuation)
-       (funcall ,(expr->cps-form function)
-		(cl:lambda (,function-name)
-		  (multiple-value-call ,continuation (funcall ,function-name ,continuation)))))))
+		(funcall ,(expr->cps-form function)
+			 (cl:lambda (,function-name)
+				    (multiple-value-call ,continuation (funcall ,function-name ,continuation)))))))
 
 (progn
   (defvar *the-continuation*)
   (funcall (eval (expr->cps '(progn
-			      (print 'before)
-			      (print (call/cc (cl:lambda (k) (setq *the-continuation* k) 'during)))
-			      (print 'after)
-			      (values))))
+			       (print 'before)
+			       (print (call/cc (cl:lambda (k) (setq *the-continuation* k) 'during)))
+			       (print 'after)
+			       (values))))
 	   #'values)
   (funcall [*the-continuation* :again] #'values))
 
@@ -875,18 +852,13 @@ and calls that continuation with the values of expr."
       (tagged-forms-iter rest-tags-and-statements (cons (cons tag statements) tagged-forms)))
     
     (cond
-      ((empty? tags-and-statements) tagged-forms)
-      (t (parse-next-tagged-form))))
+     ((empty? tags-and-statements) tagged-forms)
+     (t (parse-next-tagged-form))))
   
   (define tagged-forms
     (nreverse (tagged-forms-iter tagged-statements ())))
 
   (cons untagged-statements tagged-forms))
-
-(define (alist-union alist new-alist)
-  (foldl (lambda (pair alist)
-	   (alist-set alist (car pair) (cdr pair)))
-	 alist new-alist))
 
 (define (tagbody->cps tags-and-statements)
   (define parsed (parse-tagbody tags-and-statements))
@@ -913,7 +885,7 @@ and calls that continuation with the values of expr."
   (define untagged-form-continuation
     (if (empty? tagged-function-names)
 	tagbody-statements-continuation
-	`(function ,(first tagged-function-names))))
+      `(function ,(first tagged-function-names))))
   ;; Each tagged-form continues to the next tagged-form,
   ;; except the last tagged-form continues to the tagbody-statements-continuation.
   (define tagged-form-continuations
@@ -938,32 +910,32 @@ and calls that continuation with the values of expr."
     ;; Function-binding definitions of continuations for the untagged and tagged-forms.
     (define function-bindings
       (cond
-	((empty? untagged-statements) tagged-function-bindings)
-	(t (cons (continuation-function-binding-form untagged-function-name
-						     untagged-statements
-						     untagged-form-continuation)
-		 tagged-function-bindings))))
+       ((empty? untagged-statements) tagged-function-bindings)
+       (t (cons (continuation-function-binding-form untagged-function-name
+						    untagged-statements
+						    untagged-form-continuation)
+		tagged-function-bindings))))
 
     ;; The first continuation to call: Either the untagged form, or the first tagged form.
     (define start-function-name
       (cond
-	((empty? untagged-statements) (first tagged-function-names))
-	(t untagged-function-name)))
+       ((empty? untagged-statements) (first tagged-function-names))
+       (t untagged-function-name)))
     
     (cond
-      ;; Empty tagbody:
-      ((and (empty? untagged-statements) (empty? tagged-forms)) (atom->cps nil))
-      (t (let ((ignored-parameter (unique-symbol 'ignored)))
-	   `(cl:lambda (,tagbody-continuation)
-	      ;; Create an intermediate continuation that calls the tagbody-continuation with NIL.
-	      (cl:let ((,tagbody-statements-continuation
-			 (cl:lambda (&rest ,ignored-parameter)
-			   (declare (ignore ,ignored-parameter))
-			   (funcall ,tagbody-continuation nil))))
-		;; Establish the continuations as function bindings.
-		(cl:labels ,function-bindings
-		  ;; Call the first continuation.
-		  (,start-function-name)))))))))
+     ;; Empty tagbody:
+     ((and (empty? untagged-statements) (empty? tagged-forms)) (atom->cps nil))
+     (t (let ((ignored-parameter (unique-symbol 'ignored)))
+	  `(cl:lambda (,tagbody-continuation)
+		      ;; Create an intermediate continuation that calls the tagbody-continuation with NIL.
+		      (cl:let ((,tagbody-statements-continuation
+				(cl:lambda (&rest ,ignored-parameter)
+					   (declare (ignore ,ignored-parameter))
+					   (funcall ,tagbody-continuation nil))))
+			      ;; Establish the continuations as function bindings.
+			      (cl:labels ,function-bindings
+					 ;; Call the first continuation.
+					 (,start-function-name)))))))))
 
 (define (go? expr)
   (and (pair? expr)
