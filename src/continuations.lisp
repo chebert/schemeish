@@ -1,8 +1,40 @@
+(unless (cl:find-package :schemeish.continuations)
+  (cl:make-package :schemeish.continuations :use '(:schemeish)))
+
 (cl:in-package :schemeish.continuations)
 
-;; Idea: (WITH-CONTINUATIONS K body...)
-;; Expand body into a form that takes/recieves implicit continuations
-;; adds (call/cc fn) special form
+;; CONTINUATIONS is not in a usable state yet.
+
+;; For continuations to be complete, they should respect
+;; dynamic special forms (rather than replacing them with lexical forms)
+;; such as TAGBODY, BLOCK.
+
+;; In order to do this properly, Kent Pitman's Unwind-Protect vs. Continuations
+;; suggests a second version of call/cc which can escape the dynamic context.
+
+;; This could be implemented in terms of DYNAMIC-WIND. But then I'd need to
+;; implement DYNAMIC-WIND.
+;; References:
+;; Racket docs:
+;;   https://docs.racket-lang.org/reference/cont.html#%28def._%28%28quote._~23~25kernel%29._dynamic-wind%29%29
+;; Matthias Blume functional implementation:
+;;   https://groups.google.com/g/comp.lang.scheme/c/kvtSI43Nbfo/m/ESnQ3U1xV2kJ?hl=en
+
+
+;; Notes about the current version:
+;; TAGBODY and BLOCK forms are replaced with lexical/non-dynamic (and therefore re-entrant) LABELS forms
+;; CATCH and UNWIND-PROTECT are tricky to implement correctly in the presence of continuations. see above.
+;; I'm not sure about the behavior of PROGV.
+
+;; Issues in the current version:
+;; Dynamic-wind
+;; Need to iron out things like accepting multiple values, but only using the primary value.
+;; Code-walker:
+;;   Split out the code-walker
+;;   Need better error reporting for the code walker.
+;; Need to be able to add new implementation-specific special forms (like 'SB-INT:NAMED-LAMBDA) 
+;; Need more tests, and more deep testing
+;; Handle if CALL/CC is used outside of a continuation region
 
 (install-syntax!)
 
@@ -22,7 +54,12 @@
       (body-forms (rest body))
       (body-forms body)))
 
-(defvar *lexical-cps-function-names* ())
+(for-macros
+ (defvar *lexical-cps-function-names* ())
+ (defvar *function->cps-function-table* (make-hash-table :weakness :key))
+ (defvar *block-table* ())
+ (defvar *tag->function-name-table* ()))
+
 (define (lexical-cps-function-name? name)
   "True if name names a function defined in CPS style."
   (member name *lexical-cps-function-names*))
@@ -31,7 +68,6 @@
   `(let ((*lexical-cps-function-names* (append ,names *lexical-cps-function-names*)))
      ,@body))
 
-(defvar *function->cps-function-table* (make-hash-table :weakness :key))
 (define (cps-function function)
   "Return the cps-function associated with function or nil if there is none."
   (hash-ref *function->cps-function-table* function nil))
@@ -56,45 +92,186 @@ If function has an associated CPS-FUNCTION, call it with the given continuation 
     (error "Non-list argument ~S to apply/c" argument))
   (if (empty? arguments)
       (apply #'funcall/c continuation function argument)
-      (apply #'funcall/c continuation function argument (nconc (butlast arguments) (first (last arguments))))))
+    (apply #'funcall/c continuation function argument (nconc (butlast arguments) (first (last arguments))))))
+
+(define (list-type list)
+  "Returns one of (:proper :cyclic :dotted (values :dotted :cons))"
+  #g((list? list))
+  ;; Field is a list, list*, cons, or a cycle
+  (let recurse ((xs list)
+		(visited ())
+		(result ()))
+       (cond
+	((empty? xs) :proper)
+	((member xs visited) :cyclic)
+	((pair? xs)
+	 ;; In the middle of the list, keep looking.
+	 (recurse (rest xs) (cons xs visited) (cons (first xs) result)))
+	(t
+	 (cond
+	  ;; Dotted-lists
+	  ((pair? (rest list)) :dotted)
+	  (t (values :dotted :cons)))))))
+
+(define (proper-list? list)
+  (and (list? list)
+       (eq? :proper (list-type list))))
+
+;; TODO: fix these so they are more helpful
+#;(progn
+    (define (progn-valid? expr)
+      (let ((forms (progn-forms expr)))
+	(unless (proper-list? forms)
+	  (return-from progn-valid? (format nil "Forms are not a proper-list ~S" forms)))
+	t))
+
+    (define (let-valid? expr)
+      (when (or (not (proper-list? expr))
+		(< (length expr) 2))
+	(return-from let-valid? (format nil "Malformed LET: ~S" expr)))
+
+      (let ((bindings (let-bindings expr)))
+	(unless (proper-list? bindings)
+	  (return-from let-valid? (format nil "Malformed bindings ~S in ~S" bindings expr)))
+	(let ((invalid-binding (find-if-not #'let-binding? bindings)))
+	  (when invalid-binding
+	    (return-from let-valid? (format nil "Malformed binding ~S in bindings ~S in ~S" invalid-binding bindings expr))))
+	t))
+
+    (define (let*-valid? expr) (let-valid? expr))
+
+    (define (block-valid? expr)
+      (unless (proper-list? expr)
+	(return-from block-valid? (format nil "Block should be a proper-list: ~S" expr)))
+      (unless (> (length expr) 1)
+	(return-from block-valid? (format nil "Empty block: ~S" expr)))
+      (unless (symbol? (block-name expr))
+	(return-from block-valid? (format nil "Name should be a symbol: ~S in ~S" (block-name expr) expr)))
+      t)
+
+    (define (return-from-valid? expr)
+      (unless (and (proper-list? expr)
+		   (member (length expr) '(2 3)))
+	(return-from return-from-valid? (format nil "Malformed RETURN-FROM: ~S" expr)))
+      (unless (symbol? (return-from-name expr))
+	(return-from return-from-valid? (format nil "Name should be a symbol: ~S in ~S" (return-from-name expr) expr)))
+      t)
+
+    (define (labels-valid? expr)
+      (unless (and (proper-list? expr)
+		   (>= (length expr) 2))
+	(return-from labels-valid? (format nil "Malformed: ~S" expr)))
+      (let ((bindings (labels-bindings expr)))
+	(unless (proper-list? bindings)
+	  (return-from labels-valid? (format nil "Malformed bindings: ~S in ~S" bindings expr)))
+	(let ((invalid-binding (find-if-not #'function-binding? bindings)))
+	  (unless (null? invalid-binding)
+	    (return-from labels-valid? (format nil "Malformed binding: ~S in bindings ~S in ~S" invalid-binding bindings expr))))))
+
+    (define (flet-valid? expr)
+      (labels-valid? expr))
+
+    (define (function-valid? expr)
+      (unless (and (proper-list? expr)
+		   (= (length expr) 2))
+	(return-from function-valid? (format nil "Malformed FUNCTION: ~S" expr)))
+      t)
+
+    (define (quote-valid? expr)
+      (unless (and (proper-list? expr)
+		   (= (length expr) 2))
+	(return-from quote-valid? (format nil "Malformed QUOTE: ~S" expr)))
+      t)
+
+    (define (eval-when-valid? expr)
+      (unless (and (proper-list? expr)
+		   (> (length expr) 1))
+	(return-from eval-when-valid? (format nil "Malformed EVAL-WHEN: ~S" expr)))
+      (unless (proper-list? (eval-when-situations expr))
+	(return-from eval-when-valid? (format nil "Malformed EVAL-WHEN situations: ~S in ~S" (eval-when-situations expr) expr)))
+      t)
+
+    (define (setq-valid? expr)
+      (unless (and (proper-list? expr)
+		   (>= (length expr) 3))
+	(return-from setq-valid? (format nil "Malformed SETQ: ~S" expr)))
+      (unless (odd? (length expr))
+	(return-from setq-valid? (format nil "Expected pairs in ~S" expr)))
+      (let ((invalid-pair (find-if-not (lambda (pair) (symbol? (first pair))) (setq-pairs expr))))
+	(when invalid-pair
+	  (return-from setq-valid? (format nil "Invalid name ~S in pair ~S in ~S" (first invalid-pair) invalid-pair expr))))
+      t)
+
+    (define (if-valid? expr)
+      (unless (and (proper-list? expr)
+		   (member (length expr) '(3 4)))
+	(return-from if-valid? (format nil "Malformed IF: ~S" expr)))
+      t))
+
+'((define (macrolet-valid? expr))
+  (define (symbol-macrolet-valid? expr))
+  (define (symbol-macrolet-valid? expr))
+  (define (locally-valid? expr))
+  (define (tagbody-valid? expr))
+  (define (go-valid? expr))
+  (define (the-valid? expr))
+  (define (progv-valid? expr))
+  (define (unwind-protect-valid? expr))
+  (define (catch-valid? expr))
+  (define (throw-valid? expr))
+  (define (load-time-value-valid? expr))
+  (define (multiple-value-call-valid? expr))
+  (define (multiple-value-prog1-valid? expr))
+  (define (lambda-valid? expr)))
+
+(for-macros
+ (defvar *special-form->cps-table* (make-hash-table)))
+(define (register-special-form->cps symbol special-form->cps)
+  (hash-set! *special-form->cps-table* symbol special-form->cps))
+(define (special-form->cps expr)
+  "Converts the given special form expr to continuation-passing style. 
+The resulting expression will take a continuation as its first argument,
+and call that continuation with its results."
+  #g((pair? expr) (symbol? (first expr)))
+  [(hash-ref *special-form->cps-table* (first expr)) expr])
 
 (define (expr->cps expr (environment))
   "Return the form of a function that takes a continuation, 
 and calls that continuation with the values of expr."
   (cond
-    ;; Special Forms
-    ((progn? expr) (progn->cps (progn-forms expr)))
-    ((let? expr) (let->cps (let-bindings expr) (let-body expr)))
-    ((let*? expr) (let*->cps (let*-bindings expr) (let*-body expr)))
-    ((block? expr) (block->cps (block-name expr) (block-body expr)))
-    ((return-from? expr) (return-from->cps (return-from-name expr) (return-from-value expr)))
-    ((labels? expr) (labels->cps (labels-bindings expr) (labels-body expr)))
-    ((flet? expr) (flet->cps (flet-bindings expr) (flet-body expr)))
-    ((function? expr) (function->cps (function-name expr)))
-    ((quote? expr) (quote->cps expr))
-    ((eval-when? expr) (eval-when->cps (eval-when-situations expr) (eval-when-forms expr)))
-    ((setq? expr) (setq->cps (setq-pairs expr)))
-    ((if? expr) (if->cps (if-test expr) (if-then expr) (if-else expr)))
-    ((call/cc? expr) (call/cc->cps (call/cc-function expr)))
-    ((macrolet? expr) (macrolet->cps (macrolet-bindings expr) (macrolet-body expr)))
-    ((symbol-macrolet? expr) (symbol-macrolet->cps (symbol-macrolet-bindings expr) (symbol-macrolet-body expr)))
-    ((locally? expr) (locally->cps (locally-body expr)))
-    ((tagbody? expr) (tagbody->cps (tagbody-tags-and-statements expr)))
-    ((go? expr) (go->cps (go-tag expr)))
-    ((the? expr) (the->cps (the-value-type expr) (the-form expr)))
-    ((progv? expr) (progv->cps (progv-vars expr) (progv-vals expr) (progv-forms expr)))
-    ((unwind-protect? expr) (unwind-protect->cps (unwind-protect-protected expr) (unwind-protect-cleanup expr)))
-    ((catch? expr) (catch->cps (catch-tag expr) (catch-forms expr)))
-    ((throw? expr) (throw->cps (throw-tag expr) (throw-result expr)))
-    ((load-time-value? expr) (load-time-value->cps (load-time-value-form expr) (load-time-value-read-only-p expr)))
-    ((multiple-value-call? expr) (multiple-value-call->cps (multiple-value-call-function expr) (multiple-value-call-arguments expr)))
-    ((multiple-value-prog1? expr) (multiple-value-prog1->cps (multiple-value-prog1-values-form expr) (multiple-value-prog1-forms expr)))
-    
-    ((lambda? expr) (lambda->cps (lambda-parameters expr) (lambda-body expr)))
+   ;; Special Forms
+   ((progn? expr) (progn->cps (progn-forms expr)))
+   ((let? expr) (let->cps (let-bindings expr) (let-body expr)))
+   ((let*? expr) (let*->cps (let*-bindings expr) (let*-body expr)))
+   ((block? expr) (block->cps (block-name expr) (block-body expr)))
+   ((return-from? expr) (return-from->cps (return-from-name expr) (return-from-value expr)))
+   ((labels? expr) (labels->cps (labels-bindings expr) (labels-body expr)))
+   ((flet? expr) (flet->cps (flet-bindings expr) (flet-body expr)))
+   ((function? expr) (function->cps (function-name expr)))
+   ((quote? expr) (quote->cps (quote-expr expr)))
+   ((eval-when? expr) (eval-when->cps (eval-when-situations expr) (eval-when-forms expr)))
+   ((setq? expr) (setq->cps (setq-pairs expr)))
+   ((if? expr) (if->cps (if-test expr) (if-then expr) (if-else expr)))
+   ((call/cc? expr) (call/cc->cps (call/cc-function expr)))
+   ((macrolet? expr) (macrolet->cps (macrolet-bindings expr) (macrolet-body expr)))
+   ((symbol-macrolet? expr) (symbol-macrolet->cps (symbol-macrolet-bindings expr) (symbol-macrolet-body expr)))
+   ((locally? expr) (locally->cps (locally-body expr)))
+   ((tagbody? expr) (tagbody->cps (tagbody-tags-and-statements expr)))
+   ((go? expr) (go->cps (go-tag expr)))
+   ((the? expr) (the->cps (the-value-type expr) (the-form expr)))
+   ((progv? expr) (progv->cps (progv-vars expr) (progv-vals expr) (progv-forms expr)))
+   ((unwind-protect? expr) (unwind-protect->cps (unwind-protect-protected expr) (unwind-protect-cleanup expr)))
+   ((catch? expr) (catch->cps (catch-tag expr) (catch-forms expr)))
+   ((throw? expr) (throw->cps (throw-tag expr) (throw-result expr)))
+   ((load-time-value? expr) (load-time-value->cps (load-time-value-form expr) (load-time-value-read-only-p expr)))
+   ((multiple-value-call? expr) (multiple-value-call->cps (multiple-value-call-function expr) (multiple-value-call-arguments expr)))
+   ((multiple-value-prog1? expr) (multiple-value-prog1->cps (multiple-value-prog1-values-form expr) (multiple-value-prog1-forms expr)))
+   
+   ((lambda? expr) (lambda->cps (lambda-parameters expr) (lambda-body expr)))
 
-    ((macro-function-application? expr environment) (macro-function-application->cps expr environment))
-    ((function-application? expr) (function-application->cps (function-application-function expr) (function-application-arguments expr)))
-    (t (atom->cps expr))))
+   ((macro-function-application? expr environment) (macro-function-application->cps expr environment))
+   ((function-application? expr) (function-application->cps (function-application-function expr) (function-application-arguments expr)))
+   (t (atom->cps expr))))
 
 (defmacro expr->cps-in-current-environment (&environment environment expr block-table lexical-cps-function-names tag->function-name-table)
   (let ((*block-table* block-table)
@@ -123,7 +300,6 @@ and calls that continuation with the values of expr."
   `(+ ,a ,b ,c))
 (check-cps-for-expr '(+ 1 (foob 1 (foob 2 3 4) 3)))
 
-(export 'call/cc)
 (define (call/cc? expr)
   (and (pair? expr)
        (= 2 (length expr))
@@ -152,8 +328,10 @@ and calls that continuation with the values of expr."
   (and (pair? expr)
        (eq? (first expr) 'cl:quote)
        (= 2 (length expr))))
+(define (quote-expr expr)
+  (second expr))
 (define (quote->cps expr)
-  (atom->cps expr))
+  (atom->cps `',expr))
 
 (check-cps-for-expr '(quote (the quick brown fox)))
 
@@ -306,15 +484,15 @@ and calls that continuation with the values of expr."
   (let-body expr))
 
 (define (let-binding? expr)
-  (or (and (pair? expr)
-	   (or (= (length expr) 1)
-	       (= (length expr) 2)))
-      (and (not (null? expr))
+  (and (not (null? expr))
+       (or (and (proper-list? expr)
+		(or (= (length expr) 1)
+		    (= (length expr) 2)))
 	   (symbol? expr))))
 (define (let-binding-name expr)
   (if (pair? expr)
       (first expr)
-      expr))
+    expr))
 (define (let-binding-value expr)
   (if (pair? expr)
       (second expr)
@@ -411,7 +589,7 @@ and calls that continuation with the values of expr."
   (or (and (= (length expr) 3) (third expr))
       nil))
 
-(defvar *block-table* ())
+
 (define (block->cps name body)
   (let* ((continuation (unique-symbol (format nil "CONTINUE-FROM-BLOCK-~S-" name)))
 	 (*block-table* (alist-set *block-table* name continuation)))
@@ -675,7 +853,6 @@ and calls that continuation with the values of expr."
 (define (tagbody-tags-and-statements expr)
   (cdr expr))
 
-(defvar *tag->function-name-table* ())
 
 (define (parse-tagbody tags-and-statements)
   "Return (untagged-statements . (tag . statements)...)."
@@ -970,8 +1147,6 @@ with a list of all values of each argument in arguments."
 			 [fn 0]
 			 [fn 0]))))
 
-;; TODO: Term primary-value
-
 (define (catch? expr)
   (and (pair? expr)
        (>= (length expr) 2)
@@ -1091,13 +1266,13 @@ with a list of all values of each argument in arguments."
 
 ;; NOTE: Not possible to goto tags from within unwind-protect or catch
 #;(check-cps-for-expr '(cl:let (results)
-			(tagbody
-			   (cl:let ((x 3))
-			     (unwind-protect
-				  (when (numberp x) (go out))
-			       (push x results)))
-			 out (push :out results))
-			(nreverse results)))
+			       (tagbody
+				(cl:let ((x 3))
+					(unwind-protect
+					    (when (numberp x) (go out))
+					  (push x results)))
+				out (push :out results))
+			       (nreverse results)))
 
 (define (progv? expr)
   (and (pair? expr)
@@ -1125,16 +1300,15 @@ TAGBODY and BLOCK are no longer dynamic-extent. Because of continuations
 they can be re-entered at any time. RETURN-FROM can therefore be called any number of times."
   `(funcall ,(progn->cps body) #'values))
 
-
 (define (simple-test)
   (define the-continuation nil)
   
   (define (test)
     (with-continuations
-      (let ((i 0))
-	(call/cc (lambda (k) (set! the-continuation k)))
-	(set! i (1+ i))
-	i)))
+     (let ((i 0))
+       (call/cc (lambda (k) (set! the-continuation k)))
+       (set! i (1+ i))
+       i)))
 
   (define another-continuation nil)
   (list (test)
@@ -1149,40 +1323,39 @@ they can be re-entered at any time. RETURN-FROM can therefore be called any numb
 ;; => (1 2 3 1 2 4)
 
 (with-continuations
-  (define (coroutine-test)
-    (define queue ())
-    (define (empty-queue?)
-      (empty? queue))
-    (define (enqueue x)
-      (set! queue (append queue (list x))))
-    (define (dequeue)
-      (let ((x (first queue)))
-	(set! queue (rest queue))
-	x))
+ (define (coroutine-test)
+   (define queue ())
+   (define (empty-queue?)
+     (empty? queue))
+   (define (enqueue x)
+     (set! queue (append queue (list x))))
+   (define (dequeue)
+     (let ((x (first queue)))
+       (set! queue (rest queue))
+       x))
 
-    (define (fork proc)
-      (call/cc (lambda (k) (enqueue k) [proc])))
+   (define (fork proc)
+     (call/cc (lambda (k) (enqueue k) [proc])))
 
-    (define (yield)
-      (call/cc (lambda (k) (enqueue k) [(dequeue)])))
+   (define (yield)
+     (call/cc (lambda (k) (enqueue k) [(dequeue)])))
 
-    (define (thread-exit)
-      (if (empty-queue?)
-	  (return-from coroutine-test)
-	  [(dequeue)]))
+   (define (thread-exit)
+     (if (empty-queue?)
+	 (return-from coroutine-test)
+       [(dequeue)]))
 
-    (define (do-stuff-n-print str)
-      (lambda ()
-	(let recurse ((n 0))
-	  (cond
-	    ((> n 10) (thread-exit))
-	    (t (format t "~A ~A~%" str n)
-	       (yield)
-	       (recurse (+ n 1)))))))
+   (define (do-stuff-n-print str)
+     (lambda ()
+       (let recurse ((n 0))
+	    (cond
+	     ((> n 10) (thread-exit))
+	     (t (format t "~A ~A~%" str n)
+		(yield)
+		(recurse (+ n 1)))))))
 
-    (fork (do-stuff-n-print "This is AAA"))
-    (fork (do-stuff-n-print "Hello from BBB"))
-    (thread-exit)))
-(coroutine-test)
+   (fork (do-stuff-n-print "This is AAA"))
+   (fork (do-stuff-n-print "Hello from BBB"))
+   (thread-exit)))
 
 (uninstall-syntax!)
