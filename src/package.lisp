@@ -156,6 +156,7 @@
            #:LAMBDA
            #:LCURRY
            #:LET
+           #:LETREC
            #:LIST->STREAM
            #:LIST->STRING
            #:LIST->VECTOR
@@ -1034,6 +1035,7 @@
            #:LENGTH
            #:LET
            #:LET*
+           #:LETREC
            #:LEXICALLY
            #:LISP-IMPLEMENTATION-TYPE
            #:LISP-IMPLEMENTATION-VERSION
@@ -1679,6 +1681,9 @@
            #:ZERO?
            #:ZEROP)
   (:NICKNAMES #:SCHEMEISH))
+
+(DEFPACKAGE #:SCHEMEISH.CODE-TRANSFORMER
+  (:USE #:SCHEMEISH.SCHEMEISH))
 
 (DEFPACKAGE #:SCHEMEISH.CONTINUATIONS
   (:USE #:SCHEMEISH.SCHEMEISH))

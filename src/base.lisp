@@ -9,8 +9,6 @@
 (define symbol? #'symbolp)
 (define procedure? #'functionp)
 
-
-
 (define (parameter? symbol)
   "Returns true if symbol is a parameter i.e. dynamically scoped."
   #+sbcl
@@ -294,6 +292,20 @@
 		'(:a :b :c)))
 (assert (equal? (intersperse :i '(:e :e :o))
 		'(:e :i :e :i :o)))
+
+(defmacro letrec (bindings &body body)
+  "Establish lexical bindings. All lexical variables are in scope for the binding values.
+Values are bound sequentially. Bindings are established for body.
+Body is (declarations... forms...)"
+  (let ((declare? (lambda (form) (and (pair? form) (eq? 'cl:declare (first form))))))
+    (let ((declarations (takef declare? body))
+	  (forms (dropf declare? body)))
+      `(let ,(map #'first bindings)
+	 ,@declarations
+	 ,@(map (lambda (binding)
+		  `(setq ,(first binding) ,(second binding)))
+		bindings)
+	 ,@forms))))
 
 (define even? #'evenp)
 (define odd? #'oddp)

@@ -1,5 +1,5 @@
-(unless (find-package :schemeish.code-transformer)
-  (make-package :schemeish.code-transformer :use '(:schemeish)))
+(DEFPACKAGE #:SCHEMEISH.CODE-TRANSFORMER
+  (:USE #:SCHEMEISH.SCHEMEISH))
 
 (in-package :schemeish.code-transformer)
 
@@ -222,10 +222,10 @@ removed."
 					       ,@body))))
 
 
-(defmacro with-lexically-bound-variables (variable-names &body body)
-  `(let ((*lexical-context* (alist-update *lexical-context* :lexically-bound-variables
-					  (lambda (vns) (append vns ,variable-names)))))
-     ,@body))
+(defmacro lisp (form)
+  "Within SCM, escapes form and evaluates it as if it were in Common-Lisp.
+Within LISP, just evalutes form."
+  form)
 
 (define (transform* transformer forms)
   "Map transform across forms."
@@ -303,68 +303,6 @@ removed."
 
 (define (define? expr) (and (pair? expr) (eq? (first expr) 'define)))
 
-(define (definition->binding form)
-  (define body (cddr form))
-  (define (function-definition->binding name-field body)
-    (cond
-      ((pair? (first name-field))
-       ;; Closure definition
-       (function-definition->binding
-	(first name-field)
-	(list `(lambda ,(rest name-field)
-		 ,@body))))
-      (t
-       ;; Function definition
-       (list (first name-field)
-	     (let ((function (unique-symbol 'function)))
-	       `(let ((,function (lambda ,(rest name-field)
-				   ,@body)))
-		  (schemeish.define::register-define-form ,function '(define ,(second form) ,@(parse-function-tags-from-body body)))
-		  ,function))))))
-  (define name-field (second form))
-
-  (cond
-    ((symbol? name-field) (list name-field (third form)))
-    (t (function-definition->binding name-field body))))
-
-(define (transform-function-body transformer body)
-  ;; Function body is ([documentation] declarations... . lexical-body)
-  (define declarations (function-body-declarations body))
-  (define lexical-body (function-body-forms body))
-  `(,@declarations ,@(transform-lexical-body transformer lexical-body)))
-(define (transform-lexical-body transformer body)
-  ;; Lexical body is (definitions... declarations... forms...)
-  (define definitions (takef body #'define?))
-  (define rest-body (dropf body #'define?))
-  (define declarations (takef rest-body #'declare?))
-  (define forms (transform* transformer (dropf rest-body #'declare?)))
-  (define bindings (map #'definition->binding definitions))
-  (transform* transformer
-	      (cond
-		((not (empty? definitions))
-		 `((let ,(map #'first bindings)
-		     ,@declarations
-		     ,@(map (lambda (binding) `(setq ,(first binding) ,(second binding)))
-			    bindings)
-		     ,@forms)))
-		(t `(,@declarations ,@forms)))))
-
-(define-special-transform cl:progn (transformer expr env)
-  `(cl:progn ,@(transform-lexical-body transformer (progn-forms expr))))
-(define-special-transform cl:lambda (transformer expr env)
-  `(cl:lambda ,(transform-parameters transformer (lambda-parameters expr))
-     ,@(transform-function-body transformer (lambda-body expr))))
-
-'(let ((fn (unique-symbol 'function)))
-  `(let ((,fn (cl:lambda ,lambda-list ,@expanded-body)))
-     ,@(when guard-clauses (list `(register-guard-clauses ,fn ',guard-clauses)))
-     ,@(when documentation 
-	 (list `(progn
-		  (setf (documentation ,fn t)
-			(documentation-string-for-lambda ',arg-list ,fn (documentation-string ,(documentation-source-form documentation))))
-		  (set-object-documentation-source! ,fn ,(documentation-source-form documentation)))))
-     ,fn))
-
 (define (parse-documentation-source body)
   (cond
     ((empty? body) (values body nil))
@@ -385,6 +323,87 @@ removed."
   (multiple-value-bind (body documentation-source) (parse-documentation-source body)
     (multiple-value-bind (body guard-clauses) (parse-guard-clauses body)
       (values body guard-clauses documentation-source))))
+
+(define (documentation-string-for-definition definition-form guard-clauses documentation-string)
+  #g((string? documentation-string))
+  (define name (first (flatten (second definition-form))))
+  (string-append documentation-string
+		 (format nil "~&~%~%Form: ~S" (second definition-form))
+		 (if guard-clauses
+		     (format nil "~&~%~%~S has the following guard clauses:~%~S"
+			     name guard-clauses)
+		     (format nil "~&~%~%~S has no guard clauses." name))))
+
+(define (definition->binding form)
+  (define (function-definition->binding name-field body)
+    (cond
+      ((pair? (first name-field))
+       ;; Closure definition
+       (function-definition->binding
+	(first name-field)
+	(list `(lambda ,(rest name-field)
+		 ,@body))))
+      (t
+       ;; Function definition
+       (let ((name (first name-field))
+	     (scm-parameters (rest name-field)))
+	 (multiple-value-bind (parsed-body guard-clauses documentation-source)
+	     (parse-function-tags-from-body body)
+	   ;; TODO: Don't ignore guard clauses
+	   (list name
+		 (let ((function (unique-symbol 'function))
+		       (sanitized-define-form `(define ,(second form) ,@parsed-body)))
+		   `(let ((,function (lambda ,scm-parameters ,@body)))
+		      (schemeish.define::register-define-form ,function ',sanitized-define-form)
+		      ,@(when guard-clauses
+			  (list
+			   `(schemeish.define::register-guard-clauses ,function ',guard-clauses)))
+		      ,@(when documentation-source
+			  (list
+			   `(setf (documentation ,function t)
+				  (documentation-string-for-definition
+				   ',sanitized-define-form ',guard-clauses
+				   (schemeish.define::documentation-string ,documentation-source)))
+			   `(schemeish.define::set-object-documentation-source! ,function ,documentation-source)))
+		      ,function))))))))
+
+  (define name-field (second form))
+  (define body (cddr form))
+
+  (cond
+    ((symbol? name-field) (list name-field (third form)))
+    (t (function-definition->binding name-field body))))
+
+
+(define (transform-lexical-body transformer body)
+  ;; lexical body is (definitions... declarations... forms...)
+  (define definitions (takef body #'define?))
+  (define rest-body (dropf body #'define?))
+  (define declarations (takef rest-body #'declare?))
+  (define forms (transform* transformer (dropf rest-body #'declare?)))
+  (define bindings (map #'definition->binding definitions))
+  (transform* transformer
+	      (cond
+		((not (empty? definitions))
+		 `((let ,(map #'first bindings)
+		     ,@declarations
+		     ,@(map (lambda (binding) `(setq ,(first binding) ,(second binding)))
+			    bindings)
+		     ,@forms)))
+		(t `(,@declarations ,@forms)))))
+(define (transform-function-body transformer body)
+  ;; function body is ([documentation] declarations... . lexical-body)
+  (define declarations (function-body-declarations body))
+  (define lexical-body (function-body-forms body))
+  `(,@declarations ,@(transform-lexical-body transformer lexical-body)))
+
+(define-special-transform cl:progn (transformer expr env)
+  `(cl:progn ,@(transform-lexical-body transformer (progn-forms expr))))
+(define-special-transform cl:lambda (transformer expr env)
+  `(cl:lambda ,(transform-parameters transformer (lambda-parameters expr))
+     ,@(transform-function-body transformer (lambda-body expr))))
+
+
 (define-special-transform lambda (transformer expr env)
   ;;TODO: Move to DEFINE
   (define scm-parameters (lambda-parameters expr))
@@ -394,6 +413,8 @@ removed."
 
   (multiple-value-bind (body guard-clauses documentation-source)
       (parse-function-tags-from-body (lambda-body expr))
+    ;; TODO: don't ignore guard-clauses
+    ;; TODO: merge behavior with definition->binding
     (transform transformer
 	       `(cl:let ((,name (cl:lambda ,parameters
 				  ,@body)))
@@ -574,7 +595,6 @@ removed."
 
 			 (copy (list a a a)))))
 		'(1 1 1)))
-
 (defmacro scm (&body body &environment environment)
   "Evaluates body in the SCM langauge. Similar to Common Lisp with the following changes:
 If an expression is a proper list, it is transformed into (funcall function args).
@@ -584,17 +604,6 @@ If not found, it is assumed to be in the function-namespace.
 The symbols (+ ++ +++ * ** *** - / // ///) are assumed to be functions.
 DEFINE forms may appear at the top of a lexical body, and are gathered together converted into a LETREC."
   (transform-expression *transformer* `(progn ,@body) environment))
-
-(defmacro lisp (form)
-  "Within SCM, escapes form and evaluates it as if it were in Common-Lisp.
-Within LISP, just evalutes form."
-  form)
-
-(define (macroexpand-all form (environment))
-  #+sbcl
-  (sb-cltl2:macroexpand-all form environment)
-  #-sbcl
-  (error "TODO: No implementation for ~S" (lisp-implementation-type)))
 
 (assert (equal? (scm
 		  (let ()
@@ -623,21 +632,23 @@ Within LISP, just evalutes form."
        (multiple-value-bind (body documentation-source) (parse-documentation-source body)
 	 (unless (= (length body) 1)
 	   (error "Expected exactly one body-form for DEF: got ~S" body))
-	 `(progn
+	 `(for-macros
 	    (setf (fdefinition ',name) (scm ,(first body)))
 	    (schemeish.define::register-define-form #',name '(define ,name ,@body))
 	    ,@(when documentation-source
 		`((setf (documentation ',name 'function) (schemeish.define::documentation-string-for-define-function
 							  ',name #',name (documentation-string ,documentation-source)))
-		  (schemeish.define::set-object-documentation-source! #',name ,documentation-source)))))))
+		  (schemeish.define::set-object-documentation-source! #',name ,documentation-source)))
+	    ',name))))
     (t
      (let ((name (first (flatten name-field))))
-       `(progn
+       `(for-macros
 	  (fmakunbound ',name)
 	  (setf (fdefinition ',name)
 		(scm
 		  (define ,name-field ,@body)
-		  ,name)))))))
+		  ,name))
+	  ',name)))))
 
 (def (((test-nested a) b) . c)
   (list* a b c))
@@ -649,29 +660,22 @@ Within LISP, just evalutes form."
   #d"Test for a a factorial using DEF."
   #g((not (negative? n)))
   (define (iter n result)
+    #d"Iterates from n to 0."
     (cond
       ((zero? n) result)
       (t (iter (1- n) (* result n)))))
-  (iter n 1))
+  (values (iter n 1) (documentation iter t)))
+
+
 (assert (equal? (test-fact 4) 24))
-(assert (null? (ignore-errors (test-fact -1))))
 (scm (documentation test-fact t))
 
+(scm (define-form test-fact))
 (def 2+ (lcurry + 2))
+
 (assert (= 3 (2+ 1)))
 
-;; TODO: move to base
-(defmacro letrec (bindings &body body)
-  "Establish lexical bindings. All lexical variables are in scope for the binding values.
-Values are bound sequentially."
-  (let ((declarations (takef #'declare? body))
-	(forms (dropf #'declare? body)))
-    `(let ,(map #'first bindings)
-       ,@declarations
-       ,@(map (lambda (binding)
-		`(setq ,(first binding) ,(second binding)))
-	      bindings)
-       ,@forms)))
-
-;; Fix documentation
 ;; Document curried functions somehow
+;; add in guard clauses
+;; merge lambda and definition-binding
+;; problem with nested definitions having #G or #D tags
