@@ -1330,4 +1330,5 @@ they can be re-entered at any time. RETURN-FROM can therefore be called any numb
    (fork (do-stuff-n-print "Hello from BBB"))
    (thread-exit)))
 
+(unexport 'call/cc)
 (uninstall-syntax!)

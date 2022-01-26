@@ -401,6 +401,7 @@ and the first element of remaining-list does not satisfy keep?"
 				    ,@(expand-defines-in-lexical-body body)))))
 	      (values lambda-list documentation guard-clauses expanded-body))))))))
 
+
 (for-macros
   (defun parse-define-closure (name-field documentation guard-clauses body)
     (let ((arg-list (rest name-field))
@@ -408,18 +409,18 @@ and the first element of remaining-list does not satisfy keep?"
       (multiple-value-bind (lambda-list ignorable-args) (arg-list->lambda-list arg-list)
 	(cond
 	  ((symbolp name)
-	   ;; Base case: we are at the top level function definition
+	   ;; base case: we are at the top level function definition
 	   (values name lambda-list documentation guard-clauses
 		   (body-with-ignorable-args ignorable-args body)))
 	  (t
-	   ;; Unravel the next closure.
+	   ;; unravel the next closure.
 	   (parse-define-closure name documentation guard-clauses
 				 `((cl:lambda ,lambda-list
 				     ,@(body-with-ignorable-args ignorable-args body))))))))))
 
 (for-macros
   (defun parse-define-function-or-closure (name-field body)
-    "Return (values name lambda-list documentation expanded-body)"
+    "return (values name lambda-list documentation expanded-body)"
     (multiple-value-bind (lambda-list documentation guard-clauses body)
 	(parse-define-function (rest name-field) body)
       (cond
@@ -433,22 +434,22 @@ and the first element of remaining-list does not satisfy keep?"
 
 (for-macros
   (defstruct local-function-definition
-    "Represents a local function definition."
+    "represents a local function definition."
     name form guard-clauses documentation)
 
   (defun local-function-form (name lambda-list body)
-    "Form that defines a local function."
+    "form that defines a local function."
     `(,name ,lambda-list ,@body))
   (defun local-function-definitions (defines)
-    "A list of local-function-definitions to define local function given defines."
+    "a list of local-function-definitions to define local function given defines."
     (mapcar #'define->local-function-definition defines))
 
   (defun define->local-function-definition (define)
-    "Convert a DEFINE form to a LOCAL-FUNCTION-DEFINITION structure."
+    "convert a define form to a local-function-definition structure."
     (let ((name (define-name define)))
       (cond
 	((define-function? define)
-	 ;; IF this is a function definition,
+	 ;; if this is a function definition,
 	 ;; parse the define form, and recursively expand the function body.
 	 (multiple-value-bind (name lambda-list documentation guard-clauses expanded-body)
 	     (parse-define-function-or-closure (define-name-field define) (define-body define))
@@ -457,7 +458,7 @@ and the first element of remaining-list does not satisfy keep?"
 					   :guard-clauses guard-clauses
 					   :documentation documentation)))
 	(t
-	 ;; If we are defining a variable,
+	 ;; if we are defining a variable,
 	 ;; create a local function that takes an arbitrary number of arguments
 	 ;; and applies the variable to those arguments.
 	 (make-local-function-definition
@@ -465,16 +466,16 @@ and the first element of remaining-list does not satisfy keep?"
 	  :form (let ((args (unique-symbol 'args)))
 		  (local-function-form name `(&rest ,args) `((apply ,name ,args))))
 	  :guard-clauses ()
-	  :documentation (format nil "Applies the lexical variable ~S to the provided arguments." name)))))))
+	  :documentation (format nil "applies the lexical variable ~s to the provided arguments." name)))))))
 
 (for-macros
   (defun lexical-variable-assignment-form (define)
     (let ((name (define-name define)))
       (cond
-	;; If the definition is a function,
+	;; if the definition is a function,
 	;; set the variable to the function value.
 	((define-function? define)`(,name #',name))
-	;; If the definition is a variable,
+	;; if the definition is a variable,
 	;; set the variable to the definition's value.
 	(t `(,name ,(define-value-field define))))))
   (defun lexical-variable-assignments-form (defines)
@@ -482,7 +483,7 @@ and the first element of remaining-list does not satisfy keep?"
 
 (for-macros
   (defun set-local-function-documentation-forms (local-function)
-    "Return a body of forms to set the local-functions documentation."
+    "return a body of forms to set the local-functions documentation."
     (let ((name (local-function-definition-name local-function))
 	  (documentation (local-function-definition-documentation local-function)))
       (when documentation
@@ -490,65 +491,65 @@ and the first element of remaining-list does not satisfy keep?"
 
 (for-macros
   (defun register-guard-clauses-forms (name guard-clauses)
-    "Return a body of forms to register the guard-clauses with #'name."
+    "return a body of forms to register the guard-clauses with #'name."
     (when guard-clauses
       (list `(register-guard-clauses #',name ',guard-clauses))))
   
   (defun register-local-function-guard-clauses-forms (local-function)
-    "Return a body of forms to register the guard-clauses with the local-function."
+    "return a body of forms to register the guard-clauses with the local-function."
     (let ((name (local-function-definition-name local-function))
 	  (guard-clauses (local-function-definition-guard-clauses local-function)))
       (register-guard-clauses-forms name guard-clauses))))
 
 (for-macros
   (defun expand-defines-in-body (defines declares body)
-    "Returns an expanded body."
+    "returns an expanded body."
     (dolist (define defines)
       (unless (or (and (symbolp (define-name-field define))
 		       (= 3 (length define)))
 		  (consp (define-name-field define)))
-	(error "Malformed DEFINE ~S. Expected (DEFINE symbol-name value) or (DEFINE (name . args) ...)" define)))
+	(error "malformed define ~s. expected (define symbol-name value) or (define (name . args) ...)" define)))
     (cond
       ((null defines) `(,@declares ,@body))
       (t (let ((lexical-variables (lexical-variables defines))
 	       (local-functions (local-function-definitions defines)))
 	   `(
-	     ;; Create lexical bindings for all defines.
+	     ;; create lexical bindings for all defines.
 	     (let ,lexical-variables
-	       ;; Allow the user to ignore any lexical variable binding
+	       ;; allow the user to ignore any lexical variable binding
 	       ,(ignorable-lexical-variables-declaration lexical-variables)
-	       ;; Create mutually recursive function definitions for all defines
+	       ;; create mutually recursive function definitions for all defines
 	       (labels ,(mapcar #'local-function-definition-form local-functions)
-		 ;; Allow the user to ignore any function bindings
+		 ;; allow the user to ignore any function bindings
 		 ,(ignorable-lexical-variable-functions-declaration lexical-variables)
-		 ;; Insert declares provided by the user.
+		 ;; insert declares provided by the user.
 		 ,@declares
-		 ;; Assign values to all lexical variables
+		 ;; assign values to all lexical variables
 		 ,(lexical-variable-assignments-form defines)
-		 ;; Register define-forms for defines.
+		 ;; register define-forms for defines.
 		 ,@(mapcar (cl:lambda (define-form)
 			     `(register-define-form #',(define-name define-form) ',define-form))
 			   defines)
-		 ;; Register guard-clauses
+		 ;; register guard-clauses
 		 ,@(append-map #'register-local-function-guard-clauses-forms local-functions)
-		 ;; Register documentation for local functions
+		 ;; register documentation for local functions
 		 ,@(append-map #'set-local-function-documentation-forms local-functions)
 		 ,@body))))))))
 
 
 (for-macros
   (defun expand-defines-in-lexical-body (body)
-    "Returns an expanded body."
+    "returns an expanded body."
     (multiple-value-bind (defines body) (parse-initial-defines-from-body body)
       (multiple-value-bind (declares body) (parse-initial-declares-from-body body)
 	(when (null body)
-	  (error "DEFINE: Empty body"))
+	  (error "define: empty body"))
 	(dolist (form body)
 	  (cond
-	    ((define? form) (error "DEFINE definitions mixed with code."))
-	    ((declare? form) (error "DECLARE declarations mixed with code."))
-	    ((guard-tag? form) (error "GUARD clauses mixed with code."))
-	    ((documentation-tag? form) (error "DOCUMENTATION mixed with code."))))
+	    ((define? form) (error "define definitions mixed with code."))
+	    ((declare? form) (error "declare declarations mixed with code."))
+	    ((guard-tag? form) (error "guard clauses mixed with code."))
+	    ((documentation-tag? form) (error "documentation mixed with code."))))
 	(expand-defines-in-body
 	 defines declares
 	 (mapcar
@@ -560,102 +561,102 @@ and the first element of remaining-list does not satisfy keep?"
 
 (for-macros
   (defun top-level-define-form (name-field body)
-    "Returns a top-level form that appropriately defines name-field"
+    "returns a top-level form that appropriately defines name-field"
     (cond
       ((symbolp name-field)
        ;; (define symbol {documentation} function)
        (multiple-value-bind (documentation body) (parse-documentation-from-body body)
 	 (top-level-define-name-form name-field documentation body)))
       ((consp name-field)
-       ;; (define (symbol . args) . function-body) OR
+       ;; (define (symbol . args) . function-body) or
        ;; (define (((symbol . args) . args) . args) . function-body)
        (multiple-value-bind (name lambda-list documentation guard-clauses expanded-body)
 	   (parse-define-function-or-closure name-field body)
 	 `(for-macros
-	   ;; NOTE: Use LABELS and (SETF SYMBOl-FUNCTION) instead of 
-	   ;; DEFUN so that the generated code is not implentation-dependent.
+	   ;; note: use labels and (setf symbol-function) instead of 
+	   ;; defun so that the generated code is not implentation-dependent.
 	   (cl:labels ((,name ,lambda-list ,@expanded-body))
 		      (setf (symbol-function ',name) #',name))
 	   (register-define-form #',name '(define ,name-field ,@(remove-if (cl:lambda (form) (or (documentation-tag? form) (guard-tag? form))) body)))
 	    ,@(when guard-clauses (register-guard-clauses-forms name guard-clauses))
 	    ,@(when documentation (list (set-function-documentation-form-for-symbol-and-function name documentation)))
 	    ',name)))
-      (t (error "DEFINE: Expected one of symbol, function name (symbol args...), or closure name e.g. (((symbol args...) args...) args...) for the name field, but got ~S" name-field)))))
+      (t (error "define: expected one of symbol, function name (symbol args...), or closure name e.g. (((symbol args...) args...) args...) for the name field, but got ~s" name-field)))))
 
 
 (defmacro define (name-field &body body)
-  "DEFINE has two behaviours depending on whether it is being compiled within a lexical-body.
+  "define has two behaviours depending on whether it is being compiled within a lexical-body.
 
-   If un-nested DEFINE can be used to define functions. There are three cases for defining functions:
+   if un-nested define can be used to define functions. there are three cases for defining functions:
 
-   DEFINE can define names for function (setting the fdefinition of name to the function).
+   define can define names for function (setting the fdefinition of name to the function).
    (define name [documentation] #'function)
    
-   DEFINE can define functions with scheme-inspired lambda lists and a function-body.
+   define can define functions with scheme-inspired lambda lists and a function-body.
    (define (name . lambda-list) . function-body)
 
-   DEFINE can define nested closures similar to how functions are defined. 
+   define can define nested closures similar to how functions are defined. 
    (define (((name . lambda-list0) . lambda-list1) . lambda-list2) . function-body)
-      This would define a function similar to:
+      this would define a function similar to:
          (defun name lambda-list0
             (lambda lambda-list1
                (lambda lambda-list2
                   . body)))
 
-   A lambda-list can be (in this documentation, {} denotes optional values, ... denotes 0 or more values).
+   a lambda-list can be (in this documentation, {} denotes optional values, ... denotes 0 or more values).
    (positional-arguments... optional-arguments...)
    (positional-arguments... keyword-arguments...)
    (positional-arguments... . rest-argument)
 
-   A positional arugment is a symbol.
-   An optional argument is either:  (symbol) OR (symbol default-value)
-   A keyword argument is a keyword:  :name (:name default-value)
-     If the keyword argument :NAME is used, the symbol NAME will be bound in the function body.
-   A rest-argument is a symbol.
+   a positional arugment is a symbol.
+   an optional argument is either:  (symbol) or (symbol default-value)
+   a keyword argument is a keyword:  :name (:name default-value)
+     if the keyword argument :name is used, the symbol name will be bound in the function body.
+   a rest-argument is a symbol.
 
-   Positional, optional, and rest-arguments may be autmomatically declared as ignorable by prefixing with an _.
-     If a symbol named _ is used without any suffix, a unique symbol is generated for that argument, and it is declared ignorable. 
+   positional, optional, and rest-arguments may be autmomatically declared as ignorable by prefixing with an _.
+     if a symbol named _ is used without any suffix, a unique symbol is generated for that argument, and it is declared ignorable. 
 
-   A function-body is structured as follows:
+   a function-body is structured as follows:
      ({documentation} declare-forms... {guard} . lexical-body)
 
-   Documentation may either be a string or a DOCUMENTATION-TAG
-   Declare-forms are a list of Common Lisp DECLARE forms.
-   A guard is a GUARD-TAG containing a list of guard-clauses.
-    If provided, each guard-clause will be evaluated when the function is called.
-    If any guard-clause evaluates to false, an error is signaled.
+   documentation may either be a string or a documentation-tag
+   declare-forms are a list of common lisp declare forms.
+   a guard is a guard-tag containing a list of guard-clauses.
+    if provided, each guard-clause will be evaluated when the function is called.
+    if any guard-clause evaluates to false, an error is signaled.
   
-   A lexical-body is of the form:
+   a lexical-body is of the form:
      (define-forms... declare-forms... . body-forms)
 
-   It is an error for any of body-forms to be a DEFINE, DECLARE, or GUARD form.
+   it is an error for any of body-forms to be a define, declare, or guard form.
 
-The behavior of DEFINE forms within a lexical-body is slightly modified and extended.
-   Nested DEFINE forms define both lexically scoped variables and functions.
-   A group of DEFINEs in the same lexical-body are mutually recursive.
+the behavior of define forms within a lexical-body is slightly modified and extended.
+   nested define forms define both lexically scoped variables and functions.
+   a group of defines in the same lexical-body are mutually recursive.
 
-   To define a non-function lexical variable the following form is used:
+   to define a non-function lexical variable the following form is used:
    (define symbol value)
 
-   A local function is also generated for symbol, meaning that if value is a function the following works:
+   a local function is also generated for symbol, meaning that if value is a function the following works:
    (symbol arguments...)
 
-   Similarly, if a function is defined like:
+   similarly, if a function is defined like:
    (define (symbol . args) . body)
-   A lexical variable is generated with its value set to #'symbol.
+   a lexical variable is generated with its value set to #'symbol.
 
-The following forms receive special treatment if they appear in the body-forms of a lexical-body: LET, LET*, LABELS, FLET, MACROLET.
-  The bodies of these forms are treated as if they are lexical-bodies, and therefore may contain define-forms.
-  This ONLY true if these forms appear within a lexical-body's body-forms."
+the following forms receive special treatment if they appear in the body-forms of a lexical-body: let, let*, labels, flet, macrolet.
+  the bodies of these forms are treated as if they are lexical-bodies, and therefore may contain define-forms.
+  this only true if these forms appear within a lexical-body's body-forms."
   `(macrolet ((define (&whole inner-whole &body ignored)
 		(declare (ignore ignored))
-		(error "Improperly nested define: ~S in expansion for ~S" inner-whole ',name-field)))
+		(error "improperly nested define: ~s in expansion for ~s" inner-whole ',name-field)))
      ,(top-level-define-form name-field body)))
 
 (defmacro lambda (arg-list &body body)
-  "A lambda with scheme style argument lists.
-See DEFINE for more information on function-bodies and lambda-lists.
-NOTE: LAMBDA cannot be used as the name of a function. i.e. it cannot be called ((lambda ...) args...)."
+  "a lambda with scheme style argument lists.
+see define for more information on function-bodies and lambda-lists.
+note: lambda cannot be used as the name of a function. i.e. it cannot be called ((lambda ...) args...)."
   (multiple-value-bind (lambda-list documentation guard-clauses expanded-body) 
       (parse-define-function arg-list body)
     (let ((fn (unique-symbol 'function)))
