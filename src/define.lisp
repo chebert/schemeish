@@ -108,7 +108,6 @@ or (define (((name . args) . args) . args) ...) style form."
   (defun register-define-form (function form)
     "Register the define-form in the *define-form-hash-table*."
     (assert (functionp function))
-    (assert (define? form))
     (setf (gethash function *define-form-hash-table*) form))
 
   (defun unregister-define-form (function)
@@ -347,13 +346,13 @@ and the first element of remaining-list does not satisfy keep?"
     (parse-initial body #'define?)))
 
 (for-macros
-  (defun guard-clauses-form (guard-clauses)
-    "Return a form that processes guard-clauses, causing an error if any clause fails."
-    (cons 'progn
-	  (mapcar (cl:lambda (guard-clause)
-		    `(unless ,guard-clause
-		       (error "Failed function guard-clause: ~S" ',guard-clause)))
-		  guard-clauses))))
+ (defun guard-clauses-form (guard-clauses)
+   "Return a form that processes guard-clauses, causing an error if any clause fails."
+   (cons 'progn
+	 (mapcar (cl:lambda (guard-clause)
+			    `(unless ,guard-clause
+			       (error "Failed function guard-clause: ~S" ',guard-clause)))
+		 guard-clauses))))
 
 (guard-clauses-form '((stringp text)
 		      (inline? value)

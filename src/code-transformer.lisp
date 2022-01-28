@@ -208,6 +208,126 @@ removed."
 
   (cons untagged-statements tagged-forms))
 
+;; Lexical body expansion
+
+(for-macros
+  (defvar *lexical-body-definition-table* (make-hash-table))
+
+  (define (register-lexical-body-definition symbol transform)
+    (hash-set! *lexical-body-definition-table* symbol transform)))
+
+(defvar *definition-form* nil)
+(defvar *definition-guard-clauses* nil)
+(define (transform-lexical-body-define-pair definition)
+  (define name-field (second definition))
+  (define body (cddr definition))
+  (define guard-clauses (multiple-value-bind (body guard-clauses docs) (parse-function-tags-from-body body)
+			  (declare (ignore body docs))
+			  guard-clauses))
+  (define (recurse name-field body)
+    (cond
+      ((pair? (first name-field))
+       ;; Closure definition: ((...) . parameters)
+       (let ((name-field (first name-field))
+	     (parameters (rest name-field)))
+	 (recurse name-field `((let ((*definition-form* ',(second definition))
+				     (*definition-guard-clauses* ',guard-clauses))
+				 (lambda ,parameters ,@body))))))
+      (t
+       ;; Function definition: (name . parameters)
+       (let ((name (first name-field))
+	     (parameters (rest name-field)))
+	 (values (list name) `(setq ,name (let ((*definition-form* ',(second definition))
+						(*definition-guard-clauses* ',guard-clauses))
+					    (lambda ,parameters ,@body))))))))
+  (recurse name-field body))
+
+(define (transform-lexical-body-define-symbol definition)
+  (let ((name (second definition))
+	(value (third definition)))
+    (values (list name) `(setq ,name ,value))))
+
+(define (transform-lexical-body-define-symbol-or-pair definition)
+  (define name-field (second definition))
+  (cond
+    ((symbol? name-field) (transform-lexical-body-define-symbol definition))
+    (t (transform-lexical-body-define-pair definition))))
+
+(define (transform-lexical-body-define-values definition)
+  (define name-field (second definition))
+  (define values-form (third definition))
+  (define (ignore? name) (string= (symbol->string name) "_"))
+  (define (names-iter given-names names vars ignored-names)
+    (cond
+      ((empty? given-names) (values (nreverse names) (nreverse vars) (nreverse ignored-names)))
+      (t (let ((name (first given-names)))
+	   (if (ignore? name)
+	       (let ((var (unique-symbol 'ignore)))
+		 (names-iter (rest given-names) names (cons var vars) (cons var ignored-names)))
+	       (names-iter (rest given-names) (cons name names) (cons name vars) ignored-names))))))
+  
+  (cond
+    ((symbol? name-field)
+     (values (list name-field) `(setq ,name-field (multiple-value-list ,values-form))))
+    (t
+     (multiple-value-bind (names vars ignored-names) (names-iter name-field () () ())
+       (values names `(cl:let ,ignored-names
+			(multiple-value-setq ,vars ,values-form)))))))
+
+(for-macros
+  (register-lexical-body-definition 'define #'transform-lexical-body-define-symbol-or-pair)
+  (register-lexical-body-definition 'define-values #'transform-lexical-body-define-values))
+
+(define (lexical-body-definition? form)
+  (and (pair? form)
+       (hash-ref *lexical-body-definition-table* (first form) nil)))
+(define (transform-lexical-body-definition form)
+  [(hash-ref *lexical-body-definition-table* (first form)) form])
+
+(define (parse-lexical-body-definitions lexical-body)
+  "Returns (values definitions forms)"
+  (values (takef lexical-body #'lexical-body-definition?)
+	  (dropf lexical-body #'lexical-body-definition?)))
+
+(define (parse-declarations body)
+  "Returns (values declarations forms)"
+  (values (takef body #'declare?)
+	  (dropf body #'declare?)))
+
+(define (collect-lexical-body-definitions-names-and-set-forms definitions)
+  "Returns (values names set-forms)"
+  (define (iter definitions names set-forms)
+    (cond
+      ((empty? definitions) (values names (nreverse set-forms)))
+      (t (multiple-value-bind (new-names set-form) (transform-lexical-body-definition (first definitions))
+	   (iter (rest definitions) (append names new-names) (cons set-form set-forms))))))
+  (iter definitions () ()))
+
+(define (lexical-body-form body)
+  (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
+    (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
+      `(cl:let ,names
+	 (cl:flet ,(map (lambda (name)
+			  (let ((rest (unique-symbol 'rest)))
+			    `(,name (&rest ,rest) (apply ,name ,rest))))
+		    names)
+	   (declare (ignorable ,@(map (lambda (name) `(function ,name)) names)))
+	   ,@set-forms
+	   (cl:let ,(map (lambda (name) (list name name)) names)
+	     (declare (ignorable ,@names))
+	     ,@body))))))
+
+(defmacro lexical-body (&body body)
+  (lexical-body-form body))
+
+(assert (equal?
+	 (lexical-body
+	   (define-values (a b c) (values 1 2 3))
+	   (define d 4)
+	   (define (((e x) y) z) (list x y z))
+	   (list* a b c d [[(e 5) 6] 7]))
+	 (range 8 1)))
+
 
 ;; Implementation of SCM
 (for-macros
@@ -300,9 +420,6 @@ Within LISP, just evalutes form."
 	      environment
 	      (lisp-implementation-type))))
 
-
-(define (define? expr) (and (pair? expr) (eq? (first expr) 'define)))
-
 (define (parse-documentation-source body)
   (cond
     ((empty? body) (values body nil))
@@ -314,7 +431,6 @@ Within LISP, just evalutes form."
     (t (values body nil))))
 (define (parse-function-tags-from-body body)
   "Return (values body guard-clauses documentation-source-form)"
-  ;; TODO: Move to define.
   (define (parse-guard-clauses body)
     (if (and (not (empty? body))
 	     (guard-tag? (first body)))
@@ -324,73 +440,75 @@ Within LISP, just evalutes form."
     (multiple-value-bind (body guard-clauses) (parse-guard-clauses body)
       (values body guard-clauses documentation-source))))
 
-(define (documentation-string-for-definition definition-form guard-clauses documentation-string)
+(define (documentation-string-for-definition parameters definition-form guard-clauses documentation-string)
   #g((string? documentation-string))
-  (define name (first (flatten (second definition-form))))
+  (define name (first (flatten definition-form)))
   (string-append documentation-string
-		 (format nil "~&~%~%Form: ~S" (second definition-form))
+		 (format nil "~&~%~%Parameters: ~S" parameters)
+		 (format nil "~&~%Form: ~S" definition-form)
 		 (if guard-clauses
 		     (format nil "~&~%~%~S has the following guard clauses:~%~S"
 			     name guard-clauses)
 		     (format nil "~&~%~%~S has no guard clauses." name))))
 
-(define (definition->binding form)
-  (define (function-definition->binding name-field body)
-    (cond
-      ((pair? (first name-field))
-       ;; Closure definition
-       (function-definition->binding
-	(first name-field)
-	(list `(lambda ,(rest name-field)
-		 ,@body))))
-      (t
-       ;; Function definition
-       (let ((name (first name-field))
-	     (scm-parameters (rest name-field)))
-	 (multiple-value-bind (parsed-body guard-clauses documentation-source)
-	     (parse-function-tags-from-body body)
-	   ;; TODO: Don't ignore guard clauses
-	   (list name
-		 (let ((function (unique-symbol 'function))
-		       (sanitized-define-form `(define ,(second form) ,@parsed-body)))
-		   `(let ((,function (lambda ,scm-parameters ,@body)))
-		      (schemeish.define::register-define-form ,function ',sanitized-define-form)
-		      ,@(when guard-clauses
-			  (list
-			   `(schemeish.define::register-guard-clauses ,function ',guard-clauses)))
-		      ,@(when documentation-source
-			  (list
-			   `(setf (documentation ,function t)
-				  (documentation-string-for-definition
-				   ',sanitized-define-form ',guard-clauses
-				   (schemeish.define::documentation-string ,documentation-source)))
-			   `(schemeish.define::set-object-documentation-source! ,function ,documentation-source)))
-		      ,function))))))))
 
-  (define name-field (second form))
-  (define body (cddr form))
+(define (parameter-bindings-form parameters)
+  `(list ,@(map (lambda (name) `(list ',name ,name)) (parameter-names parameters))))
 
-  (cond
-    ((symbol? name-field) (list name-field (third form)))
-    (t (function-definition->binding name-field body))))
+(define (guard-clauses-form guard-clauses parameters)
+  "Return a form that processes guard-clauses, causing an error if any clause fails."
+  (cons 'progn
+	(mapcar (cl:lambda (guard-clause)
+		  `(unless ,guard-clause
+		     (error "Failed function guard-clause: ~S with the given parameter bindings: ~S" ',guard-clause ,(parameter-bindings-form parameters))))
+		guard-clauses)))
+
+(define (register-function-metadata function scm-parameters guard-clauses documentation-source definition-form)
+  (when guard-clauses
+    (schemeish.define::register-guard-clauses function guard-clauses))
+  (setf (documentation function t)
+	(documentation-string-for-definition scm-parameters
+					     definition-form
+					     guard-clauses
+					     (if documentation-source
+						 (schemeish.define::documentation-string documentation-source)
+						 "")))
+  (when definition-form
+    (schemeish.define::register-define-form function definition-form))
+  (when documentation-source
+    (schemeish.define::set-object-documentation-source! function documentation-source))
+  function)
+
+(define (transform-function transformer scm-parameters body)
+  ;; TODO: rename arg-list->lambda-list to scm-parameters->parameters
+  (define name (unique-symbol 'function))
+  (multiple-value-bind (parameters ignorable-args) (schemeish.define::arg-list->lambda-list scm-parameters)
+    (multiple-value-bind (body guard-clauses documentation-source) (parse-function-tags-from-body body)
+      `(register-function-metadata
+	(cl:lambda ,parameters
+	  (declare (ignorable ,@ignorable-args))
+	  ,(guard-clauses-form guard-clauses parameters)
+	  ,@(transform-function-body transformer body))
+	',scm-parameters
+	,(if guard-clauses
+	     `',guard-clauses
+	     '*definition-guard-clauses*)
+	,documentation-source
+	*definition-form*))))
 
 
 (define (transform-lexical-body transformer body)
-  ;; lexical body is (definitions... declarations... forms...)
-  (define definitions (takef body #'define?))
-  (define rest-body (dropf body #'define?))
-  (define declarations (takef rest-body #'declare?))
-  (define forms (transform* transformer (dropf rest-body #'declare?)))
-  (define bindings (map #'definition->binding definitions))
-  (transform* transformer
-	      (cond
-		((not (empty? definitions))
-		 `((let ,(map #'first bindings)
-		     ,@declarations
-		     ,@(map (lambda (binding) `(setq ,(first binding) ,(second binding)))
-			    bindings)
-		     ,@forms)))
-		(t `(,@declarations ,@forms)))))
+  (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
+    (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
+      (multiple-value-bind (declarations body) (parse-declarations body)
+	(cond
+	  ((empty? names) (transform* transformer body))
+	  (t `((cl:let ,names
+		 ,@(transform* transformer set-forms)
+		 (cl:let ,(map (lambda (name) (list name name)) names)
+		   ,@declarations
+		   ,@(transform* transformer body))))))))))
+
 (define (transform-function-body transformer body)
   ;; function body is ([documentation] declarations... . lexical-body)
   (define declarations (function-body-declarations body))
@@ -403,33 +521,8 @@ Within LISP, just evalutes form."
   `(cl:lambda ,(transform-parameters transformer (lambda-parameters expr))
      ,@(transform-function-body transformer (lambda-body expr))))
 
-
 (define-special-transform lambda (transformer expr env)
-  ;;TODO: Move to DEFINE
-  (define scm-parameters (lambda-parameters expr))
-  ;; TODO: rename arg-list->lambda-list to scm-parameters->parameters
-  (define parameters (schemeish.define::arg-list->lambda-list scm-parameters))
-  (define name (unique-symbol 'lambda))
-
-  (multiple-value-bind (body guard-clauses documentation-source)
-      (parse-function-tags-from-body (lambda-body expr))
-    ;; TODO: don't ignore guard-clauses
-    ;; TODO: merge behavior with definition->binding
-    (transform transformer
-	       `(cl:let ((,name (cl:lambda ,parameters
-				  ,@body)))
-		  ,@(when guard-clauses (list `(schemeish.define::register-guard-clauses ,name ',guard-clauses)))
-		  ,@(when documentation-source
-		      (list `(progn
-			       (setf (documentation ,name t)
-				     (schemeish.define::documentation-string-for-lambda
-				      ',scm-parameters
-				      ,name
-				      (schemeish.define::documentation-string ,documentation-source)))
-			       (schemeish.define::set-object-documentation-source!
-				,name
-				,documentation-source))))
-		  ,name))))
+  (transform-function transformer (lambda-parameters expr) (lambda-body expr)))
 
 (define-special-transform cl:block (transformer expr env)
   `(cl:block ,(block-name expr)
@@ -525,8 +618,10 @@ Within LISP, just evalutes form."
   (second expr))
 
 (define (transform-proper-list transformer expr env)
-  (declare (ignorable env))
-  `(cl:funcall ,@(transform* transformer expr)))
+  (define fn (first expr))
+  (if (or (pair? fn) (bound-variable? fn env))
+      `(cl:funcall ,@(transform* transformer expr))
+      `(,fn ,@(transform* transformer (rest expr)))))
 (define (transform-cyclic-list transformer expr env)
   (declare (ignorable transformer expr env))
   (error "Detected cyclic list."))
@@ -554,7 +649,7 @@ Within LISP, just evalutes form."
     (t `(function ,expr))))
 
 (for-macros
-  (defparameter *transformer*
+  (defparameter *scm-transformer*
     (make-transformer *transform-special-form-table*
 		      'transform-proper-list
 		      'transform-dotted-list
@@ -562,14 +657,15 @@ Within LISP, just evalutes form."
 		      'transform-atom)))
 
 (assert (equal? (eval (transform-expression
-		       *transformer*
+		       *scm-transformer*
 		       '(let ((f (lambda args args))
 			      (args '(1 2 3)))
 			 (f . args))))
+
 		'(1 2 3)))
 
 (assert (equal? (eval (transform-expression
-		       *transformer*
+		       *scm-transformer*
 		       '(let ((f (lambda args args))
 			      (args '(1 2 3)))
 			 (list* (list 1 2 3) (f . args)))))
@@ -577,7 +673,7 @@ Within LISP, just evalutes form."
 
 
 (assert (equal? (eval (transform-expression
-		       *transformer*
+		       *scm-transformer*
 		       '(let ((f (lambda args (+ . args)))
 			      (args '(1 2 3)))
 			 (list* (+ 1 2 3) (f . args)))))
@@ -586,7 +682,7 @@ Within LISP, just evalutes form."
 
 
 (assert (equal? (eval (transform-expression
-		       *transformer*
+		       *scm-transformer*
 		       '(let ()
 			 (define a 1)
 			 (define copy (lambda (x) (if (empty? x)
@@ -601,9 +697,15 @@ If an expression is a proper list, it is transformed into (funcall function args
 If an expression is a dotted list, it is transformed into (apply function args... rest-arg)
 If an expression is a symbol, its value is looked up in the variable environment at macro-expansion-time.
 If not found, it is assumed to be in the function-namespace.
-The symbols (+ ++ +++ * ** *** - / // ///) are assumed to be functions.
+The following symbols from the COMMON-LISP package are assumed to be functions rather than parameters: (+ ++ +++ * ** *** - / // ///)
+A form (LISP form) will escape SCM and process form as if it is in Common-Lisp.
+E.g. (SCM (LISP +)) => the last evaluated repl form
+     (SCM +) => #'+
 DEFINE forms may appear at the top of a lexical body, and are gathered together converted into a LETREC."
-  (transform-expression *transformer* `(progn ,@body) environment))
+  (transform-expression
+   *scm-transformer*
+   `(progn ,@body)
+   environment))
 
 (assert (equal? (scm
 		  (let ()
@@ -614,11 +716,12 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 		      (if (empty? x)
 			  ()
 			  (append (reverse (rest x)) (list (first x)))))
+		    (declare (ignore b))
 		    (progn
 		      (define b 'b)
 		      (reverse (list c b a)))))
-		'(1 b 3)))
 
+		'(1 b 3)))
 
 (assert (equal? (scm
 		  (define (((nested a) b) . c) (list* a b c))
@@ -634,7 +737,7 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 	   (error "Expected exactly one body-form for DEF: got ~S" body))
 	 `(for-macros
 	    (setf (fdefinition ',name) (scm ,(first body)))
-	    (schemeish.define::register-define-form #',name '(define ,name ,@body))
+	    (schemeish.define::register-define-form #',name ',name)
 	    ,@(when documentation-source
 		`((setf (documentation ',name 'function) (schemeish.define::documentation-string-for-define-function
 							  ',name #',name (documentation-string ,documentation-source)))
@@ -644,15 +747,16 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
      (let ((name (first (flatten name-field))))
        `(for-macros
 	  (fmakunbound ',name)
-	  (setf (fdefinition ',name)
-		(scm
-		  (define ,name-field ,@body)
-		  ,name))
+	  (setf (fdefinition ',name) (scm (define ,name-field ,@body) ,name))
 	  ',name)))))
 
 (def (((test-nested a) b) . c)
+  #g((not (list? b)))
   (list* a b c))
 
+(scm (documentation test-nested t))
+(scm (documentation (test-nested 1) t))
+(scm (documentation ((test-nested 1) 2) t))
 (assert (equal? (scm (((test-nested 1) 2) 3 4 5))
 		'(1 2 3 4 5)))
 
@@ -666,7 +770,6 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
       (t (iter (1- n) (* result n)))))
   (values (iter n 1) (documentation iter t)))
 
-
 (assert (equal? (test-fact 4) 24))
 (scm (documentation test-fact t))
 
@@ -675,7 +778,20 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 
 (assert (= 3 (2+ 1)))
 
-;; Document curried functions somehow
-;; add in guard clauses
-;; merge lambda and definition-binding
-;; problem with nested definitions having #G or #D tags
+(assert (equal? (scm
+		  (define-values (a b c) (values 1 2 3))
+		  (define x 'x)
+		  (define-values (d e f) (values 4 5 6))
+		  (define (y) 'y)
+		  (define-values g (values 7 8 9))
+		  (list* x (y) a b c d e f g))
+		'(X Y 1 2 3 4 5 6 7 8 9)))
+
+(scm
+  (define-values (a _ c) (values 1 2 3))
+  (list a c))
+
+;; merge with functions in schemeish.DEFINE
+;; split off lexical-body into its own package
+;; split off into scm-transformer and scm package
+;; disable/enable registering metadata (with-metadata ...) (without-metadata ...)
