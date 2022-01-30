@@ -1,6 +1,21 @@
 (DEFPACKAGE #:SCHEMEISH.CODE-TRANSFORMER
   (:USE #:SCHEMEISH.SCHEMEISH))
 
+;; TODO: (transform definition) => (values variable-names set-form function-bindings)
+;;       (transform definition) => (values names set-form)
+;; TODO: move DEFINE/DEFINE-VALUES out of lexical-body
+;; Actually...what's the best way to export both SCM-DEFINE and SCHEMEISH-DEFINE
+
+;;(defpackage-form :schemeish.lexical-body)
+(DEFPACKAGE #:SCHEMEISH.LEXICAL-BODY
+  (:EXPORT #:LAMBDA #:LEXICAL-BODY #:PARSE-LEXICAL-BODY #:DEFINE #:DEFINE-VALUES))
+;;(defpackage-form :schemeish.define2)
+(DEFPACKAGE #:SCHEMEISH.DEFINE2
+  (:EXPORT #:DEFINE #:DEFINE-VALUES))
+;;(defpackage-form :schemeish.scm)
+(DEFPACKAGE #:SCHEMEISH.SCM
+  (:EXPORT #:DEFINE #:DEFINE-VALUES #:SCM))
+
 (in-package :schemeish.code-transformer)
 
 (install-syntax!)
@@ -232,14 +247,14 @@ removed."
 	     (parameters (rest name-field)))
 	 (recurse name-field `((let ((*definition-form* ',(second definition))
 				     (*definition-guard-clauses* ',guard-clauses))
-				 (lambda ,parameters ,@body))))))
+				 (schemeish.lexical-body:lambda ,parameters ,@body))))))
       (t
        ;; Function definition: (name . parameters)
        (let ((name (first name-field))
 	     (parameters (rest name-field)))
 	 (values (list name) `(setq ,name (let ((*definition-form* ',(second definition))
 						(*definition-guard-clauses* ',guard-clauses))
-					    (lambda ,parameters ,@body))))))))
+					    (schemeish.lexical-body:lambda ,parameters ,@body))))))))
   (recurse name-field body))
 
 (define (transform-lexical-body-define-symbol definition)
@@ -303,31 +318,68 @@ removed."
 	   (iter (rest definitions) (append names new-names) (cons set-form set-forms))))))
   (iter definitions () ()))
 
-(define (lexical-body-form body)
+(define (schemeish.lexical-body:parse-lexical-body body)
+  "Returns (values body names set-forms)"
   (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
     (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
+      (values body names set-forms))))
+
+(define (lexical-body-form body)
+  (multiple-value-bind (body names set-forms) (schemeish.lexical-body:parse-lexical-body body)
+    (let* ((definition-function-binding
+	     (lambda (name)
+	       (let ((rest (unique-symbol 'rest)))
+		 `(,name (&rest ,rest) (apply ,name ,rest)))))
+	   (definition-variable-binding
+	     (lambda (name) (list name name))))
       `(cl:let ,names
-	 (cl:flet ,(map (lambda (name)
-			  (let ((rest (unique-symbol 'rest)))
-			    `(,name (&rest ,rest) (apply ,name ,rest))))
-		    names)
+	 (cl:labels ,(map definition-function-binding names)
 	   (declare (ignorable ,@(map (lambda (name) `(function ,name)) names)))
 	   ,@set-forms
-	   (cl:let ,(map (lambda (name) (list name name)) names)
+	   (cl:let ,(map definition-variable-binding names)
 	     (declare (ignorable ,@names))
 	     ,@body))))))
 
-(defmacro lexical-body (&body body)
+(defmacro schemeish.lexical-body:lexical-body (&body body)
   (lexical-body-form body))
 
+(defmacro schemeish.lexical-body:lambda (parameters &body body)
+  (multiple-value-bind (parameters ignorable-parameters) (schemeish.define::arg-list->lambda-list parameters)
+    `(cl:lambda ,parameters
+       (declare (ignorable ,@ignorable-parameters))
+       ,@(let ((declarations (function-body-declarations body))
+	       (forms (function-body-forms body)))
+	   `(,@declarations (schemeish.lexical-body:lexical-body ,@forms))))))
+
+(defmacro schemeish.define2:define (name-field &body body)
+  (let ((name (or (and (pair? name-field)
+		       (first (flatten name-field)))
+		  name-field))
+	(function (unique-symbol 'function)))
+    `(for-macros
+       (fmakunbound ',name)
+       (let ((,function (schemeish.lexical-body:lexical-body
+			  (define ,name-field ,@body)
+			  ,name)))
+	 (assert (procedure? ,function))
+	 (setf (fdefinition ',name) ,function)))))
+
+(schemeish.define2:define (test)
+  (define-values (a b c) (values 1 2 3))
+  (define d 4)
+  (define (((e x) y) z) (list x y z))
+  (list* a b c d [[(e 5) 6] 7]))
+
+(assert (equal? (test)
+		'(1 2 3 4 5 6 7)))
+
 (assert (equal?
-	 (lexical-body
+	 (schemeish.lexical-body:lexical-body
 	   (define-values (a b c) (values 1 2 3))
 	   (define d 4)
 	   (define (((e x) y) z) (list x y z))
 	   (list* a b c d [[(e 5) 6] 7]))
 	 (range 8 1)))
-
 
 ;; Implementation of SCM
 (for-macros
@@ -496,18 +548,16 @@ Within LISP, just evalutes form."
 	,documentation-source
 	*definition-form*))))
 
-
 (define (transform-lexical-body transformer body)
-  (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
-    (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
-      (multiple-value-bind (declarations body) (parse-declarations body)
-	(cond
-	  ((empty? names) (transform* transformer body))
-	  (t `((cl:let ,names
-		 ,@(transform* transformer set-forms)
-		 (cl:let ,(map (lambda (name) (list name name)) names)
-		   ,@declarations
-		   ,@(transform* transformer body))))))))))
+  (multiple-value-bind (body names set-forms) (schemeish.lexical-body:parse-lexical-body body)
+    (multiple-value-bind (declarations body) (parse-declarations body)
+      (cond
+	((empty? names) (transform* transformer body))
+	(t `((cl:let ,names
+	       ,@(transform* transformer set-forms)
+	       (cl:let ,(map (lambda (name) (list name name)) names)
+		 ,@declarations
+		 ,@(transform* transformer body)))))))))
 
 (define (transform-function-body transformer body)
   ;; function body is ([documentation] declarations... . lexical-body)
@@ -521,7 +571,7 @@ Within LISP, just evalutes form."
   `(cl:lambda ,(transform-parameters transformer (lambda-parameters expr))
      ,@(transform-function-body transformer (lambda-body expr))))
 
-(define-special-transform lambda (transformer expr env)
+(define-special-transform schemeish.lexical-body:lambda (transformer expr env)
   (transform-function transformer (lambda-parameters expr) (lambda-body expr)))
 
 (define-special-transform cl:block (transformer expr env)
@@ -658,7 +708,7 @@ Within LISP, just evalutes form."
 
 (assert (equal? (eval (transform-expression
 		       *scm-transformer*
-		       '(let ((f (lambda args args))
+		       '(let ((f (schemeish.lexical-body:lambda args args))
 			      (args '(1 2 3)))
 			 (f . args))))
 
@@ -666,15 +716,14 @@ Within LISP, just evalutes form."
 
 (assert (equal? (eval (transform-expression
 		       *scm-transformer*
-		       '(let ((f (lambda args args))
+		       '(let ((f (schemeish.lexical-body:lambda args args))
 			      (args '(1 2 3)))
 			 (list* (list 1 2 3) (f . args)))))
 		'((1 2 3) 1 2 3)))
 
-
 (assert (equal? (eval (transform-expression
 		       *scm-transformer*
-		       '(let ((f (lambda args (+ . args)))
+		       '(let ((f (schemeish.lexical-body:lambda args (+ . args)))
 			      (args '(1 2 3)))
 			 (list* (+ 1 2 3) (f . args)))))
 		'(6 . 6)))
@@ -685,13 +734,15 @@ Within LISP, just evalutes form."
 		       *scm-transformer*
 		       '(let ()
 			 (define a 1)
-			 (define copy (lambda (x) (if (empty? x)
-						      ()
-						      (cons (first x) (copy (rest x))))))
+			 (define copy (schemeish.lexical-body:lambda (x)
+					(if (empty? x)
+					    ()
+					    (cons (first x) (copy (rest x))))))
 
 			 (copy (list a a a)))))
 		'(1 1 1)))
-(defmacro scm (&body body &environment environment)
+
+(defmacro schemeish.scm:scm (&body body &environment environment)
   "Evaluates body in the SCM langauge. Similar to Common Lisp with the following changes:
 If an expression is a proper list, it is transformed into (funcall function args).
 If an expression is a dotted list, it is transformed into (apply function args... rest-arg)
@@ -707,7 +758,7 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
    `(progn ,@body)
    environment))
 
-(assert (equal? (scm
+(assert (equal? (schemeish.scm:scm
 		  (let ()
 		    (define a 1)
 		    (define b (+ a 1))
@@ -723,12 +774,12 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 
 		'(1 b 3)))
 
-(assert (equal? (scm
+(assert (equal? (schemeish.scm:scm
 		  (define (((nested a) b) . c) (list* a b c))
 		  (((nested 1) 2) 3 4 5))
 		'(1 2 3 4 5)))
 
-(defmacro def (name-field &body body)
+(defmacro schemeish.scm:define (name-field &body body)
   (cond
     ((symbol? name-field)
      (let ((name name-field))
@@ -736,7 +787,7 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 	 (unless (= (length body) 1)
 	   (error "Expected exactly one body-form for DEF: got ~S" body))
 	 `(for-macros
-	    (setf (fdefinition ',name) (scm ,(first body)))
+	    (setf (fdefinition ',name) (schemeish.scm:scm ,(first body)))
 	    (schemeish.define::register-define-form #',name ',name)
 	    ,@(when documentation-source
 		`((setf (documentation ',name 'function) (schemeish.define::documentation-string-for-define-function
@@ -747,20 +798,20 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
      (let ((name (first (flatten name-field))))
        `(for-macros
 	  (fmakunbound ',name)
-	  (setf (fdefinition ',name) (scm (define ,name-field ,@body) ,name))
+	  (setf (fdefinition ',name) (schemeish.scm:scm (define ,name-field ,@body) ,name))
 	  ',name)))))
 
-(def (((test-nested a) b) . c)
+(schemeish.scm:define (((test-nested a) b) . c)
   #g((not (list? b)))
   (list* a b c))
 
-(scm (documentation test-nested t))
-(scm (documentation (test-nested 1) t))
-(scm (documentation ((test-nested 1) 2) t))
-(assert (equal? (scm (((test-nested 1) 2) 3 4 5))
+(schemeish.scm:scm (documentation test-nested t))
+(schemeish.scm:scm (documentation (test-nested 1) t))
+(schemeish.scm:scm (documentation ((test-nested 1) 2) t))
+(assert (equal? (schemeish.scm:scm (((test-nested 1) 2) 3 4 5))
 		'(1 2 3 4 5)))
 
-(def (test-fact n)
+(schemeish.scm:define (test-fact n)
   #d"Test for a a factorial using DEF."
   #g((not (negative? n)))
   (define (iter n result)
@@ -771,14 +822,14 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
   (values (iter n 1) (documentation iter t)))
 
 (assert (equal? (test-fact 4) 24))
-(scm (documentation test-fact t))
+(schemeish.scm:scm (documentation test-fact t))
 
-(scm (define-form test-fact))
+(schemeish.scm:scm (define-form test-fact))
 (def 2+ (lcurry + 2))
 
 (assert (= 3 (2+ 1)))
 
-(assert (equal? (scm
+(assert (equal? (schemeish.scm:scm
 		  (define-values (a b c) (values 1 2 3))
 		  (define x 'x)
 		  (define-values (d e f) (values 4 5 6))
@@ -787,11 +838,11 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 		  (list* x (y) a b c d e f g))
 		'(X Y 1 2 3 4 5 6 7 8 9)))
 
-(scm
+(schemeish.scm:scm
   (define-values (a _ c) (values 1 2 3))
   (list a c))
 
 ;; merge with functions in schemeish.DEFINE
-;; split off lexical-body into its own package
+;; split off lexical-body into DEFINE
+
 ;; split off into scm-transformer and scm package
-;; disable/enable registering metadata (with-metadata ...) (without-metadata ...)

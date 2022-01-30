@@ -748,8 +748,7 @@ note: lambda cannot be used as the name of a function. i.e. it cannot be called 
 ;; TODO: selectively disable debug features: REGISTER-DEFINE-FORM, GUARDs, etc.
 
 ;; NOTE: Only works if we are at the top level (or in a top level progn)
-#;
-(defmacro macro-params (bindings &body body)
+#;(defmacro macro-params (bindings &body body)
   (let* ((symbols (mapcar #'first bindings))
 	 (values (mapcar #'second bindings))
 	 (bound-list (mapcar #'boundp symbols))
