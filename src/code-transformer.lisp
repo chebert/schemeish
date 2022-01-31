@@ -6,18 +6,7 @@
 ;; TODO: move DEFINE/DEFINE-VALUES out of lexical-body
 ;; Actually...what's the best way to export both SCM-DEFINE and SCHEMEISH-DEFINE
 
-;;(defpackage-form :schemeish.lexical-body)
-(DEFPACKAGE #:SCHEMEISH.LEXICAL-BODY
-  (:EXPORT #:LAMBDA #:LEXICAL-BODY #:PARSE-LEXICAL-BODY #:DEFINE #:DEFINE-VALUES))
-;;(defpackage-form :schemeish.define2)
-(DEFPACKAGE #:SCHEMEISH.DEFINE2
-  (:EXPORT #:DEFINE #:DEFINE-VALUES))
-;;(defpackage-form :schemeish.scm)
-(DEFPACKAGE #:SCHEMEISH.SCM
-  (:EXPORT #:DEFINE #:DEFINE-VALUES #:SCM))
-
 (in-package :schemeish.code-transformer)
-
 (install-syntax!)
 
 (define-struct transformer
@@ -247,14 +236,14 @@ removed."
 	     (parameters (rest name-field)))
 	 (recurse name-field `((let ((*definition-form* ',(second definition))
 				     (*definition-guard-clauses* ',guard-clauses))
-				 (schemeish.lexical-body:lambda ,parameters ,@body))))))
+				 (lambda ,parameters ,@body))))))
       (t
        ;; Function definition: (name . parameters)
        (let ((name (first name-field))
 	     (parameters (rest name-field)))
 	 (values (list name) `(setq ,name (let ((*definition-form* ',(second definition))
 						(*definition-guard-clauses* ',guard-clauses))
-					    (schemeish.lexical-body:lambda ,parameters ,@body))))))))
+					    (lambda ,parameters ,@body))))))))
   (recurse name-field body))
 
 (define (transform-lexical-body-define-symbol definition)
@@ -318,14 +307,14 @@ removed."
 	   (iter (rest definitions) (append names new-names) (cons set-form set-forms))))))
   (iter definitions () ()))
 
-(define (schemeish.lexical-body:parse-lexical-body body)
+(define (parse-lexical-body body)
   "Returns (values body names set-forms)"
   (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
     (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
       (values body names set-forms))))
 
 (define (lexical-body-form body)
-  (multiple-value-bind (body names set-forms) (schemeish.lexical-body:parse-lexical-body body)
+  (multiple-value-bind (body names set-forms) (parse-lexical-body body)
     (let* ((definition-function-binding
 	     (lambda (name)
 	       (let ((rest (unique-symbol 'rest)))
@@ -340,29 +329,16 @@ removed."
 	     (declare (ignorable ,@names))
 	     ,@body))))))
 
-(defmacro schemeish.lexical-body:lexical-body (&body body)
+(defmacro lexical-body (&body body)
   (lexical-body-form body))
 
-(defmacro schemeish.lexical-body:lambda (parameters &body body)
+(defmacro lambda (parameters &body body)
   (multiple-value-bind (parameters ignorable-parameters) (schemeish.define::arg-list->lambda-list parameters)
     `(cl:lambda ,parameters
        (declare (ignorable ,@ignorable-parameters))
        ,@(let ((declarations (function-body-declarations body))
 	       (forms (function-body-forms body)))
 	   `(,@declarations (schemeish.lexical-body:lexical-body ,@forms))))))
-
-(defmacro schemeish.define2:define (name-field &body body)
-  (let ((name (or (and (pair? name-field)
-		       (first (flatten name-field)))
-		  name-field))
-	(function (unique-symbol 'function)))
-    `(for-macros
-       (fmakunbound ',name)
-       (let ((,function (schemeish.lexical-body:lexical-body
-			  (define ,name-field ,@body)
-			  ,name)))
-	 (assert (procedure? ,function))
-	 (setf (fdefinition ',name) ,function)))))
 
 (schemeish.define2:define (test)
   (define-values (a b c) (values 1 2 3))
@@ -690,11 +666,10 @@ Within LISP, just evalutes form."
   (cond
     ((not (symbol? expr)) expr)
     ((and (bound-variable? expr env)
-	  ;; TODO: Special case: unfortunately named parameters.
-	  (not (member expr '(cl:+ cl:++
-			      cl:-
-			      cl:* cl:** cl:***
-			      cl:/ cl:// cl:///))))
+	  ;; Special case: if a a function happens to be named the same as a special/parameter choose the function.
+	  (not (and (parameter? expr env)
+		    (fboundp expr)))
+	  expr)
      expr)
     (t `(function ,expr))))
 
@@ -779,7 +754,7 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 		  (((nested 1) 2) 3 4 5))
 		'(1 2 3 4 5)))
 
-(defmacro schemeish.scm:define (name-field &body body)
+(defmacro def (name-field &body body)
   (cond
     ((symbol? name-field)
      (let ((name name-field))

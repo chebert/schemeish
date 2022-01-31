@@ -9,10 +9,10 @@
 (define symbol? #'symbolp)
 (define procedure? #'functionp)
 
-(define (parameter? symbol)
+(define (parameter? symbol (environment))
   "Returns true if symbol is a parameter i.e. dynamically scoped."
   #+sbcl
-  (eq? :special (sb-cltl2:variable-information symbol))
+  (eq? :special (sb-cltl2:variable-information symbol environment))
   #-sbcl
   (and (not (constantp symbol))
        ;; If we have an error, its because the parameter has a type

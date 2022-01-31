@@ -3,16 +3,16 @@
 (install-syntax!)
 
 
-(for-macros
-  (define (lexical-name->parameter-name symbol)
-    (intern (string-append "*" (symbol->string symbol) "*"))))
-
 (defmacro lexically (&body lexical-body)
   "Evaluate lexical-body. Expanding defines as if inside of a define or lambda.
 See documentation of DEFINE.
 Use in conjunction with EXPOSE to expose lexical definitions to the package."
   `(let ()
      ,@(expand-defines-in-lexical-body lexical-body)))
+
+(for-macros
+  (define (lexical-name->parameter-name symbol)
+    (intern (string-append "*" (symbol->string symbol) "*"))))
 
 (defmacro expose ((&rest fn-specs) &rest var-specs)
   "Define var-specs as parameters in the global scope.
