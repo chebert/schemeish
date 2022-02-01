@@ -1,15 +1,15 @@
 (in-package #:schemeish.internals)
 
-(defun ignore-parameter? (symbol)
+(defun scm-ignore-parameter? (symbol)
   "True if SYMBOL-NAME is \"_\", and should therefore be ignored."
   (let* ((str (string symbol)))
     (and (= (length str) 1)
 	 (char= #\_ (aref str 0)))))
 
-(defun ignorable-parameter? (symbol)
+(defun scm-ignorable-parameter? (symbol)
   "True if SYMBOL-NAME starts with \"_\", and should therefore be ignorable."
   (let* ((str (string symbol)))
-    (and (not (ignore-parameter? symbol))
+    (and (not (scm-ignore-parameter? symbol))
 	 (> (length str) 1)
 	 (char= #\_ (aref str 0)))))
 
@@ -20,13 +20,13 @@ Returns (values rest-parameters reversed-ordinary-lambda-list ignorable-paramete
   (let* ((parameter (first parameters))
 	 (parameter-name (funcall parameter-name-fn parameter)))
     (cond
-      ((ignore-parameter? parameter-name)
+      ((scm-ignore-parameter? parameter-name)
        (let ((parameter-name (unique-symbol 'ignore)))
 	 (values
 	  (rest parameters)
 	  (cons (funcall rename-parameter-fn parameter parameter-name) reversed-ordinary-lambda-list)
 	  (cons parameter-name ignorable-parameters))))
-      ((ignorable-parameter? parameter-name)
+      ((scm-ignorable-parameter? parameter-name)
        (values
 	(rest parameters)
 	(cons parameter reversed-ordinary-lambda-list)
@@ -37,21 +37,21 @@ Returns (values rest-parameters reversed-ordinary-lambda-list ignorable-paramete
 	(cons parameter reversed-ordinary-lambda-list)
 	ignorable-parameters)))))
 
-(defun optional-parameter? (parameter)
+(defun scm-optional-parameter? (parameter)
   (consp parameter))
-(defun optional-parameter-name (parameter)
+(defun scm-optional-parameter-name (parameter)
   (first parameter))
 
-(defun optional-scm-parameters->ordinary-lambda-list-iteration (parameters reversed-ordinary-lambda-list ignorable-parameters)
+(defun scm-optional-parameters->ordinary-lambda-list-iteration (parameters reversed-ordinary-lambda-list ignorable-parameters)
   "Converts the list of optional parameters to an ordinary-lambda-list. Returns (values reversed-ordinary-lambda-list ignorable-parameters)"
   (cond
     ((consp parameters)
      (let ((parameter (first parameters)))
        (cond
-	 ((optional-parameter? parameter)
-	  (multiple-value-call #'optional-scm-parameters->ordinary-lambda-list-iteration
+	 ((scm-optional-parameter? parameter)
+	  (multiple-value-call #'scm-optional-parameters->ordinary-lambda-list-iteration
 	    (rename-ignore-parameter
-	     #'optional-parameter-name
+	     #'scm-optional-parameter-name
 	     (lambda (parameter parameter-name) (cons parameter-name (rest parameter)))
 	     parameters
 	     reversed-ordinary-lambda-list
@@ -61,38 +61,38 @@ Returns (values rest-parameters reversed-ordinary-lambda-list ignorable-paramete
     ((null parameters) (values reversed-ordinary-lambda-list ignorable-parameters))
     ((symbolp parameters) (error "Optional parameter list cannot have a rest parameter."))))
 
-(defun optional-scm-parameters->ordinary-lambda-list (parameters)
+(defun scm-optional-parameters->ordinary-lambda-list (parameters)
   "Returns (values ordinary-lambda-list ignorable-parameters)"
   (multiple-value-bind (reversed-ordinary-lambda-list ignorable-parameters)
-      (optional-scm-parameters->ordinary-lambda-list-iteration parameters () ())
+      (scm-optional-parameters->ordinary-lambda-list-iteration parameters () ())
     (values (nreverse reversed-ordinary-lambda-list) ignorable-parameters)))
 
-(assert (equal (optional-scm-parameters->ordinary-lambda-list '((opt "option") (option)))
+(assert (equal (scm-optional-parameters->ordinary-lambda-list '((opt "option") (option)))
 	       '((OPT "option") (OPTION))))
-(assert (null (ignore-errors (optional-scm-parameters->ordinary-lambda-list '(bad-parameter)))))
-(assert (null (ignore-errors (optional-scm-parameters->ordinary-lambda-list 'bad-rest-parameter))))
+(assert (null (ignore-errors (scm-optional-parameters->ordinary-lambda-list '(bad-parameter)))))
+(assert (null (ignore-errors (scm-optional-parameters->ordinary-lambda-list 'bad-rest-parameter))))
 
 (assert (equal (with-readable-symbols
-		 (optional-scm-parameters->ordinary-lambda-list '((_ "option") (_))))
+		 (scm-optional-parameters->ordinary-lambda-list '((_ "option") (_))))
 	       '((IGNORE "option") (IGNORE))))
 (assert (equal (with-readable-symbols
-		 (multiple-value-list (optional-scm-parameters->ordinary-lambda-list '((_a "option") (_b)))))
+		 (multiple-value-list (scm-optional-parameters->ordinary-lambda-list '((_a "option") (_b)))))
 	       '(((_a "option") (_b))
 		 (_b _a))))
 
-(defun keyword-parameter->ordinary-lambda-list-parameter (parameter)
+(defun scm-keyword-parameter->ordinary-lambda-list-parameter (parameter)
   "Converts :KEYWORD to KEYWORD.
 Converts (:KEYWORD ...) to (KEYWORD ...)"
   (if (consp parameter)
       (cons (intern (symbol-name (first parameter))) (rest parameter))
       (intern (symbol-name parameter))))
 
-(assert (equal (keyword-parameter->ordinary-lambda-list-parameter :keyword)
+(assert (equal (scm-keyword-parameter->ordinary-lambda-list-parameter :keyword)
 	       'keyword))
-(assert (equal (keyword-parameter->ordinary-lambda-list-parameter '(:keyword "default"))
+(assert (equal (scm-keyword-parameter->ordinary-lambda-list-parameter '(:keyword "default"))
 	       '(keyword "default")))
 
-(defun keyword-scm-parameters->ordinary-lambda-list-iteration (parameters reversed-ordinary-lambda-list)
+(defun scm-keyword-parameters->ordinary-lambda-list-iteration (parameters reversed-ordinary-lambda-list)
   "Converts a list of schemeish keyword parameters to ordinary-lambda-list keyword parameters.
 Returns a reversed-ordinary-lambda-list."
   (cond
@@ -103,30 +103,30 @@ Returns a reversed-ordinary-lambda-list."
 	  (let ((parameter-name (first parameter)))
 	    (cond
 	      ((keywordp parameter-name)
-	       (keyword-scm-parameters->ordinary-lambda-list-iteration
+	       (scm-keyword-parameters->ordinary-lambda-list-iteration
 		(rest parameters)
-		(cons (keyword-parameter->ordinary-lambda-list-parameter parameter) reversed-ordinary-lambda-list)))
+		(cons (scm-keyword-parameter->ordinary-lambda-list-parameter parameter) reversed-ordinary-lambda-list)))
 	      (t (error "Expected keyword parameter ~S to be of the form :key or (:key) or (:key default-value-form)" parameter)))))
 	 ((keywordp parameter)
-	  (keyword-scm-parameters->ordinary-lambda-list-iteration
+	  (scm-keyword-parameters->ordinary-lambda-list-iteration
 	   (rest parameters)
-	   (cons (keyword-parameter->ordinary-lambda-list-parameter parameter) reversed-ordinary-lambda-list)))
+	   (cons (scm-keyword-parameter->ordinary-lambda-list-parameter parameter) reversed-ordinary-lambda-list)))
 	 (t (error "Expected keyword parameter ~S to be of the form :key or (:key) or (:key default-value-form)" parameter)))))
 
     ;; BASE case: no more parameters.
     ((null parameters) reversed-ordinary-lambda-list)
     ((symbolp parameters) (error "Keyword parameter list not compatible with rest parameter."))))
 
-(defun keyword-scm-parameters->ordinary-lambda-list (parameters)
-  (nreverse (keyword-scm-parameters->ordinary-lambda-list-iteration parameters ())))
+(defun scm-keyword-parameters->ordinary-lambda-list (parameters)
+  (nreverse (scm-keyword-parameters->ordinary-lambda-list-iteration parameters ())))
 
-(assert (null (keyword-scm-parameters->ordinary-lambda-list ())))
-(assert (null (ignore-errors (keyword-scm-parameters->ordinary-lambda-list '(bad-parameter)))))
-(assert (equal (keyword-scm-parameters->ordinary-lambda-list '(:k1))
+(assert (null (scm-keyword-parameters->ordinary-lambda-list ())))
+(assert (null (ignore-errors (scm-keyword-parameters->ordinary-lambda-list '(bad-parameter)))))
+(assert (equal (scm-keyword-parameters->ordinary-lambda-list '(:k1))
 	       '(k1)))
-(assert (equal (keyword-scm-parameters->ordinary-lambda-list '((:k1 "default")))
+(assert (equal (scm-keyword-parameters->ordinary-lambda-list '((:k1 "default")))
 	       '((k1 "default"))))
-(assert (null (ignore-errors (keyword-scm-parameters->ordinary-lambda-list '(((:bad-keyword) "default"))))))
+(assert (null (ignore-errors (scm-keyword-parameters->ordinary-lambda-list '(((:bad-keyword) "default"))))))
 
 (defun add-rest-parameter (parameter reversed-ordinary-lambda-list)
   (list* parameter '&rest reversed-ordinary-lambda-list))
@@ -142,21 +142,21 @@ Returns a reversed-ordinary-lambda-list."
 	  (let ((parameter-name (first parameter)))
 	    (cond
 	      ((keywordp parameter-name)
-	       ;; The rest of the scm-parameters is a keyword-scm-parameters
-	       (values (keyword-scm-parameters->ordinary-lambda-list-iteration
+	       ;; The rest of the scm-parameters is a scm-keyword-parameters
+	       (values (scm-keyword-parameters->ordinary-lambda-list-iteration
 			parameters
 			(cons '&key reversed-ordinary-lambda-list))
 		       ignorable-parameters))
 	      ((symbolp parameter-name)
-	       ;; The rest of scm-parameters is an optional-scm-parameters
-	       (optional-scm-parameters->ordinary-lambda-list-iteration
+	       ;; The rest of scm-parameters is an scm-optional-parameters
+	       (scm-optional-parameters->ordinary-lambda-list-iteration
 		parameters
 		(cons '&optional reversed-ordinary-lambda-list)
 		ignorable-parameters))
 	      (t (error "bad thing to be an parameter-name: ~S" parameter-name)))))
 	 ;; parameter is :keyword
 	 ((keywordp parameter)
-	  (values (keyword-scm-parameters->ordinary-lambda-list-iteration
+	  (values (scm-keyword-parameters->ordinary-lambda-list-iteration
 		   parameters
 		   (cons '&key reversed-ordinary-lambda-list))
 		  ignorable-parameters))
@@ -177,7 +177,7 @@ Returns a reversed-ordinary-lambda-list."
     ;; Base Case: parameters is a rest parameter
     ((symbolp parameters)
      (cond
-       ((ignore-parameter? parameters)
+       ((scm-ignore-parameter? parameters)
 	;; Ignored rest parameter
 	(let ((parameter (unique-symbol 'ignore)))
 	  (values (add-rest-parameter parameter reversed-ordinary-lambda-list) (cons parameter ignorable-parameters))))
@@ -185,7 +185,7 @@ Returns a reversed-ordinary-lambda-list."
 	(values (add-rest-parameter parameters reversed-ordinary-lambda-list)
 		(cond
 		  ;; Ignorable rest parameter
-		  ((ignorable-parameter? parameters) (cons parameters ignorable-parameters))
+		  ((scm-ignorable-parameter? parameters) (cons parameters ignorable-parameters))
 		  ;; Normal rest parameter
 		  (t ignorable-parameters))))))
     (t (error "bad thing to be in an scm-parameters: ~S" parameters))))

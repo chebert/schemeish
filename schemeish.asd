@@ -27,3 +27,17 @@
 	       (:file "package-utils")
 	       (:file "markup")
 	       (:file "package-definitions")))
+
+(asdf:defsystem #:schemeish2
+  :description "Provide Scheme style syntax/macros/functions in a Common Lisp environment."
+  :author "Christopher Hebert <hebert.christopherj@gmail.com>"
+  :license  "MIT"
+  :version "0.0.1"
+  :serial t
+  :pathname "src/"
+  :depends-on (:trivial-arguments)
+  :components ((:file "package2")
+	       (:file "unique-symbol")
+	       (:file "guard")
+	       (:file "documentation")
+	       (:file "lambda-list")))
