@@ -42,7 +42,6 @@ Each clause is an unevaluated form. When evaluated each form should return a boo
   (declare (ignore stream char))
   (error "read: unmatched ]"))
 
-
 (defun read-sharpsign-semicolon (stream char n)
   (declare (ignore char n))
   (read stream nil (values) t)

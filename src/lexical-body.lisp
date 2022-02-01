@@ -6,6 +6,7 @@
         #:SCHEMEISH.NAMED-LET
         #:SCHEMEISH.SYNTAX)
   (:EXPORT #:COMPILER-MACRO-DOCUMENTATION-SOURCE
+	   #:DEF
            #:DEFAULT-LABELS-BINDING
            #:DEFINE
            #:DISABLE-GUARD-CLAUSES!
@@ -58,6 +59,12 @@
   (export (defun guard-clauses-enabled? () *guard-clauses-enabled?*))
   (export (defun enable-guard-clauses! () (setq *guard-clauses-enabled?* t)))
   (export (defun disable-guard-clauses! () (setq *guard-clauses-enabled?* nil)))
+  (export (defmacro with-guard-clauses-enabled (&body body)
+	    `(cl:let ((*guard-clauses-enabled?* t))
+	       ,@body)))
+  (export (defmacro with-guard-clauses-disabled (&body body)
+	    `(cl:let ((*guard-clauses-enabled?* nil))
+	       ,@body)))
 
   (defvar *guard-clauses-table* (make-hash-table :weakness :key)
     "A table from function to a list of guard-clauses guarding that function.")
@@ -356,12 +363,12 @@ Checks if *guard-clauses-enabled?* is true before evaluating any guard clauses."
   (export
    (defun register-lexical-body-definition (symbol transform)
      "Registers transform for lisp-1 lexical-body tranformations.
-Transform is a procedure s.t. (transform form) => (values names set-form)"
+Transform is a procedure s.t. (transform definition-form) => (values names set-form)"
      (setf (gethash symbol *lexical-body-definition-table*) transform)))
   (export
    (defun register-lexical-body2-definition (symbol transform)
      "Registers transform for lisp-2 lexical-body transformations.
-Transform is a procedure s.t. (transform form) => (values names set-form labels-bindings)"
+Transform is a procedure s.t. (transform definition-form) => (values names set-form labels-bindings)"
      (setf (gethash symbol *lexical-body2-definition-table*) transform)))
 
   (export
@@ -375,20 +382,20 @@ Transform is a procedure s.t. (transform form) => (values names set-form labels-
   
   (export
    (defun lexical-body-definition? (form)
-     "True if FORM is a registered lexical-body definition for SCM (lisp-1)."
+     "True if FORM is a registered lisp-1 style lexical-body definition."
      (and (consp form)
 	  (gethash (first form) *lexical-body-definition-table* nil))))
   (defun transform-lexical-body-definition (form)
-    "Transform FORM if FORM is a registered lexical-body definition for SCM (lisp-1).
+    "Transform FORM if FORM is a registered lisp-1 style lexical-body definition.
 Returns (values names set-form)"
     [(gethash (first form) *lexical-body-definition-table*) form])
   (export
    (defun lexical-body2-definition? (form)
-     "True if FORM is a registered lexical-body definition for SCHEMEISH (lisp-2)."
+     "True if FORM is a registered lisp-2 style lexical-body definition."
      (and (consp form)
 	  (gethash (first form) *lexical-body2-definition-table* nil))))
   (defun transform-lexical-body2-definition (form)
-    "Transform FORM if FORM is a registered lexical-body definition for SCHEMEISH (lisp-2).
+    "Transform FORM if FORM is a registered lisp-2 style lexical-body definition.
 Returns (values variable-names variables-set-form labels-bindings)"
     [(gethash (first form) *lexical-body2-definition-table*) form])
   
@@ -459,7 +466,7 @@ Includes results for lisp-1 style lexical-body definitions if there are no appli
 	    (takef body #'declaration?)))
 
   (defun collect-lexical-body-definitions-names-and-set-forms (definitions)
-    "Returns (values names set-forms) for SCM (lisp-1) lexical-body."
+    "Returns (values names set-forms) for lisp-1 style lexical-body."
     (let iter ((definitions definitions)
 	       (names ())
 	       (set-forms ()))
@@ -505,7 +512,7 @@ be used with a DEFAULT-LABELS-BINDING."
 		 (append labels-bindings (mapcar #'default-labels-binding new-names))))))))
 
   (defun parse-lexical-body (body)
-    "Returns (values body names set-forms) for SCM (lisp-1) lexical-body.
+    "Returns (values body names set-forms) for lisp-1 lexical-body.
 A lexical body is (definitions... declarations... forms...)"
     (multiple-value-bind (body definitions) (parse-lexical-body-definitions body)
       (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
@@ -516,7 +523,6 @@ A lexical body is (definitions... declarations... forms...)"
     (multiple-value-bind (body definitions) (parse-lexical-body2-definitions body)
       (multiple-value-bind (names set-forms labels-bindings) (collect-lexical-body2-definitions-names-and-set-forms definitions)
 	(values body names set-forms labels-bindings))))
-
 
   (export
    (defun parse-documentation-source (body)
@@ -589,7 +595,7 @@ If definition is LISP-2 it is transformed and its labels-bindings are used.
 If definition is not LISP-2, but is LISP-1 it is transformed and a DEFAULT-LABELS-BINDING is used.
 Creates mutually-recursive variable and function bindings for all definitions.
 See REGISTER-LEXICAL-BODY-DEFINITION and REGISTER-LEXICAL-BODY2-DEFINITION for more information about how
-to extend LEXICAL-BODY.
+to extend LEXICALLY.
 See the results of evaluating (lexical-body2-definition-documentations) and (lexical-body-definition-documentations)
 For documentation on the currently registered definition transformations."
      (lexical-body2-form lexical-body))))
@@ -626,7 +632,7 @@ Where:
   (export
    (defun parse-function (scm-parameters function-body)
      "Returns (values ordinary-lambda-list body ignorable-parameters documentation-source guard-clauses declarations)
-Converts scm-parameters to cl-parameters, and parses the metadata from function-body.
+Converts scm-parameters to an ordinary-lambda-list, and parses the metadata from function-body.
 For more information about scm-parameters, SCM-PARAMETERS->ORDINARY-LAMBDA-LIST.
 For more information about function-body, see PARSE-METADATA-FROM-FUNCTION-BODY."
      (multiple-value-bind (ordinary-lambda-list ignorable-parameters) (scm-parameters->ordinary-lambda-list scm-parameters)
@@ -684,9 +690,9 @@ See PARSE-FUNCTION for explanation of scm-parameters and function-body."
     (unless (or (symbolp spec)
 		(and (= (length spec) 2)
 		     (symbolp name)))
-      (error "Malformed spec ~S: Expected NAME or (GLOBAL-NAME VALUE)"
-	     spec)))
+      (error "Malformed spec ~S: Expected NAME or (GLOBAL-NAME VALUE)" spec)))
   (defun expose-function-form (fn-spec)
+    "Returns a (setf fdefinition) form for fn-spec."
     (let* ((pair? (consp fn-spec))
 	   (name (if pair? (first fn-spec) fn-spec))
 	   (value (if pair? (second fn-spec) fn-spec)))
@@ -694,13 +700,13 @@ See PARSE-FUNCTION for explanation of scm-parameters and function-body."
       `(progn (setf (fdefinition ',name) ,value) ',name)))
 
   (defun expose-variable-form (var-spec)
+    "Returns a defparameter form for var-spec."
     ;; TODO: allow for documentation
     (let* ((pair? (consp var-spec))
 	   (name (if pair? (first var-spec) (lexical-name->parameter-name var-spec)))
 	   (value (if pair? (second var-spec) var-spec)))
       (check-spec var-spec name)
       `(defparameter ,name ,value))))
-
 
 (for-macros
   (export
@@ -775,7 +781,7 @@ For more information about the lisp-2 style lexical-body definition DEFINE, see 
 	',definition-name-field)))
 
   (defun transform-lexical-body-define-pair (definition)
-    "Transforms SCM (define (...) . function-body) for lexical-body."
+    "Transforms (define (...) . function-body) for lisp-1 style lexical-body."
     (let* ((definition-name-field (definition-name-field definition))
 	   (function-body (definition-function-body definition))
 	   (guard-clauses (function-body-guard-clauses function-body)))
@@ -792,7 +798,7 @@ For more information about the lisp-2 style lexical-body definition DEFINE, see 
 	     (values (list name) `(setq ,name ,(definition-lambda-form definition-name-field guard-clauses parameters body)))))))))
 
   (defun transform-lexical-body2-define-pair (definition)
-    "Transforms SCHEMEISH (lisp-2) (define (...) . function-body) for lexical-body."
+    "Transforms (define (...) . function-body) for lisp-2 style lexical-body."
     (let* ((definition-name-field (definition-name-field definition))
 	   (function-body (definition-function-body definition)))
       (multiple-value-bind (body documentation-source guard-clauses declarations)
@@ -818,7 +824,7 @@ For more information about the lisp-2 style lexical-body definition DEFINE, see 
 			 (list `(,name ,ordinary-lambda-list ,@(declare-ignorable-forms ignorable-parameters) ,@body)))))))))))
 
   (defun transform-lexical-body-define-symbol (definition)
-    "Transforms SCM (lisp-1) (define symbol [documentation] value) for lexical-body."
+    "Transforms (define symbol [documentation] value) for lisp-1 style lexical-body."
     (multiple-value-bind (body documentation-source) (parse-documentation-source (definition-function-body definition))
       (let ((name (definition-name-field definition))
 	    (value (first body)))
@@ -827,9 +833,10 @@ For more information about the lisp-2 style lexical-body definition DEFINE, see 
 
   (export
    (defun transform-lexical-body-define-symbol-or-pair (definition)
-     "Transforms lisp-1 style (define name-field ...) for lexical-body.
-If name-field is a symbol the expected form is (define symbol value).
+     "Transforms (define name-field ...) for lisp-1 style lexical-body.
+If name-field is a symbol the expected form is (define symbol [documentation-source] value).
   A let binding is created for symbol, and value is assigned to it.
+  The documentation-source and documentation string for value is set.
 If name-field is a pair, the expected form is (define name-field function-body...)
   If name-field is a pair: ((...) . scm-parameters)
     A closure is created with the given scm-parameters, and define is recursively applied.
@@ -845,10 +852,11 @@ If name-field is a pair, the expected form is (define name-field function-body..
 
   (export
    (defun transform-lexical-body2-define-symbol-or-pair (definition)
-     "Transforms lisp-2 style (define name-field ...) for lexical-body.
-If name-field is a symbol the expected form is (define symbol value).
+     "Transforms (define name-field ...) for lisp-2 style lexical-body.
+If name-field is a symbol the expected form is (define symbol [documentation-source] value).
   A let binding is created for symbol, and value is assigned to it.
   A DEFAULT-LABELS-BINDING is created for symbol.
+  The documentation-source and documentation string for value is set.
 If name-field is a pair, the expected form is (define name-field function-body...)
   If name-field is a pair: ((...) . scm-parameters)
     A closure is created with the given scm-parameters, and define is recursively applied.
@@ -868,7 +876,7 @@ See also: LEXICALLY, PARSE-FUNCTION."
 
   (export
    (defun transform-lexical-body-define-values (definition)
-     "Transforms lisp-1 (define-values name-or-names values-form) for lexical-body.
+     "Transforms (define-values name-or-names values-form) for lisp-1 style lexical-body.
 If name-or-names is a symbol:
   A let binding is created, and the (multiple-values-list values-form) is assigned to it.
 If name-or-names is a list of symbols:
@@ -898,7 +906,7 @@ See also: LEXICALLY."
 
   (export
    (defun transform-lexical-body-define-destructuring (definition)
-     "Transforms lisp-1 style (define-destructuring destructuring-lambda-list expression) for lexical-body.
+     "Transforms (define-destructuring destructuring-lambda-list expression) for lisp-1 style lexical-body.
 Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each name in destructuring-lambda-list."
      (let* ((lambda-list (definition-name-field definition))
 	    (names (destructuring-lambda-list-parameter-names lambda-list))
@@ -908,10 +916,15 @@ Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each 
 
 ;; Register define and define-values
 (for-macros
+  ;; Lisp-1 style Lexical body definitions
   (register-lexical-body-definition 'define #'transform-lexical-body-define-symbol-or-pair)
   (register-lexical-body-definition 'define-values #'transform-lexical-body-define-values)
   (register-lexical-body-definition 'define-destructuring #'transform-lexical-body-define-destructuring)
-  (register-lexical-body2-definition 'define #'transform-lexical-body2-define-symbol-or-pair))
+  (register-lexical-body-definition 'def #'transform-lexical-body-define-symbol-or-pair)
+
+  ;; Lisp-2 style lexical body definitions
+  (register-lexical-body2-definition 'define #'transform-lexical-body2-define-symbol-or-pair)
+  (register-lexical-body2-definition 'def #'transform-lexical-body2-define-symbol-or-pair))
 
 (assert (equal (lexically
 		 (define-destructuring (&whole whole r1 r2
@@ -957,4 +970,7 @@ Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each 
 ;;(uninstall-syntax!)
 
 
-;; TODO: replace define, delete lexically, move splitf, dropf, takef,
+;; TODO: replace define pkg, delete lexically pkg, copy splitf, dropf, takef,
+;; Package management:
+;;  SCHEMEISH.INTERNAL
+;;  SCHEMEISH
