@@ -37,7 +37,11 @@
   :pathname "src/"
   :depends-on (:trivial-arguments)
   :components ((:file "package2")
+	       (:file "for-macros2")
 	       (:file "unique-symbol")
 	       (:file "guard")
 	       (:file "documentation")
-	       (:file "lambda-list")))
+	       (:file "syntax2")
+	       (:file "splitf")
+	       (:file "lambda-list")
+	       (:file "lexical-body2")))

@@ -328,8 +328,9 @@ Checks if *guard-clauses-enabled?* is true before evaluating any guard clauses."
        ,@(mapcar (cl:lambda (guard-clause)
 		   `(unless ,guard-clause
 		      (error "Failed function guard-clause: ~S with the given parameter bindings: ~S" ',guard-clause ,(parameter-bindings-form parameters))))
-		 guard-clauses)))
+		 guard-clauses))))
 
+(for-macros
   (defun register-definition-function-metadata (function scm-parameters guard-clauses documentation-source definition-name-field)
     "Registers metadata associated with function defined using (define (...) ...)."
     (let ((documentation-string (if documentation-source
@@ -416,8 +417,9 @@ Includes results for lisp-1 style lexical-body definitions if there are no appli
        (maphash (cl:lambda (symbol transform)
 		  (push (cons symbol (documentation transform t)) result))
 		*lexical-body2-definition-table*)
-       (union result (set-difference body1-result result :key #'first)))))
+       (union result (set-difference body1-result result :key #'first))))))
 
+(for-macros
   (defun takef (list predicate)
     "Takes initial elements of list that satisfy pred."
     (let rec ((list list)
@@ -968,7 +970,6 @@ Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each 
 		 '(*LEXICAL-TEST-X* *lexical-test-w* LEXICAL-TEST-Y LEXICAL-TEST-Z))))
 
 ;;(uninstall-syntax!)
-
 
 ;; TODO: replace define pkg, delete lexically pkg, copy splitf, dropf, takef,
 ;; Package management:
