@@ -37,6 +37,7 @@
   :pathname "src/"
   :depends-on (:trivial-arguments)
   :components ((:file "package2")
+	       (:file "named-let2")
 	       (:file "for-macros2")
 	       (:file "unique-symbol")
 	       (:file "guard")
