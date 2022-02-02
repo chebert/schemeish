@@ -18,9 +18,8 @@
 		  (and ,(first clause) ,(and-let*-form (rest clauses) body))))))
 	   (t (error "invalid clause in and-let*: ~S" clause))))))))
 
-(export
- (defmacro and-let* ((&rest clauses) &body body)
-   "Evaluate each clause from first to last until one is false. If all are true, evaluate body.
+(defmacro and-let* ((&rest clauses) &body body)
+  "Evaluate each clause from first to last until one is false. If all are true, evaluate body.
 Each clause is one of: identifier, (expression), or (identifier expression).
 If the clause is (identifier expression) it creates a binding for the rest of the clauses and the body.
 Example (and-let* ((list (compute-list))
@@ -28,6 +27,7 @@ Example (and-let* ((list (compute-list))
                    (item (car list))
                    ((integer? item)))
           (sqrt item))"
-   (and-let*-form clauses body)))
+  (and-let*-form clauses body))
+(export 'and-let*x)
 
 (uninstall-syntax!)

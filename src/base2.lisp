@@ -324,20 +324,20 @@
 (assert (equal? (intersperse :i '(:e :e :o))
 		'(:e :i :e :i :o)))
 
-(export
- (defmacro letrec (bindings &body body)
-   "Establish lexical bindings. All lexical variables are in scope for the binding values.
+(defmacro letrec (bindings &body body)
+  "Establish lexical bindings. All lexical variables are in scope for the binding values.
 Values are bound sequentially. Bindings are established for body.
 Body is (declarations... forms...)"
-   (let ((declare? (lambda (form) (and (pair? form) (eq? 'cl:declare (first form))))))
-     (let ((declarations (takef declare? body))
-	   (forms (dropf declare? body)))
-       `(let ,(map #'first bindings)
-	  ,@declarations
-	  ,@(map (lambda (binding)
-		   `(setq ,(first binding) ,(second binding)))
-		 bindings)
-	  ,@forms)))))
+  (let ((declare? (lambda (form) (and (pair? form) (eq? 'cl:declare (first form))))))
+    (let ((declarations (takef declare? body))
+	  (forms (dropf declare? body)))
+      `(let ,(map #'first bindings)
+	 ,@declarations
+	 ,@(map (lambda (binding)
+		  `(setq ,(first binding) ,(second binding)))
+		bindings)
+	 ,@forms))))
+(export 'letrec)
 
 (export
  (define even? #'evenp))
@@ -839,29 +839,29 @@ of the results appended together. Proc is expected to return a character or stri
  (define (symbolicate . things)
    (intern (apply 'string-append (map 'string things)))))
 
-(export
- (defmacro set! (id expression)
-   `(setq ,id ,expression)))
+(defmacro set! (id expression)
+  `(setq ,id ,expression))
+(export 'set!)
 (export
  (define (set-car! pair value) (setf (car pair) value)))
 (export
  (define (set-cdr! pair value) (setf (cdr pair) value)))
 
-(export
- (defmacro delay (&body body)
-   "Delays body."
-   `(memo-proc (lambda () ,@body))))
+(defmacro delay (&body body)
+  "Delays body."
+  `(memo-proc (lambda () ,@body)))
+(export 'delay)
 (export
  (define (force promise)
    "Evaluates promise."
    [promise]))
 
 (export
- (defparameter *the-empty-stream* ()))
-(export
- (defmacro stream-cons (first rest)
-   "Construct a stream from an element and a delayed stream."
-   `(cons ,first (delay ,rest))))
+ (defvar *the-empty-stream* ()))
+(defmacro stream-cons (first rest)
+  "Construct a stream from an element and a delayed stream."
+  `(cons ,first (delay ,rest)))
+(export 'stream-cons)
 (export
  (define (stream-car stream)
    "First element of stream."

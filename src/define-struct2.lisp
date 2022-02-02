@@ -2,9 +2,8 @@
 
 (install-syntax!)
 
-(export
- (defmacro define-struct (type-name (&rest field-specs) &rest struct-options)
-   "A structure is a record object with a CLOS class type, 
+(defmacro define-struct (type-name (&rest field-specs) &rest struct-options)
+  "A structure is a record object with a CLOS class type, 
 automatically generated constructor of the form (MAKE-<type-name> field-args...)
 field accessors of the form (<type-name>-<field-name> struct-arg),
 and a type predicate of the form (<type-name>? datum). 
@@ -17,23 +16,28 @@ and a struct-option is one of:
   :super super-struct-type-name-form
   :documentation documentation-string
 
+:MUTABLE
 If mutable is provided for fields or the whole structure, 
 setters are generated of the form SET-<type-name>-<field-name>!
 and setf forms are generated for (setf (<type-name>-<field-name> struct-arg) value).
 
+:OPAQUE
 If opaque is NOT provided:
 - a recursive EQUAL? test is generated to test equality of each field. Otherwise only identity is tested.
 - (struct->list p) creates a list that looks like a constructor call. This is used when printing the object.
 - (struct-accessors p) returns a list of all of the accessors associated with transparent structure p. 
 
+:SUPER super-struct-type-name-form
 If a super-type symbol is specified, this structure will inherit all of the accessors, setters, and predicates from
 the super classes in addition to the fields provided by field-specs.
 
 Returns a list of newly defined symbols."
-   ;; TODO: issue when a transparent object inherits from an opaque object
-   ;; TODO: guard clauses
-   `(for-macros
-      ,(struct-form type-name field-specs struct-options))))
+  ;; TODO: issue when a transparent object inherits from an opaque object
+  ;; TODO: documentation-tags
+  ;; TODO: guard-tags
+  `(for-macros
+     ,(struct-form type-name field-specs struct-options)))
+(export 'define-struct)
 
 (define-struct point (x y) :opaque)
 (let ((p (make-point 3 4)))

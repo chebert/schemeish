@@ -2,9 +2,8 @@
 
 (install-syntax!)
 
-(export
- (defmacro stream-collect (map-form bindings filter-form)
-   "Given bindings ((b1 stream1)
+(defmacro stream-collect (map-form bindings filter-form)
+  "Given bindings ((b1 stream1)
                    (b2 stream2) ...)
 Generates a stream all combinations of b1,b2...,
 Applies a filter to the generated stream using filter-form with b1,b2... bound.
@@ -18,7 +17,8 @@ Example:
     (prime? (+ i j))))
 
  (prime-sum-pairs n) results in all of the (list i j (+ i j)) numbers i,j such that 0 < j < i <= n"
-   (stream-collect-form map-form bindings filter-form)))
+  (stream-collect-form map-form bindings filter-form))
+(export 'stream-collect)
 
 (define (prime? num)
   (let ((root (floor (sqrt num))))

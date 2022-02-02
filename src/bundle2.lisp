@@ -5,17 +5,17 @@
 (defvar *get-bundle-type-predicate* (gensym))
 (defvar *get-bundle-predicate-symbol* (gensym))
 
-(export
- (define (make-bundle-predicate name)
-   "Returns a predicate which, only evaluates to true 
+(define (make-bundle-predicate name)
+  "Returns a predicate which, only evaluates to true 
 when given a bundle with this type-predicate"
-   (define (dispatch arg)
-     (cond
-       ((eq? *get-bundle-predicate-symbol* arg) name)
-       ((procedure? arg)
-	(eq? dispatch [arg *get-bundle-type-predicate*]))
-       (t nil)))
-   dispatch))
+  (define (dispatch arg)
+    (cond
+      ((eq? *get-bundle-predicate-symbol* arg) name)
+      ((procedure? arg)
+       (eq? dispatch [arg *get-bundle-type-predicate*]))
+      (t nil)))
+  dispatch)
+(export 'make-bundle-predicate)
 
 (define (bundle-predicate-symbol predicate)
   "Returns the debug symbol associated with predicate."
@@ -90,9 +90,8 @@ when given a bundle with this type-predicate"
  (define (bundle? bundle)
    (gethash bundle *bundles*)))
 
-(export
- (defmacro bundle (type-predicate &rest fn-identifiers)
-   "Create a bundle of permissions for closure objects.
+(defmacro bundle (type-predicate &rest fn-identifiers)
+  "Create a bundle of permissions for closure objects.
 A bundle is a function (bundle-proc msg) => permission, where each permission
 is meant to be a locally defined function described by fn-identifiers.
 Each fn-identifier is one of:
@@ -123,23 +122,24 @@ Example:
       (assert (= 32 [[point :get-x]]))
       (assert [*point?* point])
       (bundle-permissions bundle) ; => '(:get-x :get-y :set-x! :set-y!))"
-   (let* ((arg-name (unique-symbol 'arg))
-	  (permission-forms (map (lcurry #'bundle-fn-identifier->permission-form arg-name) fn-identifiers))
-	  (permission-names (map #'fn-identifier->permission-name fn-identifiers)))
-     (assert (every #'identity permission-forms))
-     `(register-bundle!
-       (lambda (,arg-name)
-	 (cond
-	   ((eq *get-bundle-type-predicate* ,arg-name)
-	    ,(cond
-	       ((null? type-predicate) '(constantly nil))
-	       ((symbolp type-predicate) `(function ,type-predicate))
-	       (t type-predicate)))
-	   ((eq *get-bundle-permissions* ,arg-name) ',permission-names)
-	   ;; TODO: switch to a case statement
-	   ,@permission-forms
-	   (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
-		     ,arg-name ',permission-names))))))))
+  (let* ((arg-name (unique-symbol 'arg))
+	 (permission-forms (map (lcurry #'bundle-fn-identifier->permission-form arg-name) fn-identifiers))
+	 (permission-names (map #'fn-identifier->permission-name fn-identifiers)))
+    (assert (every #'identity permission-forms))
+    `(register-bundle!
+      (lambda (,arg-name)
+	(cond
+	  ((eq *get-bundle-type-predicate* ,arg-name)
+	   ,(cond
+	      ((null? type-predicate) '(constantly nil))
+	      ((symbolp type-predicate) `(function ,type-predicate))
+	      (t type-predicate)))
+	  ((eq *get-bundle-permissions* ,arg-name) ',permission-names)
+	  ;; TODO: switch to a case statement
+	  ,@permission-forms
+	  (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
+		    ,arg-name ',permission-names)))))))
+(export 'bundle)
 
 (defvar *bundle-print-object-table* (make-hash-table :weakness :key))
 
