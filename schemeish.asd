@@ -64,5 +64,4 @@
 	       (:file "define-struct2")
 	       (:file "queue2")
 	       (:file "package-utils2")
-	       (:file "markup2")
-	       (:file "package-definitions2")))
+	       (:file "markup2")))

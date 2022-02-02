@@ -749,7 +749,7 @@ be the same length as column-headers, and each alignment should be one of '(:LEF
 
      (define (column-width column)
        "Get the column-width based on the maximum element-width within column."
-       (foldl #'max 0 (map (cut (element-width renderer ?)) column)))
+       (foldl #'max 0 (map (cut (element-width renderer _)) column)))
 
      (define column-widths (map (lambda (column) (column-width column)) columns))
      (define (render-row row pad-char)
@@ -790,7 +790,7 @@ be the same length as column-headers, and each alignment should be one of '(:LEF
      (error "All elements of table must be inline-markup."))
    (unless (= (length column-headers) (length column-alignments))
      (error "Must have the same number of column-headers and column-alignments."))
-   (unless (for-all (cut (member ? '(:left :right :center))) column-alignments)
+   (unless (for-all (cut (member _ '(:left :right :center))) column-alignments)
      (error "Column alignments can only be one of '(:LEFT :RIGHT :CENTER)"))
    (markup constructor render nil tag)))
 
@@ -805,7 +805,7 @@ Non-inline markups will be rendered with a fresh line before/after."
 		 (cond
 		   ((inline-markup? markup)
 		    (render-markup markup renderer)
-		    (render-without-word-wrap renderer (cut (render-inline ? " "))))
+		    (render-without-word-wrap renderer (cut (render-inline _ " "))))
 		   (t (render-markup markup renderer))))
 	       markups))
    (define (inner-markup-tag markup)

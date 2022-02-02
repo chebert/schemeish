@@ -70,6 +70,7 @@
   (:USE #:COMMON-LISP #:SCHEMEISH.INTERNALS)
   (:EXPORT #:*ESCAPE-CHARS*
            #:*MARKUP-RENDER-WIDTH*
+           #:*RESOLVE-PACKAGE-DESIGNATOR*
            #:*THE-EMPTY-STREAM*
            #:ALIST
            #:ALIST-FOR-EACH
@@ -83,7 +84,9 @@
            #:ALIST-UNION
            #:ALIST-UPDATE
            #:ALIST-VALUES
+           #:ALL-PACKAGES-WITH-STRING-PREFIX
            #:AND-LET*
+           #:AND-LET*X
            #:ANDMAP
            #:APPEND*
            #:APPEND-MAP
@@ -93,6 +96,7 @@
            #:BUNDLE
            #:BUNDLE-DOCUMENTATION
            #:BUNDLE-PERMISSIONS
+           #:BUNDLE-PREDICATE-SYMBOL
            #:BUNDLE?
            #:CHARS-STRING
            #:CODE
@@ -103,8 +107,10 @@
            #:CONJOIN*
            #:CONST
            #:COPY-RENDERER-WITH-NEW-STREAM
+           #:CUT
            #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-STRUCT
+           #:DEFPACKAGE-FORM
            #:DEGREES->RADIANS
            #:DELAY
            #:DISJOIN
@@ -113,12 +119,16 @@
            #:DISPLAYLN
            #:DROP
            #:EMPTY?
+           #:ENSURE-STRING
            #:EQ?
            #:EQUAL?
            #:EVEN?
+           #:EXTEND-PACKAGE
+           #:EXTEND-PACKAGE*
            #:FILTER
            #:FILTER-MAP
            #:FILTER-NOT
+           #:FILTER-PACKAGES
            #:FINDF
            #:FLATTEN
            #:FOLDL
@@ -128,6 +138,7 @@
            #:FOR-EACH
            #:FORCE
            #:GROUP
+           #:GROUP-BY-PACKAGE
            #:HAS-SPECIFIC-ARITY?
            #:HASH->ALIST
            #:HASH-CLEAR!
@@ -142,6 +153,7 @@
            #:HASH-UPDATE!
            #:HASH-VALUES
            #:HEADING
+           #:HIERARCHICAL-DEFPACKAGE-FORMS
            #:HORIZONTAL-BAR
            #:HTML-TAG
            #:HTML-TAG-ATTRIBUTE-ALIST
@@ -149,6 +161,8 @@
            #:HTML-TAG-NAME
            #:HTML-TAG?
            #:IGNORE-ARGS
+           #:INDEPENDENT-PACKAGE?
+           #:INDEPENDENT-PACKAGES
            #:INLINE-MARKUP
            #:INLINE-MARKUP?
            #:INLINE-TEXT
@@ -190,6 +204,7 @@
            #:NAND
            #:NEGATIVE?
            #:NEWLINE
+           #:NICKNAME-PACKAGE
            #:NOR
            #:NULL?
            #:NUMBER->STRING
@@ -197,6 +212,32 @@
            #:ODD?
            #:ORDERED-LIST
            #:ORMAP
+           #:PACKAGE-DEFINED-AND-EXPORTED-SYMBOLS
+           #:PACKAGE-DELETE
+           #:PACKAGE-DEPENDENCIES
+           #:PACKAGE-EXPORT
+           #:PACKAGE-EXPORTED-SYMBOLS
+           #:PACKAGE-EXTERNAL-SYMBOLS
+           #:PACKAGE-EXTERNAL-SYMBOLS-FROM
+           #:PACKAGE-FILE-CONTENTS
+           #:PACKAGE-FIND
+           #:PACKAGE-HIERARCHY
+           #:PACKAGE-IMPORT-FROM
+           #:PACKAGE-IMPORT-FROMS
+           #:PACKAGE-IMPORTED-SYMBOLS
+           #:PACKAGE-NON-SHADOWING-SYMBOLS
+           #:PACKAGE-RE-EXPORT-SHADOWING
+           #:PACKAGE-SHADOW
+           #:PACKAGE-SHADOWING-EXPORT
+           #:PACKAGE-SHADOWING-IMPORT-FROM
+           #:PACKAGE-SHADOWING-IMPORT-FROMS
+           #:PACKAGE-SYMBOLS
+           #:PACKAGE-UNUSED-SYMBOLS
+           #:PACKAGE-USE
+           #:PACKAGE-USE-AND-EXPORT-SHADOWING
+           #:PACKAGE-USE-SHADOWING
+           #:PACKAGE-USED-SYMBOLS
+           #:PACKAGE?
            #:PAIR?
            #:PARAGRAPH
            #:PARAMETER?
@@ -299,18 +340,23 @@
            #:SUBSET?
            #:SWAP-ARGS
            #:SYMBOL->STRING
+           #:SYMBOL-IN-PACKAGE?
            #:SYMBOL?
            #:SYMBOLICATE
+           #:SYMBOLS-IN-PACKAGE
+           #:SYMBOLS-INTERNED-IN-PACKAGE
            #:TABLE
            #:TAKE
            #:TEXT-RENDERER?
            #:THERE-EXISTS
            #:THERE-EXISTS*
            #:UNDEFINE-BUNDLE-PRINT-OBJECT
+           #:UNINTERNED
            #:UNORDERED-LIST
            #:VECTOR->LIST
            #:VECTOR-REF
            #:VECTOR-SET!
+           #:WITH-TEMPORARY-PACKAGE
            #:XOR
            #:ZERO?)
   (:SHADOW #:LAMBDA #:MAP #:SORT #:STREAM))

@@ -17,9 +17,10 @@ when given a bundle with this type-predicate"
   dispatch)
 (export 'make-bundle-predicate)
 
-(define (bundle-predicate-symbol predicate)
-  "Returns the debug symbol associated with predicate."
-  [predicate *get-bundle-predicate-symbol*])
+(export
+ (define (bundle-predicate-symbol predicate)
+   "Returns the debug symbol associated with predicate."
+   [predicate *get-bundle-predicate-symbol*]))
 
 (defvar *name?* (make-bundle-predicate :bundle))
 (assert [*name?* (lambda (arg)
