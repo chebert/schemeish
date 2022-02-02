@@ -1,6 +1,7 @@
 (DEFPACKAGE #:SCHEMEISH.INTERNALS
   (:USE #:COMMON-LISP)
   (:EXPORT #:COMPILER-MACRO-DOCUMENTATION-SOURCE
+           #:DEFINE
            #:DISABLE-GUARD-CLAUSES!
            #:DOCUMENTATION-SOURCE?
            #:DOCUMENTATION-STRING
@@ -9,12 +10,16 @@
            #:DOCUMENTATION-TAG?
            #:DROPF
            #:ENABLE-GUARD-CLAUSES!
+           #:EXPOSE
+           #:EXPOSE-FUNCTIONS
+           #:EXPOSE-VARIABLES
            #:FOR-MACROS
            #:GUARD-CLAUSES-ENABLED?
            #:GUARD-TAG
            #:GUARD-TAG-CLAUSES
            #:GUARD-TAG?
            #:INSTALL-SYNTAX!
+           #:LAMBDA-FORM
            #:LET
            #:LEXICAL-BODY-DEFINITION-DOCUMENTATIONS
            #:LEXICAL-BODY-DEFINITION?
@@ -26,9 +31,12 @@
            #:MAKE-DOCUMENTATION-TAG
            #:MAKE-GUARD-TAG
            #:OBJECT-DOCUMENTATION-SOURCE
+           #:PARSE-FUNCTION
+           #:PARSE-METADATA-FROM-FUNCTION-BODY
            #:READ-GUARD-TAG
            #:REGISTER-LEXICAL-BODY-DEFINITION
            #:REGISTER-LEXICAL-BODY2-DEFINITION
+           #:REGISTERED-DEFINITION-NAME-FIELD
            #:REGISTERED-GUARD-CLAUSES
            #:SCM-PARAMETERS->ORDINARY-LAMBDA-LIST
            #:SET-COMPILER-MACRO-DOCUMENTATION-SOURCE!
@@ -40,7 +48,12 @@
            #:SETF-DOCUMENTATION-SOURCE
            #:SPLITF
            #:TAKEF
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-DESTRUCTURING
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-SYMBOL-OR-PAIR
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-VALUES
+           #:TRANSFORM-LEXICAL-BODY2-DEFINE-SYMBOL-OR-PAIR
            #:TYPE-DOCUMENTATION-SOURCE
+           #:UNDEFINE
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
            #:UNREGISTER-LEXICAL-BODY-DEFINITION
@@ -50,3 +63,8 @@
            #:WITH-GUARD-CLAUSES-ENABLED
            #:WITH-READABLE-SYMBOLS)
   (:SHADOW #:LET))
+
+(defpackage #:schemeish.backend
+  (:shadow #:lambda #:map #:sort #:stream)
+  (:shadowing-import-from #:schemeish.internals #:let)
+  (:use #:cl #:schemeish.internals))

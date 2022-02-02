@@ -74,14 +74,14 @@ When SCHEMEISH syntax is installed, #g(clauses...) is equaivalent to #.(make-gua
        (format nil " the following guard clauses:~%~S" guard-clauses)
        " no guard clauses.")))
 
-(defun enforce-guard-clauses-form (guard-clauses parameter-bindings)
+(defun enforce-guard-clauses-form (guard-clauses parameter-bindings-form)
   "Return a form that processes guard-clauses, causing an error if any clause fails.
 Checks if *guard-clauses-enabled?* is true before evaluating any guard clauses.
-Parameter-bindings are a list of (parameter-name value) for parameters which will be provided in the error message."
+Parameter-bindings-form is evaluates to a list of (parameter-name value) for parameters which will be provided in the error message."
   `(when *guard-clauses-enabled?*
      ,@(mapcar (cl:lambda (guard-clause)
 		 `(unless ,guard-clause
-		    (error "Failed function guard-clause: ~S with the given parameter bindings: ~S" ',guard-clause ,parameter-bindings)))
+		    (error "Failed function guard-clause: ~S with the given parameter bindings: ~S" ',guard-clause ,parameter-bindings-form)))
 	       guard-clauses)))
 
 (assert (equal (enforce-guard-clauses-form '((numberp x) (listp xs)) '((x 3) (xs (1 2 3))))

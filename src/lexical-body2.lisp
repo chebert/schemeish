@@ -67,27 +67,14 @@ Includes results for lisp-1 style lexical-body definitions if there are no appli
      (union result (set-difference body1-result result :key #'first)))))
 
 (defun parse-lexical-body-definitions (lexical-body)
-  "Returns (values body definitions)"
-  (values (dropf lexical-body #'lexical-body-definition?)
-	  (takef lexical-body #'lexical-body-definition?)))
+  "Returns (values definitions body)"
+  (splitf lexical-body #'lexical-body-definition?))
 (defun parse-lexical-body2-definitions (lexical-body)
-  "Returns (values body definitions). Takes both lisp-1 and lisp-2 definitions."
+  "Returns (values definitions body). Takes both lisp-1 and lisp-2 definitions."
   (let ((definition? (cl:lambda (definition)
 		       (or (lexical-body2-definition? definition)
 			   (lexical-body-definition? definition)))))
-    (values (dropf lexical-body definition?)
-	    (takef lexical-body definition?))))
-
-
-(defun declaration? (form)
-  "True if form is (cl:declare ...)"
-  (and (consp form)
-       (eq (first form) 'cl:declare)))
-
-(defun parse-declarations (body)
-  "Returns (values forms declarations)"
-  (values (dropf body #'declaration?)
-	  (takef body #'declaration?)))
+    (splitf lexical-body definition?)))
 
 (defun collect-lexical-body-definitions-names-and-set-forms (definitions)
   "Returns (values names set-forms) for lisp-1 style lexical-body."
@@ -134,13 +121,13 @@ be used with a DEFAULT-LABELS-BINDING."
 (defun parse-lexical-body (body)
   "Returns (values body names set-forms) for lisp-1 lexical-body.
 A lexical body is (definitions... declarations... forms...)"
-  (multiple-value-bind (body definitions) (parse-lexical-body-definitions body)
+  (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
     (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
       (values body names set-forms))))
 (defun parse-lexical-body2 (body)
   "Returns (values body names set-forms labels-bindings) for SCHEMEISH (lisp-2) lexical-body.
 A lexical body is (definitions... declarations... forms...)"
-  (multiple-value-bind (body definitions) (parse-lexical-body2-definitions body)
+  (multiple-value-bind (definitions body) (parse-lexical-body2-definitions body)
     (multiple-value-bind (names set-forms labels-bindings) (collect-lexical-body2-definitions-names-and-set-forms definitions)
       (values body names set-forms labels-bindings))))
 

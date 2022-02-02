@@ -1,5 +1,10 @@
 (in-package #:schemeish.for-macros)
 
+(defmacro for-macros (&body body)
+  "Evaluates to `(eval-when (:compile-toplevel :load-toplevel :execute) ,@body).
+Used to annotate functions that are used in macros."
+  `(eval-when (:compile-toplevel :load-toplevel :execute) ,@body))
+
 (defvar *unique-symbol* #'gensym "Given a string create a unique symbol. Typically bound to gensym.")
 (defmacro with-readable-symbols (&body body)
   "Establishes a dynamic context around body where UNIQUE-SYMBOL will use INTERN instead of GENSYM."
