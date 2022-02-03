@@ -248,18 +248,20 @@ The package is deleted in the cleanup form."
        (delete-package ,package-name))))
 (export 'with-temporary-package)
 
-(define (define-package-form name . package-fns)
-  "Constructs a temporary package using package functions, and returns the DEFPACKAGE form
+(export
+ (define (define-package-form name . package-fns)
+   "Constructs a temporary package using package functions, and returns the DEFPACKAGE form
 for that package with the given name."
-  (with-temporary-package package
-    (defpackage-form (extend-package* package package-fns) [*resolve-package-designator* name])))
+   (with-temporary-package package
+     (defpackage-form (extend-package* package package-fns) [*resolve-package-designator* name]))))
 
-(define (define-package name . package-fns)
-  "Constructs a temporary package using package functions, and evaluates the DEFPACKAGE form
+(export
+ (define (define-package name . package-fns)
+   "Constructs a temporary package using package functions, and evaluates the DEFPACKAGE form
 for that package with the given name. Returns the DEFPACKAGE form that is evaluted"
-  (let ((form (apply #'define-package-form name package-fns)))
-    (eval form)
-    form))
+   (let ((form (apply #'define-package-form name package-fns)))
+     (eval form)
+     form)))
 
 (define ((continue-with-warning datum . arguments) condition)
   "Provides a warning before invoking the continue restart."
@@ -291,12 +293,13 @@ Returns the package-name."
 (export
  (define (package-dependencies package)
    "Return a list of packages which package has a dependency on."
-   (append (map (compose 'find-package 'car) (group-by-package (package-symbols package)))
-	   (package-use-list package))))
+   (union (map (compose 'find-package 'car) (group-by-package (package-symbols package)))
+	  (package-use-list package))))
 
 (export
  (define (independent-package? package packages)
    "True if package does not have any dependencies on packages."
+   #g((list? packages) (for-all #'package? packages))
    (let ((dependencies (package-dependencies package)))
      (for-all (lambda (other-package) (not (member other-package dependencies)))
 	      (remove package packages)))))
