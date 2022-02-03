@@ -56,19 +56,21 @@ Returns a list of newly defined symbols."
 	       :super 'point
 	       :opaque)
 (let ((p3d (make-point3d 3 4 5)))
-  (assert (and-let* ((copy (struct-copy p3d))
-		     ((equal? (point-x p3d) (point-x copy)))
-		     ((equal? (point3d-z p3d) (point3d-z copy))))
-	    (not (equal? p3d copy))))
+  (assert (LET ((COPY (STRUCT-COPY P3D)))
+	    (AND COPY
+		 (AND (EQUAL? (POINT-X P3D) (POINT-X COPY))
+		      (AND (EQUAL? (POINT3D-Z P3D) (POINT3D-Z COPY))
+			   (PROGN (NOT (EQUAL? P3D COPY))))))))
   (assert (equal? (list (point? p3d)	;; t
 			(point3d? p3d)	;; t
 			(point-x p3d)	;; 3
 			(point-y p3d)	;; 4
 			(point3d-z p3d) ;; 5
-			(and-let* ((copy (struct-copy p3d))
-				   ((equal? (point-x p3d) (point-x copy)))
-				   ((equal? (point3d-z p3d) (point3d-z copy))))
-			  (not (equal? p3d copy))) ;;t
+			(LET ((COPY (STRUCT-COPY P3D)))
+			  (AND COPY
+			       (AND (EQUAL? (POINT-X P3D) (POINT-X COPY))
+				    (AND (EQUAL? (POINT3D-Z P3D) (POINT3D-Z COPY))
+					 (PROGN (NOT (EQUAL? P3D COPY))))))) ;;t
 			(string-starts-with? (format nil "~S" p3d) "#<POINT3D")) ;; #<struct point3d>
 		  (list t t 3 4 5 t t))))
 

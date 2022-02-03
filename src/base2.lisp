@@ -28,6 +28,52 @@
 			   (not (eq? [f] t)))))))))))
 
 
+;;; Numbers
+
+(export
+ (define even? #'evenp))
+(export
+ (define odd? #'oddp))
+(export
+ (define zero? #'zerop))
+
+(export
+ (define (quotient n m)
+   "Trunacate n/m"
+   (truncate n m)))
+
+(export
+ (define (number->string number (radix 10))
+   "Convert number to string using radix as the base."
+   (let ((*print-base* radix))
+     (format nil "~S" number))))
+
+(export
+ (define (degrees->radians deg)
+   "convert degrees to radians"
+   (/ (* pi deg) 180)))
+(export
+ (define (radians->degrees rads)
+   "convert radians to degrees."
+   (/ (* 180 rads) pi)))
+
+(export
+ (define (sqr n)
+   "n*n"
+   (* n n)))
+
+(export
+ (define (sgn x)
+   "Return the sign of x: 1,-1, or 0"
+   (cond
+     ((positive? x) 1)
+     ((negative? x) -1)
+     ((zero? x) 0))))
+
+(export
+ (define number? #'numberp))
+
+
 
 ;;; Logic
 (export
@@ -94,6 +140,19 @@
    "Keep elements of list that satisfy predicate."
    (remove-if-not predicate list)))
 
+(export
+ (define (filter-not pred list)
+   "Returns a list of elements that don't satisfy predicate pred."
+   (filter (lambda (x) (not [pred x])) list)))
+
+(export
+ (define (partition pred list)
+   "Returns (list elements-satisfying-pred elements-not-satisfying-pred)"
+   (list (filter pred list)
+	 (filter-not pred list))))
+
+(assert (equal (partition 'even? '(1 2 3 4 5 6))
+	       '((2 4 6) (1 3 5))))
 
 (export
  (define (filter-map proc . lists)
@@ -127,20 +186,6 @@
 
 (assert (equal? (map-successive 3 'list (list 1 2 3 4))
 		'((1 2 3) (2 3 4))))
-
-(export
- (define (filter-not pred list)
-   "Returns a list of elements that don't satisfy predicate pred."
-   (filter (compose 'not pred) list)))
-
-(export
- (define (partition pred list)
-   "Returns (list elements-satisfying-pred elements-not-satisfying-pred)"
-   (list (filter pred list)
-	 (filter-not pred list))))
-
-(assert (equal (partition 'even? '(1 2 3 4 5 6))
-	       '((2 4 6) (1 3 5))))
 
 (export
  (define pair? "T if datum is a cons." #'consp))
@@ -411,52 +456,6 @@ Body is (declarations... forms...)"
 	 ,@forms))))
 (export 'letrec)
 
-;;; Numbers
-
-(export
- (define even? #'evenp))
-(export
- (define odd? #'oddp))
-(export
- (define zero? #'zerop))
-
-(export
- (define (quotient n m)
-   "Trunacate n/m"
-   (truncate n m)))
-
-(export
- (define (number->string number (radix 10))
-   "Convert number to string using radix as the base."
-   (let ((*print-base* radix))
-     (format nil "~S" number))))
-
-(export
- (define (degrees->radians deg)
-   "convert degrees to radians"
-   (/ (* pi deg) 180)))
-(export
- (define (radians->degrees rads)
-   "convert radians to degrees."
-   (/ (* 180 rads) pi)))
-
-(export
- (define (sqr n)
-   "n*n"
-   (* n n)))
-
-(export
- (define (sgn x)
-   "Return the sign of x: 1,-1, or 0"
-   (cond
-     ((positive? x) 1)
-     ((negative? x) -1)
-     ((zero? x) 0))))
-
-(export
- (define number? #'numberp))
-
-
 ;;; Procedures
 
 (export
@@ -489,6 +488,7 @@ Body is (declarations... forms...)"
 	  'x 'y]
 
 	 '(f (g x) (g y) (g c))))
+
 
 
 (define (remove-indices indices list)
