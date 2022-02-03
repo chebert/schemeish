@@ -2,6 +2,8 @@
 
 (install-syntax!)
 
+;;; SYMBOLS
+
 (export
  (define (make-keyword symbol)
    (intern (symbol-name symbol) :keyword)))
@@ -9,8 +11,6 @@
  (define symbol->string #'symbol-name))
 (export
  (define symbol? #'symbolp))
-(export
- (define procedure? #'functionp))
 
 (export
  (define (parameter? symbol (environment))
@@ -27,6 +27,9 @@
 			 (let ((,symbol t))
 			   (not (eq? [f] t)))))))))))
 
+
+
+;;; Logic
 (export
  (define eq? #'eq))
 
@@ -35,6 +38,25 @@
 (defmethod equal? (object1 object2) (equal object1 object2))
 (export 'equal?)
 
+(export
+ (defmacro nand (&rest expressions)
+   "The same as (not (and expressions...))"
+   `(not (and ,@expressions))))
+
+(export
+ (defmacro nor (&rest expressions)
+   "The same as (not (or expressions...))"
+   `(not (or ,@expressions))))
+
+(export
+ (define (xor b1 b2)
+   "Logical xor of booleans b1 and b2."
+   (or (and b1 (not b2))
+       (and b2 (not b1)))))
+
+
+
+;;; Lists
 (export
  (define (map function list &rest more-lists)
    (apply #'mapcar function list more-lists)))
@@ -71,6 +93,54 @@
  (define (filter predicate list)
    "Keep elements of list that satisfy predicate."
    (remove-if-not predicate list)))
+
+
+(export
+ (define (filter-map proc . lists)
+   "Remove nil from the result of mapping proc over lists."
+   (remove nil (apply 'map proc lists))))
+
+(export
+ (define (range end (start 0) (step 1))
+   "Return a list of elements from [start,end) using step as the stepsize."
+   (if (<= start end)
+       (loop for i from start below end by step collecting i)
+       (loop for i from start downto end by step collecting i))))
+
+
+(export
+ (define (append-map proc . lists)
+   "Append the results of mapping procedure across lists."
+   (append* (apply 'map proc lists))))
+
+(export
+ (define (map-successive n f list)
+   "Maps f over successive groups of size n in list."
+   (let rec ((list list)
+	     (length (length list))
+	     (result ()))
+     (cond
+       ((< length n) (nreverse result))
+       (t (rec (rest list)
+	       (1- length)
+	       (cons (apply f (subseq list 0 n)) result)))))))
+
+(assert (equal? (map-successive 3 'list (list 1 2 3 4))
+		'((1 2 3) (2 3 4))))
+
+(export
+ (define (filter-not pred list)
+   "Returns a list of elements that don't satisfy predicate pred."
+   (filter (compose 'not pred) list)))
+
+(export
+ (define (partition pred list)
+   "Returns (list elements-satisfying-pred elements-not-satisfying-pred)"
+   (list (filter pred list)
+	 (filter-not pred list))))
+
+(assert (equal (partition 'even? '(1 2 3 4 5 6))
+	       '((2 4 6) (1 3 5))))
 
 (export
  (define pair? "T if datum is a cons." #'consp))
@@ -324,6 +394,8 @@
 (assert (equal? (intersperse :i '(:e :e :o))
 		'(:e :i :e :i :o)))
 
+;;; LET-REC
+
 (defmacro letrec (bindings &body body)
   "Establish lexical bindings. All lexical variables are in scope for the binding values.
 Values are bound sequentially. Bindings are established for body.
@@ -339,12 +411,56 @@ Body is (declarations... forms...)"
 	 ,@forms))))
 (export 'letrec)
 
+;;; Numbers
+
 (export
  (define even? #'evenp))
 (export
  (define odd? #'oddp))
 (export
  (define zero? #'zerop))
+
+(export
+ (define (quotient n m)
+   "Trunacate n/m"
+   (truncate n m)))
+
+(export
+ (define (number->string number (radix 10))
+   "Convert number to string using radix as the base."
+   (let ((*print-base* radix))
+     (format nil "~S" number))))
+
+(export
+ (define (degrees->radians deg)
+   "convert degrees to radians"
+   (/ (* pi deg) 180)))
+(export
+ (define (radians->degrees rads)
+   "convert radians to degrees."
+   (/ (* 180 rads) pi)))
+
+(export
+ (define (sqr n)
+   "n*n"
+   (* n n)))
+
+(export
+ (define (sgn x)
+   "Return the sign of x: 1,-1, or 0"
+   (cond
+     ((positive? x) 1)
+     ((negative? x) -1)
+     ((zero? x) 0))))
+
+(export
+ (define number? #'numberp))
+
+
+;;; Procedures
+
+(export
+ (define procedure? #'functionp))
 
 (export
  (define (compose* procs)
@@ -361,7 +477,6 @@ Body is (declarations... forms...)"
    (compose* procs)))
 
 
-
 (assert (equal (multiple-value-list [(compose) :x :y :z])
 	       '(:x :y :z)))
 
@@ -374,18 +489,6 @@ Body is (declarations... forms...)"
 	  'x 'y]
 
 	 '(f (g x) (g y) (g c))))
-
-(export
- (define (filter-map proc . lists)
-   "Remove nil from the result of mapping proc over lists."
-   (remove nil (apply 'map proc lists))))
-
-(export
- (define (range end (start 0) (step 1))
-   "Return a list of elements from [start,end) using step as the stepsize."
-   (if (<= start end)
-       (loop for i from start below end by step collecting i)
-       (loop for i from start downto end by step collecting i))))
 
 
 (define (remove-indices indices list)
@@ -410,40 +513,6 @@ Body is (declarations... forms...)"
 		:a :b :c :d :e]
 	       '(:A :C :D)))
 
-
-(export
- (define (append-map proc . lists)
-   "Append the results of mapping procedure across lists."
-   (append* (apply 'map proc lists))))
-
-(export
- (define (map-successive n f list)
-   "Maps f over successive groups of size n in list."
-   (let rec ((list list)
-	     (length (length list))
-	     (result ()))
-     (cond
-       ((< length n) (nreverse result))
-       (t (rec (rest list)
-	       (1- length)
-	       (cons (apply f (subseq list 0 n)) result)))))))
-
-(assert (equal? (map-successive 3 'list (list 1 2 3 4))
-		'((1 2 3) (2 3 4))))
-
-(export
- (define (filter-not pred list)
-   "Returns a list of elements that don't satisfy predicate pred."
-   (filter (compose 'not pred) list)))
-
-(export
- (define (partition pred list)
-   "Returns (list elements-satisfying-pred elements-not-satisfying-pred)"
-   (list (filter pred list)
-	 (filter-not pred list))))
-
-(assert (equal (partition 'even? '(1 2 3 4 5 6))
-	       '((2 4 6) (1 3 5))))
 
 (export
  (define (lcurry proc . left-args)
@@ -483,6 +552,70 @@ Body is (declarations... forms...)"
 	 result-values)
        (values-list result-values)))))
 
+(export
+ (define (disjoin* predicates)
+   "Return a predicate equivalent to predicates joined together with or."
+   (lambda (x)
+     (let rec ((result nil)
+	       (predicates predicates))
+       (if (or result (null? predicates))
+	   result
+	   (rec [(first predicates) x]
+		(rest predicates)))))))
+(export
+ (define (disjoin . predicates)
+   "Return a predicate equivalent to predicates joined together with or."
+   (disjoin* predicates)))
+
+(assert (equal (map (disjoin 'negative? 'even?)
+		    '(-1 -2 1 2))
+	       '(t t nil t)))
+
+
+(export
+ (define (conjoin* predicates)
+   "Return a predicate equivalent to predicates joined together with and."
+   (lambda (x)
+     (let rec ((result t)
+	       (predicates predicates))
+       (if (or (not result) (null? predicates))
+	   result
+	   (rec [(first predicates) x]
+		(rest predicates)))))))
+(export
+ (define (conjoin . predicates)
+   "Return a predicate equivalent to predicates joined together with and."
+   (conjoin* predicates)))
+
+(export
+ (define (for-all* predicate lists)
+   (apply #'every predicate lists)))
+(export
+ (define (for-all predicate . lists)
+   (for-all* predicate lists)))
+
+(export
+ (define (there-exists* predicate lists)
+   (apply #'some predicate lists)))
+(export
+ (define (there-exists predicate . lists)
+   (there-exists* predicate lists)))
+
+(assert (equal (map (conjoin 'negative? 'even?)
+		    '(-1 -2 1 2))
+	       '(nil t nil nil)))
+
+(export
+ (define (const v)
+   "Return a procedure of 0+ args that always returns v"
+   (lambda args
+     (declare (ignore args))
+     v)))
+
+(assert (= [(const 3) 1 2 3] 3))
+
+
+;;; Alist
 
 (export
  (define (alist-ref alist key (failure-result))
@@ -557,120 +690,7 @@ Applies updater to failure-result if key is not present."
    "Constructs an alist from pairs of key value ..."
    (nreverse (apply #'alist-set* () keys-and-values))))
 
-(export
- (define (disjoin* predicates)
-   "Return a predicate equivalent to predicates joined together with or."
-   (lambda (x)
-     (let rec ((result nil)
-	       (predicates predicates))
-       (if (or result (null? predicates))
-	   result
-	   (rec [(first predicates) x]
-		(rest predicates)))))))
-(export
- (define (disjoin . predicates)
-   "Return a predicate equivalent to predicates joined together with or."
-   (disjoin* predicates)))
-
-(assert (equal (map (disjoin 'negative? 'even?)
-		    '(-1 -2 1 2))
-	       '(t t nil t)))
-
-
-(export
- (define (conjoin* predicates)
-   "Return a predicate equivalent to predicates joined together with and."
-   (lambda (x)
-     (let rec ((result t)
-	       (predicates predicates))
-       (if (or (not result) (null? predicates))
-	   result
-	   (rec [(first predicates) x]
-		(rest predicates)))))))
-(export
- (define (conjoin . predicates)
-   "Return a predicate equivalent to predicates joined together with and."
-   (conjoin* predicates)))
-
-(export
- (define (for-all* predicate lists)
-   (apply #'every predicate lists)))
-(export
- (define (for-all predicate . lists)
-   (for-all* predicate lists)))
-
-(export
- (define (there-exists* predicate lists)
-   (apply #'some predicate lists)))
-(export
- (define (there-exists predicate . lists)
-   (there-exists* predicate lists)))
-
-(assert (equal (map (conjoin 'negative? 'even?)
-		    '(-1 -2 1 2))
-	       '(nil t nil nil)))
-
-(export
- (define (const v)
-   "Return a procedure of 0+ args that always returns v"
-   (lambda args
-     (declare (ignore args))
-     v)))
-
-(assert (= [(const 3) 1 2 3] 3))
-
-
-(export
- (defmacro nand (&rest expressions)
-   "The same as (not (and expressions...))"
-   `(not (and ,@expressions))))
-
-(export
- (defmacro nor (&rest expressions)
-   "The same as (not (or expressions...))"
-   `(not (or ,@expressions))))
-
-(export
- (define (xor b1 b2)
-   "Logical xor of booleans b1 and b2."
-   (or (and b1 (not b2))
-       (and b2 (not b1)))))
-
-(export
- (define (quotient n m)
-   "Trunacate n/m"
-   (truncate n m)))
-
-(export
- (define (number->string number (radix 10))
-   "Convert number to string using radix as the base."
-   (let ((*print-base* radix))
-     (format nil "~S" number))))
-
-(export
- (define (degrees->radians deg)
-   "convert degrees to radians"
-   (/ (* pi deg) 180)))
-(export
- (define (radians->degrees rads)
-   "convert radians to degrees."
-   (/ (* 180 rads) pi)))
-
-(export
- (define (sqr n)
-   "n*n"
-   (* n n)))
-
-(export
- (define (sgn x)
-   "Return the sign of x: 1,-1, or 0"
-   (cond
-     ((positive? x) 1)
-     ((negative? x) -1)
-     ((zero? x) 0))))
-
-(export
- (define number? #'numberp))
+;;; Unordered set
 
 (export
  (define (set-member? set value)
@@ -729,12 +749,18 @@ Applies updater to failure-result if key is not present."
    (and (subset? set1 set2)
 	(subset? set2 set1))))
 
+;;; Tree
+
 (export
  (define (flatten tree)
    (cond
      ((null? tree) ())
      ((pair? tree) (append (flatten (car tree)) (flatten (cdr tree))))
      (t (list tree)))))
+
+
+;;; Strings
+
 (export
  (define (string-append . strings)
    (apply 'concatenate 'string strings)))
@@ -826,6 +852,15 @@ of the results appended together. Proc is expected to return a character or stri
  (define (list->string list)
    (coerce list 'string)))
 
+;;; Symbols
+
+(export
+ (define (symbolicate . things)
+   (intern (apply 'string-append (map 'string things)))))
+
+
+;;; Output
+
 (export
  (define (newline (out *standard-output*)) (format out "~%")))
 (export
@@ -835,9 +870,8 @@ of the results appended together. Proc is expected to return a character or stri
    (display datum out)
    (newline out)))
 
-(export
- (define (symbolicate . things)
-   (intern (apply 'string-append (map 'string things)))))
+
+;;; Set!
 
 (defmacro set! (id expression)
   `(setq ,id ,expression))
@@ -847,6 +881,8 @@ of the results appended together. Proc is expected to return a character or stri
 (export
  (define (set-cdr! pair value) (setf (cdr pair) value)))
 
+;;; DELAY
+
 (defmacro delay (&body body)
   "Delays body."
   `(memo-proc (lambda () ,@body)))
@@ -855,6 +891,8 @@ of the results appended together. Proc is expected to return a character or stri
  (define (force promise)
    "Evaluates promise."
    [promise]))
+
+;;; Streams
 
 (export
  (defvar *the-empty-stream* ()))
@@ -1099,6 +1137,9 @@ Does not affect the random-state."
 (assert (stream-empty? (stream-filter (lambda (x) (not (<= 0.0 x 1.0)))
 				      (stream-take (random-stream 1.0) 10))))
 
+
+;;; Lambda-list
+
 ;; TODO: Replace these with map-ordinary-lambda-list
 (defparameter *lambda-list-keywords*
   '(&optional &rest &key &allow-other-keys &aux))
@@ -1326,6 +1367,7 @@ Does not affect the random-state."
 ;; TODO: Restrict arity when creating higher order functions. COMPOSE, etc.
 ;; TODO: Generics
 
+;;; List:Group
 
 (export
  (define (group key-fn list)
@@ -1348,6 +1390,8 @@ Does not affect the random-state."
 			      (2 a b c)
 			      (1 d e f)))
 		'((1 (1 A B C) (1 D E F)) (2 (2 A B C)) (0 (0 A B C) (0 D E F)))))
+
+;;; Hash-tables
 
 (export
  (define (hash-ref table key (failure-result))
@@ -1420,6 +1464,7 @@ If no value is associated with key, failure-result is used instead."
    "Remvoes all keys and values from table."
    (clrhash table)))
 
+;;; Vectors
 
 (export
  (define (vector-ref vector index)

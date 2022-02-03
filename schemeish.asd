@@ -64,4 +64,5 @@
 	       (:file "define-struct2")
 	       (:file "queue2")
 	       (:file "package-utils2")
-	       (:file "markup2")))
+	       (:file "markup2")
+	       (:file "schemeish-package-definition")))
