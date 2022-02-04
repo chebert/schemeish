@@ -1,4 +1,4 @@
-(in-package #:schemeish.expand-stream-collect)
+(in-package #:schemeish.backend)
 
 (install-syntax!)
 

@@ -1,45 +1,51 @@
-(in-package #:schemeish.queue)
+(in-package #:schemeish.backend)
 
-(for-macros (install-syntax!))
-(define queue? (make-bundle-predicate :queue))
-(define (make-queue (front-ptr ()))
-  (define rear-ptr (last front-ptr))
-  (define (empty?) (null? front-ptr))
-  (define (front)
-    (cond
-      ((empty?)
-       (error "Cannot get the front of an empty queue."))
-      (t (car front-ptr))))
-  (define (insert! item)
-    (let ((new-pair (cons item '())))
-      (cond
-	((empty?)
-	 (setq front-ptr new-pair)
-	 (setq rear-ptr new-pair))
-	(t
-	 (set-cdr! rear-ptr new-pair)
-	 (setq rear-ptr new-pair)))))
-  (define (delete!)
-    (cond
-      ((empty?)
-       (error "Cannot delete from an empty queue."))
-      (t
-       (setq front-ptr (cdr front-ptr)))))
+(install-syntax!)
+(export
+ (define queue? (make-bundle-predicate :queue)))
+(export
+ (define (make-queue (front-ptr ()))
+   (define rear-ptr (last front-ptr))
+   (define (empty?) (null? front-ptr))
+   (define (front)
+     (cond
+       ((empty?)
+	(error "Cannot get the front of an empty queue."))
+       (t (car front-ptr))))
+   (define (insert! item)
+     (let ((new-pair (cons item '())))
+       (cond
+	 ((empty?)
+	  (setq front-ptr new-pair)
+	  (setq rear-ptr new-pair))
+	 (t
+	  (set-cdr! rear-ptr new-pair)
+	  (setq rear-ptr new-pair)))))
+   (define (delete!)
+     (cond
+       ((empty?)
+	(error "Cannot delete from an empty queue."))
+       (t
+	(setq front-ptr (cdr front-ptr)))))
 
-  (bundle #'queue?
-	  empty?
-	  front
-	  insert!
-	  delete!))
+   (bundle #'queue?
+	   empty?
+	   front
+	   insert!
+	   delete!)))
 
-(define (queue-empty? q) [[q :empty?]])
-(define (queue-front q) [[q :front]])
-(define (queue-insert! q item)
-  [[q :insert!] item]
-  q)
-(define (queue-delete! q)
-  [[q :delete!]]
-  q)
+(export
+ (define (queue-empty? q) [[q :empty?]]))
+(export
+ (define (queue-front q) [[q :front]]))
+(export
+ (define (queue-insert! q item)
+   [[q :insert!] item]
+   q))
+(export
+ (define (queue-delete! q)
+   [[q :delete!]]
+   q))
 
 (assert (queue? (make-queue)))
 (assert (queue-empty? (make-queue)))
@@ -54,4 +60,5 @@
 
   (assert (null (ignore-errors (queue-front q))))
   (assert (null (ignore-errors (queue-delete! q)))))
-(for-macros (uninstall-syntax!))
+
+(uninstall-syntax!)

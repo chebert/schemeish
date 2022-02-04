@@ -1,4 +1,4 @@
-(in-package #:schemeish.bundle)
+(in-package #:schemeish.backend)
 
 (install-syntax!)
 
@@ -15,18 +15,19 @@ when given a bundle with this type-predicate"
        (eq? dispatch [arg *get-bundle-type-predicate*]))
       (t nil)))
   dispatch)
+(export 'make-bundle-predicate)
 
-(define (bundle-predicate-symbol predicate)
-  "Returns the debug symbol associated with predicate."
-  [predicate *get-bundle-predicate-symbol*])
+(export
+ (define (bundle-predicate-symbol predicate)
+   "Returns the debug symbol associated with predicate."
+   [predicate *get-bundle-predicate-symbol*]))
 
 (defvar *name?* (make-bundle-predicate :bundle))
 (assert [*name?* (lambda (arg)
 		   (cond
 		     ((eq *get-bundle-type-predicate* arg) *name?*)))])
 
-(for-macros
-  (defvar *get-bundle-permissions* (gensym "GET-BUNDLE-PERMISSIONS")))
+(defvar *get-bundle-permissions* (gensym "GET-BUNDLE-PERMISSIONS"))
 
 (define (get-fn-identifier? fn-identifier)
   (and (eql (first fn-identifier) :get)
@@ -86,8 +87,9 @@ when given a bundle with this type-predicate"
     (setf (gethash bundle *bundles*) t)
     bundle))
 
-(define (bundle? bundle)
-  (gethash bundle *bundles*))
+(export
+ (define (bundle? bundle)
+   (gethash bundle *bundles*)))
 
 (defmacro bundle (type-predicate &rest fn-identifiers)
   "Create a bundle of permissions for closure objects.
@@ -138,33 +140,38 @@ Example:
 	  ,@permission-forms
 	  (t (error "Unrecognized permission ~S for bundle. Expected one of: ~S"
 		    ,arg-name ',permission-names)))))))
+(export 'bundle)
 
 (defvar *bundle-print-object-table* (make-hash-table :weakness :key))
 
-(define (define-bundle-print-object bundle print-object-proc)
-  "Defines the print-object-proc for the given bundle. [print-object-proc stream] will be called
+(export
+ (define (define-bundle-print-object bundle print-object-proc)
+   "Defines the print-object-proc for the given bundle. [print-object-proc stream] will be called
 when print-object is called on the bundle."
-  (setf (gethash bundle *bundle-print-object-table*) print-object-proc)
-  bundle)
-(define (undefine-bundle-print-object bundle)
-  "Removes the print-object-proc for the given bundle."
-  (remhash bundle *bundle-print-object-table*)
-  bundle)
+   (setf (gethash bundle *bundle-print-object-table*) print-object-proc)
+   bundle))
+(export
+ (define (undefine-bundle-print-object bundle)
+   "Removes the print-object-proc for the given bundle."
+   (remhash bundle *bundle-print-object-table*)
+   bundle))
 (define (bundle-print-object-proc bundle)
   (gethash bundle *bundle-print-object-table*))
 
-(define (bundle-documentation bundle)
-  "Generates documentation for bundle and all of its permissions."
-  (with-output-to-string (s)
-    (format s "~%A bundle of type ~S with permissions:" (bundle-predicate-symbol [bundle *get-bundle-type-predicate*]))
-    (for-each (lambda (permission)
-		(let ((fn [bundle permission]))
-		  (format s "~&  ~S: ~A" (cons (list 'bundle permission) (arg:arglist fn)) (documentation fn 'function))))
-	      (bundle-permissions bundle))))
+(export
+ (define (bundle-documentation bundle)
+   "Generates documentation for bundle and all of its permissions."
+   (with-output-to-string (s)
+     (format s "~%A bundle of type ~S with permissions:" (bundle-predicate-symbol [bundle *get-bundle-type-predicate*]))
+     (for-each (lambda (permission)
+		 (let ((fn [bundle permission]))
+		   (format s "~&  ~S: ~A" (cons (list 'bundle permission) (arg:arglist fn)) (documentation fn 'function))))
+	       (bundle-permissions bundle)))))
 
-(define (bundle-permissions bundle)
-  "Return a list of permissions to the bundle."
-  [bundle *get-bundle-permissions*])
+(export
+ (define (bundle-permissions bundle)
+   "Return a list of permissions to the bundle."
+   [bundle *get-bundle-permissions*]))
 
 (define point? (make-bundle-predicate :point))
 (define (make-bundle-point x y)

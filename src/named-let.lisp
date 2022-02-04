@@ -1,4 +1,4 @@
-(in-package #:schemeish.named-let)
+(in-package #:schemeish.internals)
 
 ;; Named let.
 (defmacro let (&whole whole &rest rest)
@@ -16,3 +16,4 @@
 		    ,@body))
 	   (,name ,@(mapcar #'second bindings))))
       `(cl:let ,@(rest whole))))
+(export 'let)

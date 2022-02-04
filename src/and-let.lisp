@@ -1,4 +1,4 @@
-(in-package #:schemeish.and-let)
+(in-package #:schemeish.backend)
 
 (install-syntax!)
 
@@ -28,5 +28,6 @@ Example (and-let* ((list (compute-list))
                    ((integer? item)))
           (sqrt item))"
   (and-let*-form clauses body))
+(export 'and-let*x)
 
 (uninstall-syntax!)

@@ -1,84 +1,80 @@
 ;;;; package.lisp
 
-(DEFPACKAGE #:SCHEMEISH.FOR-MACROS
-  (:DOCUMENTATION "Provides FOR-MACROS which expands to (EVAL-WHEN ...)")
+(DEFPACKAGE #:SCHEMEISH.INTERNALS
   (:USE #:COMMON-LISP)
-  (:EXPORT #:FOR-MACROS #:UNIQUE-SYMBOL #:WITH-READABLE-SYMBOLS))
-
-(DEFPACKAGE #:SCHEMEISH.NAMED-LET
-  (:DOCUMENTATION "Provides an optionally named LET which can be used to write a locally recursive form.")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:LET)
-  (:SHADOW #:LET))
-
-(DEFPACKAGE #:SCHEMEISH.SYNTAX
-  (:DOCUMENTATION "Provides install/uninstall-syntax! for expanding [fn-value args...] => (funcall fn-value args...)")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS)
-  (:EXPORT #:DOCUMENTATION-TAG
+  (:EXPORT #:COMPILER-MACRO-DOCUMENTATION-SOURCE
+           #:DEFINE
+           #:DISABLE-GUARD-CLAUSES!
+           #:DOCUMENTATION-SOURCE?
+           #:DOCUMENTATION-STRING
+           #:DOCUMENTATION-TAG
            #:DOCUMENTATION-TAG-FORM
            #:DOCUMENTATION-TAG?
-           #:GUARD-TAG
-           #:GUARD-TAG-CLAUSES
-           #:GUARD-TAG?
-           #:INSTALL-SYNTAX!
-           #:UNINSTALL-SYNTAX!))
-
-(DEFPACKAGE #:SCHEMEISH.BASIC-SYNTAX
-  (:DOCUMENTATION "Provides some basic syntax of scheme: FOR-MACROS NAMED-LET, [] reader syntax")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.FOR-MACROS
-        #:SCHEMEISH.NAMED-LET
-        #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:DOCUMENTATION-TAG
-           #:DOCUMENTATION-TAG-FORM
-           #:DOCUMENTATION-TAG?
+           #:DROPF
+           #:ENABLE-GUARD-CLAUSES!
+           #:EXPORT-DEFINITION
+           #:EXPOSE
+           #:EXPOSE-FUNCTIONS
+           #:EXPOSE-VARIABLES
            #:FOR-MACROS
+           #:GUARD-CLAUSES-ENABLED?
            #:GUARD-TAG
            #:GUARD-TAG-CLAUSES
            #:GUARD-TAG?
            #:INSTALL-SYNTAX!
+           #:LAMBDA-FORM
            #:LET
+           #:LEXICAL-BODY-DEFINITION-DOCUMENTATIONS
+           #:LEXICAL-BODY-DEFINITION?
+           #:LEXICAL-BODY-FORM
+           #:LEXICAL-BODY2-DEFINITION-DOCUMENTATIONS
+           #:LEXICAL-BODY2-DEFINITION?
+           #:LEXICAL-BODY2-FORM
+           #:LEXICALLY
+           #:MAKE-DOCUMENTATION-TAG
+           #:MAKE-GUARD-TAG
+           #:NO-COMPILE
+           #:OBJECT-DOCUMENTATION-SOURCE
+           #:PARSE-FUNCTION
+           #:PARSE-METADATA-FROM-FUNCTION-BODY
+           #:READ-GUARD-TAG
+           #:REGISTER-LEXICAL-BODY-DEFINITION
+           #:REGISTER-LEXICAL-BODY2-DEFINITION
+           #:REGISTERED-DEFINITION-NAME-FIELD
+           #:REGISTERED-GUARD-CLAUSES
+           #:SCM-PARAMETERS->ORDINARY-LAMBDA-LIST
+           #:SET-COMPILER-MACRO-DOCUMENTATION-SOURCE!
+           #:SET-OBJECT-DOCUMENTATION-FROM-DOCUMENTATION-SOURCE!
+           #:SET-OBJECT-DOCUMENTATION-SOURCE!
+           #:SET-SETF-DOCUMENTATION-SOURCE!
+           #:SET-TYPE-DOCUMENTATION-SOURCE!
+           #:SET-VARIABLE-DOCUMENTATION-SOURCE!
+           #:SETF-DOCUMENTATION-SOURCE
+           #:SPLITF
+           #:TAKEF
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-DESTRUCTURING
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-SYMBOL-OR-PAIR
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-VALUES
+           #:TRANSFORM-LEXICAL-BODY2-DEFINE-SYMBOL-OR-PAIR
+           #:TYPE-DOCUMENTATION-SOURCE
+           #:UNDEFINE
            #:UNINSTALL-SYNTAX!
            #:UNIQUE-SYMBOL
-           #:WITH-READABLE-SYMBOLS))
-
-(DEFPACKAGE #:SCHEMEISH.ARGUMENTS
-  (:DOCUMENTATION "Tools to translate scheme style argument lists to CL style argument lists.")
-  (:USE #:COMMON-LISP #:SCHEMEISH.FOR-MACROS #:SCHEMEISH.SYNTAX)
-  (:EXPORT #:ARG-LIST->LAMBDA-LIST))
-
-(DEFPACKAGE #:SCHEMEISH.DEFINE
-  (:DOCUMENTATION "Provides DEFINE. See DEFINE's docs for more details.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.ARGUMENTS #:SCHEMEISH.BASIC-SYNTAX)
-  (:EXPORT #:DEFINE
-           #:DEFINE-FORM
-           #:DROPF
-           #:EXPAND-DEFINES-IN-LEXICAL-BODY
-           #:EXPAND-TOP-LEVEL-DEFINE
-           #:LAMBDA
-           #:SPLITF-AT
-           #:TAKEF
-           #:UNDEFINE
-           #:UNIQUE-SYMBOL
+           #:UNREGISTER-LEXICAL-BODY-DEFINITION
+           #:UNREGISTER-LEXICAL-BODY2-DEFINITION
+           #:VARIABLE-DOCUMENTATION-SOURCE
+           #:WITH-GUARD-CLAUSES-DISABLED
+           #:WITH-GUARD-CLAUSES-ENABLED
            #:WITH-READABLE-SYMBOLS)
-  (:SHADOW #:LAMBDA))
+  (:SHADOW #:LET))
 
-(DEFPACKAGE #:SCHEMEISH.BASE
-  (:DOCUMENTATION "Provides many core functions and simple macros in addition to basic-syntax, including
-  - symbols
-  - lists
-  - procedures
-  - alists
-  - sets
-  - strings
-  - output
-  - mutation")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASIC-SYNTAX #:SCHEMEISH.DEFINE)
-  (:EXPORT #:*THE-EMPTY-STREAM*
+(DEFPACKAGE #:SCHEMEISH.BACKEND
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.INTERNALS #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.INTERNALS)
+  (:EXPORT #:*ESCAPE-CHARS*
+           #:*MARKUP-RENDER-WIDTH*
+           #:*RESOLVE-PACKAGE-DESIGNATOR*
+           #:*THE-EMPTY-STREAM*
            #:ALIST
            #:ALIST-FOR-EACH
            #:ALIST-HAS-KEY?
@@ -91,38 +87,53 @@
            #:ALIST-UNION
            #:ALIST-UPDATE
            #:ALIST-VALUES
+           #:ALL-PACKAGES-WITH-STRING-PREFIX
+           #:AND-LET*
+           #:AND-LET*X
            #:ANDMAP
            #:APPEND*
            #:APPEND-MAP
+           #:BLOCK-QUOTE
+           #:BOLD
+           #:BR
+           #:BUNDLE
+           #:BUNDLE-DOCUMENTATION
+           #:BUNDLE-PERMISSIONS
+           #:BUNDLE-PREDICATE-SYMBOL
+           #:BUNDLE?
            #:CHARS-STRING
+           #:CODE
+           #:CODE-BLOCK
            #:COMPOSE
            #:COMPOSE*
            #:CONJOIN
            #:CONJOIN*
            #:CONST
-           #:DEFINE
-           #:DEFINE-FORM
+           #:COPY-RENDERER-WITH-NEW-STREAM
+           #:CUT
+           #:DEFINE-BUNDLE-PRINT-OBJECT
+           #:DEFINE-PACKAGE
+           #:DEFINE-PACKAGE-FORM
+           #:DEFINE-STRUCT
+           #:DEFPACKAGE-FORM
            #:DEGREES->RADIANS
            #:DELAY
            #:DISJOIN
            #:DISJOIN*
            #:DISPLAY
            #:DISPLAYLN
-           #:DOCUMENT-PROC
-           #:DOCUMENTATION-TAG
-           #:DOCUMENTATION-TAG-FORM
-           #:DOCUMENTATION-TAG?
            #:DROP
-           #:DROPF
            #:EMPTY?
+           #:ENSURE-STRING
            #:EQ?
            #:EQUAL?
            #:EVEN?
-           #:EXPAND-DEFINES-IN-LEXICAL-BODY
-           #:EXPAND-TOP-LEVEL-DEFINE
+           #:EXTEND-PACKAGE
+           #:EXTEND-PACKAGE*
            #:FILTER
            #:FILTER-MAP
            #:FILTER-NOT
+           #:FILTER-PACKAGES
            #:FINDF
            #:FLATTEN
            #:FOLDL
@@ -130,12 +141,9 @@
            #:FOR-ALL
            #:FOR-ALL*
            #:FOR-EACH
-           #:FOR-MACROS
            #:FORCE
            #:GROUP
-           #:GUARD-TAG
-           #:GUARD-TAG-CLAUSES
-           #:GUARD-TAG?
+           #:GROUP-BY-PACKAGE
            #:HAS-SPECIFIC-ARITY?
            #:HASH->ALIST
            #:HASH-CLEAR!
@@ -149,243 +157,66 @@
            #:HASH-SET!
            #:HASH-UPDATE!
            #:HASH-VALUES
+           #:HEADING
+           #:HIERARCHICAL-DEFPACKAGE-FORMS
+           #:HORIZONTAL-BAR
+           #:HTML-TAG
+           #:HTML-TAG-ATTRIBUTE-ALIST
+           #:HTML-TAG-INNER-TAGS-AND-TEXTS
+           #:HTML-TAG-NAME
+           #:HTML-TAG?
            #:IGNORE-ARGS
-           #:INSTALL-SYNTAX!
+           #:INDEPENDENT-PACKAGE?
+           #:INDEPENDENT-PACKAGES
+           #:INLINE-MARKUP
+           #:INLINE-MARKUP?
+           #:INLINE-TEXT
+           #:INLINE-TEXT?
            #:INTERSPERSE
+           #:ITALIC
            #:JOIN-STRINGS
            #:LAMBDA
            #:LCURRY
-           #:LET
            #:LETREC
+           #:LINK
            #:LIST->STREAM
            #:LIST->STRING
            #:LIST->VECTOR
+           #:LIST-ITEM-TAG
            #:LIST-REF
            #:LIST-SET
            #:LIST-TAIL
            #:LIST-TYPE
            #:LIST-UPDATE
            #:LIST?
+           #:MAKE-BUNDLE-PREDICATE
+           #:MAKE-HTML-TAG
+           #:MAKE-INLINE-MARKUP
            #:MAKE-KEYWORD
+           #:MAKE-MARKUP
+           #:MAKE-QUEUE
            #:MAP
            #:MAP-SUCCESSIVE
+           #:MARKUP
+           #:MARKUP-CONSTRUCTOR
+           #:MARKUP-CONSTRUCTOR-FORM
+           #:MARKUP-HTML-TAG
+           #:MARKUP-RENDER-TEXT
+           #:MARKUP-STRING-RENDERER
+           #:MARKUP?
            #:MEMF
            #:MEMO-PROC
            #:NAND
            #:NEGATIVE?
            #:NEWLINE
+           #:NICKNAME-PACKAGE
            #:NOR
            #:NULL?
            #:NUMBER->STRING
            #:NUMBER?
            #:ODD?
+           #:ORDERED-LIST
            #:ORMAP
-           #:PAIR?
-           #:PARAMETER?
-           #:PARTITION
-           #:POSITIVE?
-           #:PROCEDURE-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-ALLOW-OTHER-KEYS?
-           #:PROCEDURE-ARGUMENTS-KEY-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-OPTIONAL-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-REQUIRED-ARGUMENTS
-           #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
-           #:PROCEDURE-ARITY
-           #:PROCEDURE?
-           #:PROPER-LIST?
-           #:QUOTIENT
-           #:RADIANS->DEGREES
-           #:RANGE
-           #:RCURRY
-           #:REMOVE*
-           #:REMQ
-           #:REMQ*
-           #:REPEAT
-           #:SAFE-VECTOR-REF
-           #:SET!
-           #:SET->STREAM
-           #:SET-ADD
-           #:SET-CAR!
-           #:SET-CDR!
-           #:SET-COUNT
-           #:SET-EMPTY?
-           #:SET-INTERSECT
-           #:SET-MEMBER?
-           #:SET-REMOVE
-           #:SET-SUBTRACT
-           #:SET-UNION
-           #:SET=?
-           #:SGN
-           #:SORT
-           #:SPLIT-AT
-           #:SPLIT-STRING
-           #:SPLIT-STRING-IF
-           #:SPLITF-AT
-           #:SQR
-           #:STREAM
-           #:STREAM->LIST
-           #:STREAM-APPEND
-           #:STREAM-CAR
-           #:STREAM-CDR
-           #:STREAM-CONS
-           #:STREAM-DROP
-           #:STREAM-EMPTY?
-           #:STREAM-FILTER
-           #:STREAM-FIRST
-           #:STREAM-FLATMAP
-           #:STREAM-FLATTEN
-           #:STREAM-FOLD
-           #:STREAM-FOR-EACH
-           #:STREAM-LENGTH
-           #:STREAM-MAP
-           #:STREAM-MAP-SUCCESSIVE
-           #:STREAM-RANGE
-           #:STREAM-REF
-           #:STREAM-REST
-           #:STREAM-TAKE
-           #:STREAM?
-           #:STRING->LIST
-           #:STRING-APPEND
-           #:STRING-APPEND*
-           #:STRING-EMPTY?
-           #:STRING-FOR-EACH
-           #:STRING-MAP
-           #:STRING-STARTS-WITH?
-           #:STRING?
-           #:SUBSET?
-           #:SWAP-ARGS
-           #:SYMBOL->STRING
-           #:SYMBOL?
-           #:SYMBOLICATE
-           #:TAKE
-           #:TAKEF
-           #:THERE-EXISTS
-           #:THERE-EXISTS*
-           #:UNDEFINE
-           #:UNINSTALL-SYNTAX!
-           #:UNIQUE-SYMBOL
-           #:VECTOR->LIST
-           #:VECTOR-MAP
-           #:VECTOR-REF
-           #:VECTOR-SET!
-           #:WITH-READABLE-SYMBOLS
-           #:XOR
-           #:ZERO?)
-  (:SHADOW #:MAP #:SORT #:STREAM))
-
-(DEFPACKAGE #:SCHEMEISH.CUT
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:? #:CUT))
-
-(DEFPACKAGE #:SCHEMEISH.EXPAND-STREAM-COLLECT
-  (:DOCUMENTATION "Provides tools to expand a stream-collect macro form.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:STREAM-COLLECT-FORM))
-
-(DEFPACKAGE #:SCHEMEISH.AND-LET
-  (:DOCUMENTATION "Provides the and-let* macro.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE)
-  (:EXPORT #:AND-LET*))
-
-(DEFPACKAGE #:SCHEMEISH.LEXICALLY
-  (:DOCUMENTATION "Provides the lexically and expose macros.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
-  (:EXPORT #:EXPOSE #:LEXICALLY))
-
-(DEFPACKAGE #:SCHEMEISH.STREAM-COLLECT
-  (:DOCUMENTATION "Provides the stream-collect macro.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.BASE #:SCHEMEISH.EXPAND-STREAM-COLLECT)
-  (:EXPORT #:STREAM-COLLECT))
-
-(DEFPACKAGE #:SCHEMEISH.STRUCT
-  (:DOCUMENTATION "Provides the basis and expansions for define-struct.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
-  (:EXPORT #:STRUCT
-           #:STRUCT->LIST
-           #:STRUCT-ACCESSORS
-           #:STRUCT-COPY
-           #:STRUCT-FORM
-           #:STRUCT?))
-
-(DEFPACKAGE #:SCHEMEISH.BUNDLE
-  (:DOCUMENTATION "Provides bundle and make-bundle-predicate for creating dispatch-style closures.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE)
-  (:EXPORT #:BUNDLE
-           #:BUNDLE-DOCUMENTATION
-           #:BUNDLE-PERMISSIONS
-           #:BUNDLE?
-           #:DEFINE-BUNDLE-PRINT-OBJECT
-           #:MAKE-BUNDLE-PREDICATE
-           #:UNDEFINE-BUNDLE-PRINT-OBJECT))
-
-(DEFPACKAGE #:SCHEMEISH.QUEUE
-  (:DOCUMENTATION "Provides a bundle-based implementation of a queue.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:SCHEMEISH.BUNDLE)
-  (:EXPORT #:MAKE-QUEUE
-           #:QUEUE-DELETE!
-           #:QUEUE-EMPTY?
-           #:QUEUE-FRONT
-           #:QUEUE-INSERT!
-           #:QUEUE?))
-
-(DEFPACKAGE #:SCHEMEISH.DEFINE-STRUCT
-  (:DOCUMENTATION "Provides define-struct.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP #:SCHEMEISH.AND-LET #:SCHEMEISH.BASE #:SCHEMEISH.STRUCT)
-  (:EXPORT #:DEFINE-STRUCT))
-
-(DEFPACKAGE #:SCHEMEISH.PACKAGE-UTILS
-  (:DOCUMENTATION "Provides tools for dealing with CL packages.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BASE
-        #:SCHEMEISH.BUNDLE
-        #:SCHEMEISH.DEFINE-STRUCT
-        #:SCHEMEISH.QUEUE
-        #:SCHEMEISH.STRUCT)
-  (:EXPORT #:*RESOLVE-PACKAGE-DESIGNATOR*
-           #:ALL-PACKAGES-WITH-STRING-PREFIX
-           #:DEFINE-PACKAGE
-           #:DEFINE-PACKAGE-FORM
-           #:DEFPACKAGE-FORM
-           #:ENSURE-STRING
-           #:EXTEND-PACKAGE
-           #:EXTEND-PACKAGE*
-           #:FILTER-PACKAGES
-           #:GROUP-BY-PACKAGE
-           #:HIERARCHICAL-DEFPACKAGE-FORMS
-           #:INDEPENDENT-PACKAGE?
-           #:INDEPENDENT-PACKAGES
-           #:NICKNAME-PACKAGE
            #:PACKAGE-DEFINED-AND-EXPORTED-SYMBOLS
            #:PACKAGE-DELETE
            #:PACKAGE-DEPENDENCIES
@@ -412,36 +243,133 @@
            #:PACKAGE-USE-SHADOWING
            #:PACKAGE-USED-SYMBOLS
            #:PACKAGE?
+           #:PAIR?
+           #:PARAGRAPH
+           #:PARAMETER?
+           #:PARTITION
+           #:POP-RENDER-PREFIX
+           #:POSITIVE?
+           #:PROCEDURE-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-ALLOW-OTHER-KEYS?
+           #:PROCEDURE-ARGUMENTS-KEY-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-OPTIONAL-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-REQUIRED-ARGUMENTS
+           #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
+           #:PROCEDURE-ARITY
+           #:PROCEDURE?
+           #:PROPER-LIST?
+           #:PUSH-RENDER-PREFIX
+           #:QUEUE-DELETE!
+           #:QUEUE-EMPTY?
+           #:QUEUE-FRONT
+           #:QUEUE-INSERT!
+           #:QUEUE?
+           #:QUOTIENT
+           #:RADIANS->DEGREES
+           #:RANGE
+           #:RCURRY
+           #:REMOVE*
+           #:REMQ
+           #:REMQ*
+           #:RENDER-FRESHLINE
+           #:RENDER-HTML-TAG
+           #:RENDER-HTML-TAG-TO-STRING
+           #:RENDER-INLINE
+           #:RENDER-INLINE-ESCAPED
+           #:RENDER-LENGTH
+           #:RENDER-MARKUP
+           #:RENDER-MARKUP-HTML-TAG-TO-STRING
+           #:RENDER-MARKUP-TO-STRING
+           #:RENDER-NEWLINE
+           #:RENDER-PREFIX
+           #:RENDER-PREFORMATTED-TEXT
+           #:RENDER-WITHOUT-WORD-WRAP
+           #:REPEAT
+           #:SAFE-VECTOR-REF
+           #:SEQ
+           #:SET!
+           #:SET->STREAM
+           #:SET-ADD
+           #:SET-CAR!
+           #:SET-CDR!
+           #:SET-COUNT
+           #:SET-EMPTY?
+           #:SET-INTERSECT
+           #:SET-MEMBER?
+           #:SET-REMOVE
+           #:SET-SUBTRACT
+           #:SET-UNION
+           #:SET=?
+           #:SGN
+           #:SORT
+           #:SPLIT-AT
+           #:SPLIT-STRING
+           #:SPLIT-STRING-IF
+           #:SQR
+           #:STREAM
+           #:STREAM->LIST
+           #:STREAM-APPEND
+           #:STREAM-CAR
+           #:STREAM-CDR
+           #:STREAM-COLLECT
+           #:STREAM-CONS
+           #:STREAM-DROP
+           #:STREAM-EMPTY?
+           #:STREAM-FILTER
+           #:STREAM-FIRST
+           #:STREAM-FLATMAP
+           #:STREAM-FLATTEN
+           #:STREAM-FOLD
+           #:STREAM-FOR-EACH
+           #:STREAM-LENGTH
+           #:STREAM-MAP
+           #:STREAM-MAP-SUCCESSIVE
+           #:STREAM-RANGE
+           #:STREAM-REF
+           #:STREAM-REST
+           #:STREAM-TAKE
+           #:STREAM?
+           #:STRING->LIST
+           #:STRING-APPEND
+           #:STRING-APPEND*
+           #:STRING-EMPTY?
+           #:STRING-FOR-EACH
+           #:STRING-MAP
+           #:STRING-STARTS-WITH?
+           #:STRING?
+           #:STRUCT
+           #:STRUCT->LIST
+           #:STRUCT-ACCESSORS
+           #:STRUCT-COPY
+           #:STRUCT?
+           #:SUBSET?
+           #:SWAP-ARGS
+           #:SYMBOL->STRING
            #:SYMBOL-IN-PACKAGE?
+           #:SYMBOL?
+           #:SYMBOLICATE
            #:SYMBOLS-IN-PACKAGE
            #:SYMBOLS-INTERNED-IN-PACKAGE
+           #:TABLE
+           #:TAKE
+           #:TEXT-RENDERER?
+           #:THERE-EXISTS
+           #:THERE-EXISTS*
+           #:UNDEFINE-BUNDLE-PRINT-OBJECT
            #:UNINTERNED
-           #:UNIQUE-PACKAGE-NAME
-           #:WITH-TEMPORARY-PACKAGE))
+           #:UNORDERED-LIST
+           #:VECTOR->LIST
+           #:VECTOR-REF
+           #:VECTOR-SET!
+           #:WITH-TEMPORARY-PACKAGE
+           #:XOR
+           #:ZERO?)
+  (:SHADOW #:LAMBDA #:MAP #:SORT #:STREAM))
 
-(DEFPACKAGE #:SCHEMEISH.SCHEMEISH
-  (:DOCUMENTATION "Provides everything in the schemeish-library. Re-exports CL so that packates can (:use #:schemeish) instead of (:use #:cl)")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE
-                          #:EXPAND-DEFINES-IN-LEXICAL-BODY
-                          #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.SYNTAX
-                          #:DOCUMENTATION-TAG-FORM
-                          #:DOCUMENTATION-TAG?
-                          #:GUARD-TAG-CLAUSES
-                          #:GUARD-TAG?)
-  (:USE #:COMMON-LISP
-        #:SCHEMEISH.AND-LET
-        #:SCHEMEISH.BASE
-        #:SCHEMEISH.BUNDLE
-        #:SCHEMEISH.CUT
-        #:SCHEMEISH.DEFINE-STRUCT
-        #:SCHEMEISH.LEXICALLY
-        #:SCHEMEISH.PACKAGE-UTILS
-        #:SCHEMEISH.QUEUE
-        #:SCHEMEISH.STREAM-COLLECT
-        #:SCHEMEISH.STRUCT)
+(DEFPACKAGE #:SCHEMEISH.SCHEMEISH2
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BACKEND #:LAMBDA #:MAP #:SORT #:STREAM)
+  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.INTERNALS #:LET)
+  (:USE #:COMMON-LISP #:SCHEMEISH.BACKEND #:SCHEMEISH.INTERNALS)
   (:EXPORT #:&ALLOW-OTHER-KEYS
            #:&AUX
            #:&BODY
@@ -462,6 +390,7 @@
            #:*DEBUGGER-HOOK*
            #:*DEFAULT-PATHNAME-DEFAULTS*
            #:*ERROR-OUTPUT*
+           #:*ESCAPE-CHARS*
            #:*FEATURES*
            #:*GENSYM-COUNTER*
            #:*LOAD-PATHNAME*
@@ -469,6 +398,7 @@
            #:*LOAD-TRUENAME*
            #:*LOAD-VERBOSE*
            #:*MACROEXPAND-HOOK*
+           #:*MARKUP-RENDER-WIDTH*
            #:*MODULES*
            #:*PACKAGE*
            #:*PRINT-ARRAY*
@@ -514,7 +444,6 @@
            #:=
            #:>
            #:>=
-           #:?
            #:ABORT
            #:ABS
            #:ACONS
@@ -542,6 +471,7 @@
            #:ALPHANUMERICP
            #:AND
            #:AND-LET*
+           #:AND-LET*X
            #:ANDMAP
            #:APPEND
            #:APPEND*
@@ -595,6 +525,8 @@
            #:BIT-VECTOR-P
            #:BIT-XOR
            #:BLOCK
+           #:BLOCK-QUOTE
+           #:BOLD
            #:BOOLE
            #:BOOLE-1
            #:BOOLE-2
@@ -615,6 +547,7 @@
            #:BOOLEAN
            #:BOTH-CASE-P
            #:BOUNDP
+           #:BR
            #:BREAK
            #:BROADCAST-STREAM
            #:BROADCAST-STREAM-STREAMS
@@ -622,6 +555,7 @@
            #:BUNDLE
            #:BUNDLE-DOCUMENTATION
            #:BUNDLE-PERMISSIONS
+           #:BUNDLE-PREDICATE-SYMBOL
            #:BUNDLE?
            #:BUTLAST
            #:BYTE
@@ -699,6 +633,8 @@
            #:CLEAR-OUTPUT
            #:CLOSE
            #:CLRHASH
+           #:CODE
+           #:CODE-BLOCK
            #:CODE-CHAR
            #:COERCE
            #:COMPILATION-SPEED
@@ -708,6 +644,7 @@
            #:COMPILED-FUNCTION
            #:COMPILED-FUNCTION-P
            #:COMPILER-MACRO
+           #:COMPILER-MACRO-DOCUMENTATION-SOURCE
            #:COMPILER-MACRO-FUNCTION
            #:COMPLEMENT
            #:COMPLEX
@@ -735,6 +672,7 @@
            #:COPY-LIST
            #:COPY-PPRINT-DISPATCH
            #:COPY-READTABLE
+           #:COPY-RENDERER-WITH-NEW-STREAM
            #:COPY-SEQ
            #:COPY-STRUCTURE
            #:COPY-SYMBOL
@@ -760,7 +698,6 @@
            #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-COMPILER-MACRO
            #:DEFINE-CONDITION
-           #:DEFINE-FORM
            #:DEFINE-METHOD-COMBINATION
            #:DEFINE-MODIFY-MACRO
            #:DEFINE-PACKAGE
@@ -795,6 +732,7 @@
            #:DIGIT-CHAR-P
            #:DIRECTORY
            #:DIRECTORY-NAMESTRING
+           #:DISABLE-GUARD-CLAUSES!
            #:DISASSEMBLE
            #:DISJOIN
            #:DISJOIN*
@@ -806,8 +744,9 @@
            #:DO-ALL-SYMBOLS
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
-           #:DOCUMENT-PROC
            #:DOCUMENTATION
+           #:DOCUMENTATION-SOURCE?
+           #:DOCUMENTATION-STRING
            #:DOCUMENTATION-TAG
            #:DOCUMENTATION-TAG-FORM
            #:DOCUMENTATION-TAG?
@@ -829,6 +768,7 @@
            #:EIGHTH
            #:ELT
            #:EMPTY?
+           #:ENABLE-GUARD-CLAUSES!
            #:ENCODE-UNIVERSAL-TIME
            #:END-OF-FILE
            #:ENDP
@@ -850,10 +790,10 @@
            #:EVENP
            #:EVERY
            #:EXP
-           #:EXPAND-DEFINES-IN-LEXICAL-BODY
-           #:EXPAND-TOP-LEVEL-DEFINE
            #:EXPORT
            #:EXPOSE
+           #:EXPOSE-FUNCTIONS
+           #:EXPOSE-VARIABLES
            #:EXPT
            #:EXTEND-PACKAGE
            #:EXTEND-PACKAGE*
@@ -945,6 +885,7 @@
            #:GRAPHIC-CHAR-P
            #:GROUP
            #:GROUP-BY-PACKAGE
+           #:GUARD-CLAUSES-ENABLED?
            #:GUARD-TAG
            #:GUARD-TAG-CLAUSES
            #:GUARD-TAG?
@@ -970,8 +911,15 @@
            #:HASH-TABLE-TEST
            #:HASH-UPDATE!
            #:HASH-VALUES
+           #:HEADING
            #:HIERARCHICAL-DEFPACKAGE-FORMS
+           #:HORIZONTAL-BAR
            #:HOST-NAMESTRING
+           #:HTML-TAG
+           #:HTML-TAG-ATTRIBUTE-ALIST
+           #:HTML-TAG-INNER-TAGS-AND-TEXTS
+           #:HTML-TAG-NAME
+           #:HTML-TAG?
            #:IDENTITY
            #:IF
            #:IGNORABLE
@@ -986,6 +934,10 @@
            #:INDEPENDENT-PACKAGES
            #:INITIALIZE-INSTANCE
            #:INLINE
+           #:INLINE-MARKUP
+           #:INLINE-MARKUP?
+           #:INLINE-TEXT
+           #:INLINE-TEXT?
            #:INPUT-STREAM-P
            #:INSPECT
            #:INSTALL-SYNTAX!
@@ -1003,11 +955,13 @@
            #:INVOKE-RESTART
            #:INVOKE-RESTART-INTERACTIVELY
            #:ISQRT
+           #:ITALIC
            #:JOIN-STRINGS
            #:KEYWORD
            #:KEYWORDP
            #:LABELS
            #:LAMBDA
+           #:LAMBDA-FORM
            #:LAMBDA-LIST-KEYWORDS
            #:LAMBDA-PARAMETERS-LIMIT
            #:LAST
@@ -1036,7 +990,14 @@
            #:LET
            #:LET*
            #:LETREC
+           #:LEXICAL-BODY-DEFINITION-DOCUMENTATIONS
+           #:LEXICAL-BODY-DEFINITION?
+           #:LEXICAL-BODY-FORM
+           #:LEXICAL-BODY2-DEFINITION-DOCUMENTATIONS
+           #:LEXICAL-BODY2-DEFINITION?
+           #:LEXICAL-BODY2-FORM
            #:LEXICALLY
+           #:LINK
            #:LISP-IMPLEMENTATION-TYPE
            #:LISP-IMPLEMENTATION-VERSION
            #:LIST
@@ -1045,6 +1006,7 @@
            #:LIST->STRING
            #:LIST->VECTOR
            #:LIST-ALL-PACKAGES
+           #:LIST-ITEM-TAG
            #:LIST-LENGTH
            #:LIST-REF
            #:LIST-SET
@@ -1095,14 +1057,19 @@
            #:MAKE-CONCATENATED-STREAM
            #:MAKE-CONDITION
            #:MAKE-DISPATCH-MACRO-CHARACTER
+           #:MAKE-DOCUMENTATION-TAG
            #:MAKE-ECHO-STREAM
+           #:MAKE-GUARD-TAG
            #:MAKE-HASH-TABLE
+           #:MAKE-HTML-TAG
+           #:MAKE-INLINE-MARKUP
            #:MAKE-INSTANCE
            #:MAKE-INSTANCES-OBSOLETE
            #:MAKE-KEYWORD
            #:MAKE-LIST
            #:MAKE-LOAD-FORM
            #:MAKE-LOAD-FORM-SAVING-SLOTS
+           #:MAKE-MARKUP
            #:MAKE-METHOD
            #:MAKE-PACKAGE
            #:MAKE-PATHNAME
@@ -1126,6 +1093,13 @@
            #:MAPHASH
            #:MAPL
            #:MAPLIST
+           #:MARKUP
+           #:MARKUP-CONSTRUCTOR
+           #:MARKUP-CONSTRUCTOR-FORM
+           #:MARKUP-HTML-TAG
+           #:MARKUP-RENDER-TEXT
+           #:MARKUP-STRING-RENDERER
+           #:MARKUP?
            #:MASK-FIELD
            #:MAX
            #:MEMBER
@@ -1173,6 +1147,7 @@
            #:NINTERSECTION
            #:NINTH
            #:NO-APPLICABLE-METHOD
+           #:NO-COMPILE
            #:NO-NEXT-METHOD
            #:NOR
            #:NOT
@@ -1204,12 +1179,14 @@
            #:NUMBERP
            #:NUMERATOR
            #:NUNION
+           #:OBJECT-DOCUMENTATION-SOURCE
            #:ODD?
            #:ODDP
            #:OPEN
            #:OPEN-STREAM-P
            #:OPTIMIZE
            #:OR
+           #:ORDERED-LIST
            #:ORMAP
            #:OTHERWISE
            #:OUTPUT-STREAM-P
@@ -1250,9 +1227,12 @@
            #:PACKAGEP
            #:PAIR?
            #:PAIRLIS
+           #:PARAGRAPH
            #:PARAMETER?
            #:PARSE-ERROR
+           #:PARSE-FUNCTION
            #:PARSE-INTEGER
+           #:PARSE-METADATA-FROM-FUNCTION-BODY
            #:PARSE-NAMESTRING
            #:PARTITION
            #:PATHNAME
@@ -1269,6 +1249,7 @@
            #:PI
            #:PLUSP
            #:POP
+           #:POP-RENDER-PREFIX
            #:POSITION
            #:POSITION-IF
            #:POSITION-IF-NOT
@@ -1315,6 +1296,7 @@
            #:PSETF
            #:PSETQ
            #:PUSH
+           #:PUSH-RENDER-PREFIX
            #:PUSHNEW
            #:QUEUE-DELETE!
            #:QUEUE-EMPTY?
@@ -1342,6 +1324,7 @@
            #:READ-CHAR-NO-HANG
            #:READ-DELIMITED-LIST
            #:READ-FROM-STRING
+           #:READ-GUARD-TAG
            #:READ-LINE
            #:READ-PRESERVING-WHITESPACE
            #:READ-SEQUENCE
@@ -1353,6 +1336,10 @@
            #:REALP
            #:REALPART
            #:REDUCE
+           #:REGISTER-LEXICAL-BODY-DEFINITION
+           #:REGISTER-LEXICAL-BODY2-DEFINITION
+           #:REGISTERED-DEFINITION-NAME-FIELD
+           #:REGISTERED-GUARD-CLAUSES
            #:REINITIALIZE-INSTANCE
            #:REM
            #:REMF
@@ -1368,6 +1355,19 @@
            #:REMQ*
            #:RENAME-FILE
            #:RENAME-PACKAGE
+           #:RENDER-FRESHLINE
+           #:RENDER-HTML-TAG
+           #:RENDER-HTML-TAG-TO-STRING
+           #:RENDER-INLINE
+           #:RENDER-INLINE-ESCAPED
+           #:RENDER-LENGTH
+           #:RENDER-MARKUP
+           #:RENDER-MARKUP-HTML-TAG-TO-STRING
+           #:RENDER-MARKUP-TO-STRING
+           #:RENDER-NEWLINE
+           #:RENDER-PREFIX
+           #:RENDER-PREFORMATTED-TEXT
+           #:RENDER-WITHOUT-WORD-WRAP
            #:REPEAT
            #:REPLACE
            #:REQUIRE
@@ -1392,8 +1392,10 @@
            #:SBIT
            #:SCALE-FLOAT
            #:SCHAR
+           #:SCM-PARAMETERS->ORDINARY-LAMBDA-LIST
            #:SEARCH
            #:SECOND
+           #:SEQ
            #:SEQUENCE
            #:SERIOUS-CONDITION
            #:SET
@@ -1402,6 +1404,7 @@
            #:SET-ADD
            #:SET-CAR!
            #:SET-CDR!
+           #:SET-COMPILER-MACRO-DOCUMENTATION-SOURCE!
            #:SET-COUNT
            #:SET-DIFFERENCE
            #:SET-DISPATCH-MACRO-CHARACTER
@@ -1410,13 +1413,19 @@
            #:SET-INTERSECT
            #:SET-MACRO-CHARACTER
            #:SET-MEMBER?
+           #:SET-OBJECT-DOCUMENTATION-FROM-DOCUMENTATION-SOURCE!
+           #:SET-OBJECT-DOCUMENTATION-SOURCE!
            #:SET-PPRINT-DISPATCH
            #:SET-REMOVE
+           #:SET-SETF-DOCUMENTATION-SOURCE!
            #:SET-SUBTRACT
            #:SET-SYNTAX-FROM-CHAR
+           #:SET-TYPE-DOCUMENTATION-SOURCE!
            #:SET-UNION
+           #:SET-VARIABLE-DOCUMENTATION-SOURCE!
            #:SET=?
            #:SETF
+           #:SETF-DOCUMENTATION-SOURCE
            #:SETQ
            #:SEVENTH
            #:SGN
@@ -1469,7 +1478,7 @@
            #:SPLIT-AT
            #:SPLIT-STRING
            #:SPLIT-STRING-IF
-           #:SPLITF-AT
+           #:SPLITF
            #:SQR
            #:SQRT
            #:STABLE-SORT
@@ -1544,7 +1553,6 @@
            #:STRUCT->LIST
            #:STRUCT-ACCESSORS
            #:STRUCT-COPY
-           #:STRUCT-FORM
            #:STRUCT?
            #:STRUCTURE
            #:STRUCTURE-CLASS
@@ -1581,6 +1589,7 @@
            #:SYNONYM-STREAM
            #:SYNONYM-STREAM-SYMBOL
            #:T
+           #:TABLE
            #:TAGBODY
            #:TAILP
            #:TAKE
@@ -1589,6 +1598,7 @@
            #:TANH
            #:TENTH
            #:TERPRI
+           #:TEXT-RENDERER?
            #:THE
            #:THERE-EXISTS
            #:THERE-EXISTS*
@@ -1596,6 +1606,10 @@
            #:THROW
            #:TIME
            #:TRACE
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-DESTRUCTURING
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-SYMBOL-OR-PAIR
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-VALUES
+           #:TRANSFORM-LEXICAL-BODY2-DEFINE-SYMBOL-OR-PAIR
            #:TRANSLATE-LOGICAL-PATHNAME
            #:TRANSLATE-PATHNAME
            #:TREE-EQUAL
@@ -1605,6 +1619,7 @@
            #:TWO-WAY-STREAM-INPUT-STREAM
            #:TWO-WAY-STREAM-OUTPUT-STREAM
            #:TYPE
+           #:TYPE-DOCUMENTATION-SOURCE
            #:TYPE-ERROR
            #:TYPE-ERROR-DATUM
            #:TYPE-ERROR-EXPECTED-TYPE
@@ -1622,10 +1637,12 @@
            #:UNINTERN
            #:UNINTERNED
            #:UNION
-           #:UNIQUE-PACKAGE-NAME
            #:UNIQUE-SYMBOL
            #:UNLESS
+           #:UNORDERED-LIST
            #:UNREAD-CHAR
+           #:UNREGISTER-LEXICAL-BODY-DEFINITION
+           #:UNREGISTER-LEXICAL-BODY2-DEFINITION
            #:UNSIGNED-BYTE
            #:UNTRACE
            #:UNUSE-PACKAGE
@@ -1641,9 +1658,9 @@
            #:VALUES
            #:VALUES-LIST
            #:VARIABLE
+           #:VARIABLE-DOCUMENTATION-SOURCE
            #:VECTOR
            #:VECTOR->LIST
-           #:VECTOR-MAP
            #:VECTOR-POP
            #:VECTOR-PUSH
            #:VECTOR-PUSH-EXTEND
@@ -1657,6 +1674,8 @@
            #:WITH-ACCESSORS
            #:WITH-COMPILATION-UNIT
            #:WITH-CONDITION-RESTARTS
+           #:WITH-GUARD-CLAUSES-DISABLED
+           #:WITH-GUARD-CLAUSES-ENABLED
            #:WITH-HASH-TABLE-ITERATOR
            #:WITH-INPUT-FROM-STRING
            #:WITH-OPEN-FILE
@@ -1679,77 +1698,5 @@
            #:Y-OR-N-P
            #:YES-OR-NO-P
            #:ZERO?
-           #:ZEROP)
-  (:NICKNAMES #:SCHEMEISH))
-
-(DEFPACKAGE #:SCHEMEISH.CODE-TRANSFORMER
-  (:USE #:SCHEMEISH.SCHEMEISH))
-
-(DEFPACKAGE #:SCHEMEISH.CONTINUATIONS
-  (:USE #:SCHEMEISH.SCHEMEISH))
-
-(DEFPACKAGE #:SCHEMEISH.MARKUP
-  (:USE #:SCHEMEISH.SCHEMEISH)
-  (:EXPORT #:*ESCAPE-CHARS*
-           #:*MARKUP-RENDER-WIDTH*
-           #:BLOCK-QUOTE
-           #:BOLD
-           #:BR
-           #:CODE
-           #:CODE-BLOCK
-           #:COPY-RENDERER-WITH-NEW-STREAM
-           #:HEADING
-           #:HORIZONTAL-BAR
-           #:HTML-TAG
-           #:HTML-TAG-ATTRIBUTE-ALIST
-           #:HTML-TAG-INNER-TAGS-AND-TEXTS
-           #:HTML-TAG-NAME
-           #:HTML-TAG?
-           #:INLINE-MARKUP
-           #:INLINE-MARKUP?
-           #:INLINE-TEXT
-           #:INLINE-TEXT?
-           #:ITALIC
-           #:LINK
-           #:LIST-ITEM-TAG
-           #:MAKE-HTML-TAG
-           #:MAKE-INLINE-MARKUP
-           #:MAKE-MARKUP
-           #:MARKUP
-           #:MARKUP-CONSTRUCTOR
-           #:MARKUP-CONSTRUCTOR-FORM
-           #:MARKUP-HTML-TAG
-           #:MARKUP-RENDER-TEXT
-           #:MARKUP-STRING-RENDERER
-           #:MARKUP?
-           #:ORDERED-LIST
-           #:PARAGRAPH
-           #:POP-RENDER-PREFIX
-           #:PUSH-RENDER-PREFIX
-           #:RENDER-FRESHLINE
-           #:RENDER-HTML-TAG
-           #:RENDER-HTML-TAG-TO-STRING
-           #:RENDER-INLINE
-           #:RENDER-INLINE-ESCAPED
-           #:RENDER-LENGTH
-           #:RENDER-MARKUP
-           #:RENDER-MARKUP-HTML-TAG-TO-STRING
-           #:RENDER-MARKUP-TO-STRING
-           #:RENDER-NEWLINE
-           #:RENDER-PREFIX
-           #:RENDER-PREFORMATTED-TEXT
-           #:RENDER-WITHOUT-WORD-WRAP
-           #:SEQ
-           #:TABLE
-           #:TEXT-RENDERER?
-           #:UNORDERED-LIST))
-
-(DEFPACKAGE #:SCHEMEISH.PACKAGE-DEFINITIONS
-  (:DOCUMENTATION "Source of all of the package definitions in SCHEMEISH.
-Provides write-package-file! which writes the current schemeish-packages to a file.")
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BASE #:MAP #:SORT #:STREAM)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.DEFINE #:LAMBDA)
-  (:SHADOWING-IMPORT-FROM #:SCHEMEISH.NAMED-LET #:LET)
-  (:USE #:SCHEMEISH.PACKAGE-UTILS #:SCHEMEISH.SCHEMEISH)
-  (:EXPORT #:SCHEMEISH-PACKAGES #:WRITE-PACKAGE-FILE!))
+           #:ZEROP))
 
