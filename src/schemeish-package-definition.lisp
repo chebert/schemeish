@@ -3,14 +3,13 @@
 (install-syntax!)
 
 (define (define-schemeish-package)
-  (define-package :schemeish.schemeish2
+  (define-package :schemeish.schemeish
       (package-use-and-export-shadowing :cl :schemeish.internals :schemeish.backend)))
 
 (define (schemeish-package-file-contents)
   (package-file-contents (map #'find-package '(:schemeish.internals :schemeish.backend :schemeish.schemeish2))))
 
-;; TODO:
-(define (write-schemeish-package-file! (file-path "./src/package2.lisp"))
+(define (write-schemeish-package-file! (file-path "./src/package.lisp"))
   (with-open-file (stream file-path
 			  :direction :output
 			  :if-exists :supersede)

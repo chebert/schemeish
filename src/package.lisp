@@ -3,8 +3,12 @@
 (DEFPACKAGE #:SCHEMEISH.INTERNALS
   (:USE #:COMMON-LISP)
   (:EXPORT #:COMPILER-MACRO-DOCUMENTATION-SOURCE
+           #:DEF
            #:DEFINE
+           #:DEFINE-DESTRUCTURING
+           #:DEFINE-VALUES
            #:DISABLE-GUARD-CLAUSES!
+           #:DOCUMENTABLE-OBJECT?
            #:DOCUMENTATION-SOURCE?
            #:DOCUMENTATION-STRING
            #:DOCUMENTATION-TAG
@@ -33,9 +37,12 @@
            #:LEXICALLY
            #:MAKE-DOCUMENTATION-TAG
            #:MAKE-GUARD-TAG
+           #:MAP-DESTRUCTURING-LAMBDA-LIST
+           #:MAP-ORDINARY-LAMBDA-LIST
            #:NO-COMPILE
            #:OBJECT-DOCUMENTATION-SOURCE
            #:PARSE-FUNCTION
+           #:PARSE-LEXICAL-BODY
            #:PARSE-METADATA-FROM-FUNCTION-BODY
            #:READ-GUARD-TAG
            #:REGISTER-LEXICAL-BODY-DEFINITION
@@ -72,6 +79,7 @@
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.INTERNALS #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.INTERNALS)
   (:EXPORT #:*ESCAPE-CHARS*
+           #:*LEXICAL-CONTEXT*
            #:*MARKUP-RENDER-WIDTH*
            #:*RESOLVE-PACKAGE-DESIGNATOR*
            #:*THE-EMPTY-STREAM*
@@ -93,7 +101,11 @@
            #:ANDMAP
            #:APPEND*
            #:APPEND-MAP
+           #:BLOCK-BODY
+           #:BLOCK-NAME
            #:BLOCK-QUOTE
+           #:BODY-DECLARATIONS
+           #:BODY-FORMS
            #:BOLD
            #:BR
            #:BUNDLE
@@ -101,6 +113,8 @@
            #:BUNDLE-PERMISSIONS
            #:BUNDLE-PREDICATE-SYMBOL
            #:BUNDLE?
+           #:CATCH-FORMS
+           #:CATCH-TAG
            #:CHARS-STRING
            #:CODE
            #:CODE-BLOCK
@@ -111,6 +125,7 @@
            #:CONST
            #:COPY-RENDERER-WITH-NEW-STREAM
            #:CUT
+           #:DECLARE?
            #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-PACKAGE
            #:DEFINE-PACKAGE-FORM
@@ -127,6 +142,8 @@
            #:ENSURE-STRING
            #:EQ?
            #:EQUAL?
+           #:EVAL-WHEN-FORMS
+           #:EVAL-WHEN-SITUATIONS
            #:EVEN?
            #:EXTEND-PACKAGE
            #:EXTEND-PACKAGE*
@@ -136,12 +153,25 @@
            #:FILTER-PACKAGES
            #:FINDF
            #:FLATTEN
+           #:FLET-BINDINGS
+           #:FLET-BODY
+           #:FLET-BODY-DECLARATIONS
+           #:FLET-BODY-FORMS
            #:FOLDL
            #:FOLDR
            #:FOR-ALL
            #:FOR-ALL*
            #:FOR-EACH
            #:FORCE
+           #:FUNCTION-BINDING-BODY
+           #:FUNCTION-BINDING-BODY-DECLARATIONS
+           #:FUNCTION-BINDING-BODY-FORMS
+           #:FUNCTION-BINDING-NAME
+           #:FUNCTION-BINDING-PARAMETERS
+           #:FUNCTION-BODY-DECLARATIONS
+           #:FUNCTION-BODY-FORMS
+           #:FUNCTION-NAME
+           #:GO-TAG
            #:GROUP
            #:GROUP-BY-PACKAGE
            #:HAS-SPECIFIC-ARITY?
@@ -165,6 +195,9 @@
            #:HTML-TAG-INNER-TAGS-AND-TEXTS
            #:HTML-TAG-NAME
            #:HTML-TAG?
+           #:IF-ELSE
+           #:IF-TEST
+           #:IF-THEN
            #:IGNORE-ARGS
            #:INDEPENDENT-PACKAGE?
            #:INDEPENDENT-PACKAGES
@@ -175,8 +208,24 @@
            #:INTERSPERSE
            #:ITALIC
            #:JOIN-STRINGS
+           #:LABELS-BINDINGS
+           #:LABELS-BODY
+           #:LABELS-BODY-DECLARATIONS
+           #:LABELS-BODY-FORMS
            #:LAMBDA
+           #:LAMBDA-BODY
+           #:LAMBDA-BODY-DECLARATIONS
+           #:LAMBDA-BODY-FORMS
+           #:LAMBDA-PARAMETERS
            #:LCURRY
+           #:LET*-BINDINGS
+           #:LET*-BODY
+           #:LET*-BODY-DECLARATIONS
+           #:LET*-BODY-FORMS
+           #:LET-BINDINGS
+           #:LET-BODY
+           #:LET-BODY-DECLARATIONS
+           #:LET-BODY-FORMS
            #:LETREC
            #:LINK
            #:LIST->STREAM
@@ -189,12 +238,24 @@
            #:LIST-TYPE
            #:LIST-UPDATE
            #:LIST?
+           #:LOAD-TIME-VALUE-FORM
+           #:LOAD-TIME-VALUE-READ-ONLY-P
+           #:LOCALLY-BODY
+           #:LOCALLY-BODY-DECLARATIONS
+           #:LOCALLY-BODY-FORMS
+           #:MACRO-FUNCTION-APPLICATION?
+           #:MACROLET-BINDINGS
+           #:MACROLET-BODY
+           #:MACROLET-BODY-DECLARATIONS
+           #:MACROLET-BODY-FORMS
            #:MAKE-BUNDLE-PREDICATE
            #:MAKE-HTML-TAG
            #:MAKE-INLINE-MARKUP
            #:MAKE-KEYWORD
            #:MAKE-MARKUP
            #:MAKE-QUEUE
+           #:MAKE-TEXT-RENDERER
+           #:MAKE-TRANSFORMER
            #:MAP
            #:MAP-SUCCESSIVE
            #:MARKUP
@@ -206,6 +267,10 @@
            #:MARKUP?
            #:MEMF
            #:MEMO-PROC
+           #:MULTIPLE-VALUE-CALL-ARGUMENTS
+           #:MULTIPLE-VALUE-CALL-FUNCTION
+           #:MULTIPLE-VALUE-PROG1-FORMS
+           #:MULTIPLE-VALUE-PROG1-VALUES-FORM
            #:NAND
            #:NEGATIVE?
            #:NEWLINE
@@ -246,6 +311,7 @@
            #:PAIR?
            #:PARAGRAPH
            #:PARAMETER?
+           #:PARSE-TAGBODY
            #:PARTITION
            #:POP-RENDER-PREFIX
            #:POSITIVE?
@@ -257,6 +323,7 @@
            #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
            #:PROCEDURE-ARITY
            #:PROCEDURE?
+           #:PROGN-FORMS
            #:PROPER-LIST?
            #:PUSH-RENDER-PREFIX
            #:QUEUE-DELETE!
@@ -264,6 +331,7 @@
            #:QUEUE-FRONT
            #:QUEUE-INSERT!
            #:QUEUE?
+           #:QUOTE-EXPR
            #:QUOTIENT
            #:RADIANS->DEGREES
            #:RANGE
@@ -285,6 +353,8 @@
            #:RENDER-PREFORMATTED-TEXT
            #:RENDER-WITHOUT-WORD-WRAP
            #:REPEAT
+           #:RETURN-FROM-NAME
+           #:RETURN-FROM-VALUE
            #:SAFE-VECTOR-REF
            #:SEQ
            #:SET!
@@ -300,6 +370,7 @@
            #:SET-SUBTRACT
            #:SET-UNION
            #:SET=?
+           #:SETQ-PAIRS
            #:SGN
            #:SORT
            #:SPLIT-AT
@@ -346,22 +417,54 @@
            #:SWAP-ARGS
            #:SYMBOL->STRING
            #:SYMBOL-IN-PACKAGE?
+           #:SYMBOL-MACROLET-BINDINGS
+           #:SYMBOL-MACROLET-BODY
+           #:SYMBOL-MACROLET-BODY-DECLARATIONS
+           #:SYMBOL-MACROLET-BODY-FORMS
            #:SYMBOL?
            #:SYMBOLICATE
            #:SYMBOLS-IN-PACKAGE
            #:SYMBOLS-INTERNED-IN-PACKAGE
            #:TABLE
+           #:TAGBODY-TAGS-AND-STATEMENTS
            #:TAKE
+           #:TEXT-RENDERER
+           #:TEXT-RENDERER-COPY-WITH-NEW-STREAM
+           #:TEXT-RENDERER-POP-PREFIX
+           #:TEXT-RENDERER-PUSH-PREFIX
+           #:TEXT-RENDERER-RENDER-FRESHLINE
+           #:TEXT-RENDERER-RENDER-INLINE
+           #:TEXT-RENDERER-RENDER-NEWLINE
+           #:TEXT-RENDERER-RENDER-PREFIX
+           #:TEXT-RENDERER-RENDER-PREFORMATTED-TEXT
+           #:TEXT-RENDERER-RENDER-WITHOUT-WORD-WRAP
            #:TEXT-RENDERER?
+           #:THE-FORM
+           #:THE-VALUE-TYPE
            #:THERE-EXISTS
            #:THERE-EXISTS*
+           #:THROW-RESULT
+           #:THROW-TAG
+           #:TRANSFORM
+           #:TRANSFORM-EXPRESSION
+           #:TRANSFORM-IN-LEXICAL-ENVIRONMENT
+           #:TRANSFORMER
+           #:TRANSFORMER-TRANSFORM-ATOM
+           #:TRANSFORMER-TRANSFORM-CYCLIC-LIST
+           #:TRANSFORMER-TRANSFORM-DOTTED-LIST
+           #:TRANSFORMER-TRANSFORM-PROPER-LIST
+           #:TRANSFORMER-TRANSFORM-SPECIAL-FORM-TABLE
+           #:TRANSFORMER?
            #:UNDEFINE-BUNDLE-PRINT-OBJECT
            #:UNINTERNED
            #:UNORDERED-LIST
+           #:UNWIND-PROTECT-CLEANUP
+           #:UNWIND-PROTECT-PROTECTED
            #:VECTOR->LIST
            #:VECTOR-REF
            #:VECTOR-SET!
            #:WITH-TEMPORARY-PACKAGE
+           #:WORD-WRAP-LINE
            #:XOR
            #:ZERO?)
   (:SHADOW #:LAMBDA #:MAP #:SORT #:STREAM))
