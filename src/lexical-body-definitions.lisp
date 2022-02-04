@@ -70,7 +70,10 @@ See PARSE-FUNCTION, REGISTER-DEFINITION-FUNCTION-METADATA, PARSED-FUNCTION->LAMB
   "Transforms (define (...) . function-body) for lisp-1 style lexical-body."
   (let* ((definition-name-field (definition-name-field definition))
 	 (function-body (definition-function-body definition))
-	 (guard-clauses (function-body-guard-clauses function-body)))
+	 (guard-clauses (multiple-value-bind (lexical-body documentation-source-form guard-clauses declarations)
+			    (parse-metadata-from-function-body function-body)
+			  (declare (ignore lexical-body documentation-source-form declarations))
+			  guard-clauses)))
     (let recurse ((name-field definition-name-field)
 		  (body function-body))
       (let ((name (first name-field))
@@ -210,6 +213,7 @@ Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each 
 ;; Lisp-2 style lexical body definitions
 (register-lexical-body2-definition 'define #'transform-lexical-body2-define-symbol-or-pair)
 (register-lexical-body2-definition 'def #'transform-lexical-body2-define-symbol-or-pair)
+(export '(def define-values define-destructuring))
 
 #;
 (assert (equal (lexically

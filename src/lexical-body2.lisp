@@ -118,12 +118,14 @@ be used with a DEFAULT-LABELS-BINDING."
 			(append labels-bindings (mapcar #'default-labels-binding new-names))))))))
     (iter definitions () () ())))
 
-(defun parse-lexical-body (body)
-  "Returns (values body names set-forms) for lisp-1 lexical-body.
+(export
+ (defun parse-lexical-body (body)
+   "Returns (values forms declarations names set-forms) for lisp-1 lexical-body.
 A lexical body is (definitions... declarations... forms...)"
-  (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
-    (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
-      (values body names set-forms))))
+   (multiple-value-bind (definitions body) (parse-lexical-body-definitions body)
+     (multiple-value-bind (names set-forms) (collect-lexical-body-definitions-names-and-set-forms definitions)
+       (multiple-value-bind (declarations body) (parse-declarations body)
+	 (values body declarations names set-forms))))))
 (defun parse-lexical-body2 (body)
   "Returns (values body names set-forms labels-bindings) for SCHEMEISH (lisp-2) lexical-body.
 A lexical body is (definitions... declarations... forms...)"
@@ -144,15 +146,6 @@ A lexical body is (definitions... declarations... forms...)"
 	    ;; Declare names ignorable.
 	    (declare (ignorable ,@names))
 	    ,@body))))))
-
-(export
- (defun lexical-body-form (body)
-   "Expands LISP-1 lexical-body definitions in BODY. A lexical-body is (definitions... declarations... forms...)"
-   (multiple-value-bind (body names set-forms) (parse-lexical-body body)
-     `(cl:let ,names
-	,@set-forms
-	(cl:let ,(mapcar (cl:lambda (name) (list name name)) names)
-	  ,@body)))))
 
 (export
  (defmacro lexically (&body lexical-body)

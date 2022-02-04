@@ -240,8 +240,8 @@ Returns a reversed-ordinary-lambda-list."
 
 
 (defparameter *ordinary-lambda-list-keywords* '(cl:&optional cl:&key cl:&rest cl:&aux cl:&allow-other-keys))
-(defun map-lambda-list (proc destructuring-lambda-list keywords)
-  "Map over the destructuring-lambda-list. Keywords are a list of accepted keywords.
+(defun map-lambda-list (proc lambda-list keywords)
+  "Map over the lambda-list. Keywords are a list of accepted keywords.
 Proc is called with either (funcall proc :keyword keyword) or (funcall proc group parameter), where
 group is one of (:optional :key :aux :rest :positional :whole)."
   (labels ((map-keyword (keyword parameters result)
@@ -261,25 +261,27 @@ group is one of (:optional :key :aux :rest :positional :whole)."
 		      ((member parameter keywords) (map-keyword parameter rest-parameters result))
 		      (t (map-group group-name rest-parameters (cons (funcall proc group-name parameter) result)))))))))
     (nreverse
-     (if (and (member 'cl:&whole keywords) (eq (first destructuring-lambda-list) 'cl:&whole))
-	 (map-group :positional (rest (rest destructuring-lambda-list))
+     (if (and (member 'cl:&whole keywords) (eq (first lambda-list) 'cl:&whole))
+	 (map-group :positional (rest (rest lambda-list))
 		    (let ((whole-keyword (funcall proc :keyword 'cl:&whole))
-			  (whole (funcall proc :whole (second destructuring-lambda-list))))
+			  (whole (funcall proc :whole (second lambda-list))))
 		      (list whole whole-keyword)))
-	 (map-group :positional destructuring-lambda-list ())))))
+	 (map-group :positional lambda-list ())))))
 
-(defun map-ordinary-lambda-list (proc ordinary-lambda-list)
-  "Map over the ordinary-lambda-list. Accepted keywords are *ORDINARY-LAMBDA-LIST-KEYWORDS*.
+(export-definition
+  (defun map-ordinary-lambda-list (proc ordinary-lambda-list)
+    "Map over the ordinary-lambda-list. Accepted keywords are *ORDINARY-LAMBDA-LIST-KEYWORDS*.
 Proc is called with either [proc :keyword keyword] or [proc group parameter], where
 group is one of (:optional :key :aux :rest :positional)."
-  (map-lambda-list proc ordinary-lambda-list *ordinary-lambda-list-keywords*))
+    (map-lambda-list proc ordinary-lambda-list *ordinary-lambda-list-keywords*)))
 
 (defparameter *destructuring-lambda-list-keywords* '(cl:&whole cl:&optional cl:&rest cl:&body cl:&key cl:&allow-other-keys cl:&aux))
-(defun map-destructuring-lambda-list (proc destructuring-lambda-list)
-  "Map over the destructuring-lambda-list. Accepted keywords are *DESTRUCTURING-LAMBDA-LIST-KEYWORDS*.
+(export-definition
+  (defun map-destructuring-lambda-list (proc destructuring-lambda-list)
+    "Map over the destructuring-lambda-list. Accepted keywords are *DESTRUCTURING-LAMBDA-LIST-KEYWORDS*.
 Proc is called with either (funcall procc :keyword keyword) or (funcall proc group parameter), where
 group is one of (:optional :key :aux :rest :positional :whole)."
-  (map-lambda-list proc destructuring-lambda-list *destructuring-lambda-list-keywords*))
+    (map-lambda-list proc destructuring-lambda-list *destructuring-lambda-list-keywords*)))
 
 
 (assert (let ((parameters '(a b c &optional opt1 (opt2) (opt3 t) (opt4 t opt4-provided?)
