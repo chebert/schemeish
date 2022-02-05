@@ -1,4 +1,4 @@
-(in-package #:schemeish.cut)
+(in-package #:schemeish.backend)
 
 (install-syntax!)
 
@@ -121,17 +121,18 @@
 		    (APPLY #'LIST BINDING0 ARG0 BINDING1 REST-ARG)))))
 
 
-(defmacro cut ((&rest cut-spec) &key (placeholder-id '?) (eval-once? t))
+(defmacro cut ((&rest cut-spec) &key (placeholder-id '_) (eval-once? t))
   "Creates a 'curried' function using cut-spec and placeholder-id.
 Examples:
-  [(cut (list 1 2 ? ?)) 3 4] => (1 2 3 4)
-  [(cut (+ 5 . ?)) 1 2 3] => 11
-  [(cut [(compose (cut (* 2 ?)) (cut (+ 2 ? ?))) 3 ?]) 3] => 16
+  [(cut (list 1 2 _ _)) 3 4] => (1 2 3 4)
+  [(cut (+ 5 . _)) 1 2 3] => 11
+  [(cut [(compose (cut (* 2 _)) (cut (+ 2 _ _))) 3 ?]) 3] => 16
 
 If eval-once? is true, provided arguments will be evaluated once when the function is created."
   (cut-form cut-spec placeholder-id eval-once?))
+(export 'cut)
 
-(assert (equal? [(cut (list 1 ? 3 . ?)) 2 4 5 6]
+(assert (equal? [(cut (list 1 _ 3 . _)) 2 4 5 6]
 		'(1 2 3 4 5 6)))
 
 (uninstall-syntax!)

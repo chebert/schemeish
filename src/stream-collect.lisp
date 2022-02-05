@@ -1,6 +1,6 @@
-(in-package #:schemeish.stream-collect)
+(in-package #:schemeish.backend)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (defmacro stream-collect (map-form bindings filter-form)
   "Given bindings ((b1 stream1)
@@ -18,6 +18,7 @@ Example:
 
  (prime-sum-pairs n) results in all of the (list i j (+ i j)) numbers i,j such that 0 < j < i <= n"
   (stream-collect-form map-form bindings filter-form))
+(export 'stream-collect)
 
 (define (prime? num)
   (let ((root (floor (sqrt num))))
@@ -34,4 +35,4 @@ Example:
 	       '((2 1 3) (3 2 5) (4 1 5) (4 3 7) (5 2 7) (6 1 7) (6 5 11))))
 
 
-(for-macros (uninstall-syntax!))
+(uninstall-syntax!)

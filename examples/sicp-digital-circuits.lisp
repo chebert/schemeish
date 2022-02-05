@@ -1,5 +1,5 @@
 (cl:defpackage #:sicp-digital-circuits
-  (:use :schemeish.schemeish))
+  (:use :schemeish))
 
 (in-package #:sicp-digital-circuits)
 

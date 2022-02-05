@@ -1,5 +1,5 @@
 (cl:defpackage #:sicp-constraint-propagators
-  (:use :schemeish.schemeish))
+  (:use :schemeish))
 
 (in-package #:sicp-constraint-propagators)
 

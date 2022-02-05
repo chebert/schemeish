@@ -1,6 +1,6 @@
-(in-package #:schemeish.define-struct)
+(in-package #:schemeish.backend)
 
-(for-macros (install-syntax!))
+(install-syntax!)
 
 (defmacro define-struct (type-name (&rest field-specs) &rest struct-options)
   "A structure is a record object with a CLOS class type, 
@@ -16,23 +16,28 @@ and a struct-option is one of:
   :super super-struct-type-name-form
   :documentation documentation-string
 
+:MUTABLE
 If mutable is provided for fields or the whole structure, 
 setters are generated of the form SET-<type-name>-<field-name>!
 and setf forms are generated for (setf (<type-name>-<field-name> struct-arg) value).
 
+:OPAQUE
 If opaque is NOT provided:
 - a recursive EQUAL? test is generated to test equality of each field. Otherwise only identity is tested.
 - (struct->list p) creates a list that looks like a constructor call. This is used when printing the object.
 - (struct-accessors p) returns a list of all of the accessors associated with transparent structure p. 
 
+:SUPER super-struct-type-name-form
 If a super-type symbol is specified, this structure will inherit all of the accessors, setters, and predicates from
 the super classes in addition to the fields provided by field-specs.
 
 Returns a list of newly defined symbols."
   ;; TODO: issue when a transparent object inherits from an opaque object
-  ;; TODO: guard clauses
+  ;; TODO: documentation-tags
+  ;; TODO: guard-tags
   `(for-macros
      ,(struct-form type-name field-specs struct-options)))
+(export 'define-struct)
 
 (define-struct point (x y) :opaque)
 (let ((p (make-point 3 4)))
@@ -51,19 +56,21 @@ Returns a list of newly defined symbols."
 	       :super 'point
 	       :opaque)
 (let ((p3d (make-point3d 3 4 5)))
-  (assert (and-let* ((copy (struct-copy p3d))
-		     ((equal? (point-x p3d) (point-x copy)))
-		     ((equal? (point3d-z p3d) (point3d-z copy))))
-	    (not (equal? p3d copy))))
+  (assert (LET ((COPY (STRUCT-COPY P3D)))
+	    (AND COPY
+		 (AND (EQUAL? (POINT-X P3D) (POINT-X COPY))
+		      (AND (EQUAL? (POINT3D-Z P3D) (POINT3D-Z COPY))
+			   (PROGN (NOT (EQUAL? P3D COPY))))))))
   (assert (equal? (list (point? p3d)	;; t
 			(point3d? p3d)	;; t
 			(point-x p3d)	;; 3
 			(point-y p3d)	;; 4
 			(point3d-z p3d) ;; 5
-			(and-let* ((copy (struct-copy p3d))
-				   ((equal? (point-x p3d) (point-x copy)))
-				   ((equal? (point3d-z p3d) (point3d-z copy))))
-			  (not (equal? p3d copy))) ;;t
+			(LET ((COPY (STRUCT-COPY P3D)))
+			  (AND COPY
+			       (AND (EQUAL? (POINT-X P3D) (POINT-X COPY))
+				    (AND (EQUAL? (POINT3D-Z P3D) (POINT3D-Z COPY))
+					 (PROGN (NOT (EQUAL? P3D COPY))))))) ;;t
 			(string-starts-with? (format nil "~S" p3d) "#<POINT3D")) ;; #<struct point3d>
 		  (list t t 3 4 5 t t))))
 
