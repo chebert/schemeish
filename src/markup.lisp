@@ -1,8 +1,6 @@
 (in-package #:schemeish.internals)
 
-;; TODO: These functions should be exposed to schemeish.backend but not to schemeish.schemeish
-;; TODO: maybe don't have these at all...
-
+;; TODO: Use these to make some better documentation
 
 (defclass markup-object () ())
 (defun markup-object? (object)
