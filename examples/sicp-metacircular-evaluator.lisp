@@ -1,5 +1,5 @@
 (cl:defpackage #:sicp-metacircular-evaluator
-  (:use :schemeish.schemeish)
+  (:use :schemeish)
   (:shadow #:eval #:apply))
 
 (in-package #:sicp-metacircular-evaluator)

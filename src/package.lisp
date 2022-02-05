@@ -469,7 +469,7 @@
            #:ZERO?)
   (:SHADOW #:LAMBDA #:MAP #:SORT #:STREAM))
 
-(DEFPACKAGE #:SCHEMEISH.SCHEMEISH2
+(DEFPACKAGE #:SCHEMEISH.SCHEMEISH
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.BACKEND #:LAMBDA #:MAP #:SORT #:STREAM)
   (:SHADOWING-IMPORT-FROM #:SCHEMEISH.INTERNALS #:LET)
   (:USE #:COMMON-LISP #:SCHEMEISH.BACKEND #:SCHEMEISH.INTERNALS)
@@ -496,6 +496,7 @@
            #:*ESCAPE-CHARS*
            #:*FEATURES*
            #:*GENSYM-COUNTER*
+           #:*LEXICAL-CONTEXT*
            #:*LOAD-PATHNAME*
            #:*LOAD-PRINT*
            #:*LOAD-TRUENAME*
@@ -628,7 +629,11 @@
            #:BIT-VECTOR-P
            #:BIT-XOR
            #:BLOCK
+           #:BLOCK-BODY
+           #:BLOCK-NAME
            #:BLOCK-QUOTE
+           #:BODY-DECLARATIONS
+           #:BODY-FORMS
            #:BOLD
            #:BOOLE
            #:BOOLE-1
@@ -684,6 +689,8 @@
            #:CAR
            #:CASE
            #:CATCH
+           #:CATCH-FORMS
+           #:CATCH-TAG
            #:CCASE
            #:CDAAAR
            #:CDAADR
@@ -792,8 +799,10 @@
            #:DECLAIM
            #:DECLARATION
            #:DECLARE
+           #:DECLARE?
            #:DECODE-FLOAT
            #:DECODE-UNIVERSAL-TIME
+           #:DEF
            #:DEFCLASS
            #:DEFCONSTANT
            #:DEFGENERIC
@@ -801,6 +810,7 @@
            #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-COMPILER-MACRO
            #:DEFINE-CONDITION
+           #:DEFINE-DESTRUCTURING
            #:DEFINE-METHOD-COMBINATION
            #:DEFINE-MODIFY-MACRO
            #:DEFINE-PACKAGE
@@ -808,6 +818,7 @@
            #:DEFINE-SETF-EXPANDER
            #:DEFINE-STRUCT
            #:DEFINE-SYMBOL-MACRO
+           #:DEFINE-VALUES
            #:DEFMACRO
            #:DEFMETHOD
            #:DEFPACKAGE
@@ -847,6 +858,7 @@
            #:DO-ALL-SYMBOLS
            #:DO-EXTERNAL-SYMBOLS
            #:DO-SYMBOLS
+           #:DOCUMENTABLE-OBJECT?
            #:DOCUMENTATION
            #:DOCUMENTATION-SOURCE?
            #:DOCUMENTATION-STRING
@@ -889,11 +901,14 @@
            #:ETYPECASE
            #:EVAL
            #:EVAL-WHEN
+           #:EVAL-WHEN-FORMS
+           #:EVAL-WHEN-SITUATIONS
            #:EVEN?
            #:EVENP
            #:EVERY
            #:EXP
            #:EXPORT
+           #:EXPORT-DEFINITION
            #:EXPOSE
            #:EXPOSE-FUNCTIONS
            #:EXPOSE-VARIABLES
@@ -936,6 +951,10 @@
            #:FIXNUM
            #:FLATTEN
            #:FLET
+           #:FLET-BINDINGS
+           #:FLET-BODY
+           #:FLET-BODY-DECLARATIONS
+           #:FLET-BODY-FORMS
            #:FLOAT
            #:FLOAT-DIGITS
            #:FLOAT-PRECISION
@@ -965,8 +984,16 @@
            #:FTYPE
            #:FUNCALL
            #:FUNCTION
+           #:FUNCTION-BINDING-BODY
+           #:FUNCTION-BINDING-BODY-DECLARATIONS
+           #:FUNCTION-BINDING-BODY-FORMS
+           #:FUNCTION-BINDING-NAME
+           #:FUNCTION-BINDING-PARAMETERS
+           #:FUNCTION-BODY-DECLARATIONS
+           #:FUNCTION-BODY-FORMS
            #:FUNCTION-KEYWORDS
            #:FUNCTION-LAMBDA-EXPRESSION
+           #:FUNCTION-NAME
            #:FUNCTIONP
            #:GCD
            #:GENERIC-FUNCTION
@@ -985,6 +1012,7 @@
            #:GETF
            #:GETHASH
            #:GO
+           #:GO-TAG
            #:GRAPHIC-CHAR-P
            #:GROUP
            #:GROUP-BY-PACKAGE
@@ -1025,6 +1053,9 @@
            #:HTML-TAG?
            #:IDENTITY
            #:IF
+           #:IF-ELSE
+           #:IF-TEST
+           #:IF-THEN
            #:IGNORABLE
            #:IGNORE
            #:IGNORE-ARGS
@@ -1063,9 +1094,17 @@
            #:KEYWORD
            #:KEYWORDP
            #:LABELS
+           #:LABELS-BINDINGS
+           #:LABELS-BODY
+           #:LABELS-BODY-DECLARATIONS
+           #:LABELS-BODY-FORMS
            #:LAMBDA
+           #:LAMBDA-BODY
+           #:LAMBDA-BODY-DECLARATIONS
+           #:LAMBDA-BODY-FORMS
            #:LAMBDA-FORM
            #:LAMBDA-LIST-KEYWORDS
+           #:LAMBDA-PARAMETERS
            #:LAMBDA-PARAMETERS-LIMIT
            #:LAST
            #:LCM
@@ -1092,6 +1131,14 @@
            #:LENGTH
            #:LET
            #:LET*
+           #:LET*-BINDINGS
+           #:LET*-BODY
+           #:LET*-BODY-DECLARATIONS
+           #:LET*-BODY-FORMS
+           #:LET-BINDINGS
+           #:LET-BODY
+           #:LET-BODY-DECLARATIONS
+           #:LET-BODY-FORMS
            #:LETREC
            #:LEXICAL-BODY-DEFINITION-DOCUMENTATIONS
            #:LEXICAL-BODY-DEFINITION?
@@ -1122,7 +1169,12 @@
            #:LOAD
            #:LOAD-LOGICAL-PATHNAME-TRANSLATIONS
            #:LOAD-TIME-VALUE
+           #:LOAD-TIME-VALUE-FORM
+           #:LOAD-TIME-VALUE-READ-ONLY-P
            #:LOCALLY
+           #:LOCALLY-BODY
+           #:LOCALLY-BODY-DECLARATIONS
+           #:LOCALLY-BODY-FORMS
            #:LOG
            #:LOGAND
            #:LOGANDC1
@@ -1151,9 +1203,14 @@
            #:MACHINE-TYPE
            #:MACHINE-VERSION
            #:MACRO-FUNCTION
+           #:MACRO-FUNCTION-APPLICATION?
            #:MACROEXPAND
            #:MACROEXPAND-1
            #:MACROLET
+           #:MACROLET-BINDINGS
+           #:MACROLET-BODY
+           #:MACROLET-BODY-DECLARATIONS
+           #:MACROLET-BODY-FORMS
            #:MAKE-ARRAY
            #:MAKE-BROADCAST-STREAM
            #:MAKE-BUNDLE-PREDICATE
@@ -1184,10 +1241,14 @@
            #:MAKE-STRING-OUTPUT-STREAM
            #:MAKE-SYMBOL
            #:MAKE-SYNONYM-STREAM
+           #:MAKE-TEXT-RENDERER
+           #:MAKE-TRANSFORMER
            #:MAKE-TWO-WAY-STREAM
            #:MAKUNBOUND
            #:MAP
+           #:MAP-DESTRUCTURING-LAMBDA-LIST
            #:MAP-INTO
+           #:MAP-ORDINARY-LAMBDA-LIST
            #:MAP-SUCCESSIVE
            #:MAPC
            #:MAPCAN
@@ -1233,8 +1294,12 @@
            #:MUFFLE-WARNING
            #:MULTIPLE-VALUE-BIND
            #:MULTIPLE-VALUE-CALL
+           #:MULTIPLE-VALUE-CALL-ARGUMENTS
+           #:MULTIPLE-VALUE-CALL-FUNCTION
            #:MULTIPLE-VALUE-LIST
            #:MULTIPLE-VALUE-PROG1
+           #:MULTIPLE-VALUE-PROG1-FORMS
+           #:MULTIPLE-VALUE-PROG1-VALUES-FORM
            #:MULTIPLE-VALUE-SETQ
            #:MULTIPLE-VALUES-LIMIT
            #:NAME-CHAR
@@ -1335,8 +1400,10 @@
            #:PARSE-ERROR
            #:PARSE-FUNCTION
            #:PARSE-INTEGER
+           #:PARSE-LEXICAL-BODY
            #:PARSE-METADATA-FROM-FUNCTION-BODY
            #:PARSE-NAMESTRING
+           #:PARSE-TAGBODY
            #:PARTITION
            #:PATHNAME
            #:PATHNAME-DEVICE
@@ -1392,6 +1459,7 @@
            #:PROG1
            #:PROG2
            #:PROGN
+           #:PROGN-FORMS
            #:PROGRAM-ERROR
            #:PROGV
            #:PROPER-LIST?
@@ -1407,6 +1475,7 @@
            #:QUEUE-INSERT!
            #:QUEUE?
            #:QUOTE
+           #:QUOTE-EXPR
            #:QUOTIENT
            #:RADIANS->DEGREES
            #:RANDOM
@@ -1481,6 +1550,8 @@
            #:RESTART-NAME
            #:RETURN
            #:RETURN-FROM
+           #:RETURN-FROM-NAME
+           #:RETURN-FROM-VALUE
            #:REVAPPEND
            #:REVERSE
            #:ROOM
@@ -1530,6 +1601,7 @@
            #:SETF
            #:SETF-DOCUMENTATION-SOURCE
            #:SETQ
+           #:SETQ-PAIRS
            #:SEVENTH
            #:SGN
            #:SHADOW
@@ -1680,6 +1752,10 @@
            #:SYMBOL-FUNCTION
            #:SYMBOL-IN-PACKAGE?
            #:SYMBOL-MACROLET
+           #:SYMBOL-MACROLET-BINDINGS
+           #:SYMBOL-MACROLET-BODY
+           #:SYMBOL-MACROLET-BODY-DECLARATIONS
+           #:SYMBOL-MACROLET-BODY-FORMS
            #:SYMBOL-NAME
            #:SYMBOL-PACKAGE
            #:SYMBOL-PLIST
@@ -1694,6 +1770,7 @@
            #:T
            #:TABLE
            #:TAGBODY
+           #:TAGBODY-TAGS-AND-STATEMENTS
            #:TAILP
            #:TAKE
            #:TAKEF
@@ -1701,18 +1778,42 @@
            #:TANH
            #:TENTH
            #:TERPRI
+           #:TEXT-RENDERER
+           #:TEXT-RENDERER-COPY-WITH-NEW-STREAM
+           #:TEXT-RENDERER-POP-PREFIX
+           #:TEXT-RENDERER-PUSH-PREFIX
+           #:TEXT-RENDERER-RENDER-FRESHLINE
+           #:TEXT-RENDERER-RENDER-INLINE
+           #:TEXT-RENDERER-RENDER-NEWLINE
+           #:TEXT-RENDERER-RENDER-PREFIX
+           #:TEXT-RENDERER-RENDER-PREFORMATTED-TEXT
+           #:TEXT-RENDERER-RENDER-WITHOUT-WORD-WRAP
            #:TEXT-RENDERER?
            #:THE
+           #:THE-FORM
+           #:THE-VALUE-TYPE
            #:THERE-EXISTS
            #:THERE-EXISTS*
            #:THIRD
            #:THROW
+           #:THROW-RESULT
+           #:THROW-TAG
            #:TIME
            #:TRACE
+           #:TRANSFORM
+           #:TRANSFORM-EXPRESSION
+           #:TRANSFORM-IN-LEXICAL-ENVIRONMENT
            #:TRANSFORM-LEXICAL-BODY-DEFINE-DESTRUCTURING
            #:TRANSFORM-LEXICAL-BODY-DEFINE-SYMBOL-OR-PAIR
            #:TRANSFORM-LEXICAL-BODY-DEFINE-VALUES
            #:TRANSFORM-LEXICAL-BODY2-DEFINE-SYMBOL-OR-PAIR
+           #:TRANSFORMER
+           #:TRANSFORMER-TRANSFORM-ATOM
+           #:TRANSFORMER-TRANSFORM-CYCLIC-LIST
+           #:TRANSFORMER-TRANSFORM-DOTTED-LIST
+           #:TRANSFORMER-TRANSFORM-PROPER-LIST
+           #:TRANSFORMER-TRANSFORM-SPECIAL-FORM-TABLE
+           #:TRANSFORMER?
            #:TRANSLATE-LOGICAL-PATHNAME
            #:TRANSLATE-PATHNAME
            #:TREE-EQUAL
@@ -1750,6 +1851,8 @@
            #:UNTRACE
            #:UNUSE-PACKAGE
            #:UNWIND-PROTECT
+           #:UNWIND-PROTECT-CLEANUP
+           #:UNWIND-PROTECT-PROTECTED
            #:UPDATE-INSTANCE-FOR-DIFFERENT-CLASS
            #:UPDATE-INSTANCE-FOR-REDEFINED-CLASS
            #:UPGRADED-ARRAY-ELEMENT-TYPE
@@ -1790,6 +1893,7 @@
            #:WITH-SLOTS
            #:WITH-STANDARD-IO-SYNTAX
            #:WITH-TEMPORARY-PACKAGE
+           #:WORD-WRAP-LINE
            #:WRITE
            #:WRITE-BYTE
            #:WRITE-CHAR
@@ -1801,5 +1905,6 @@
            #:Y-OR-N-P
            #:YES-OR-NO-P
            #:ZERO?
-           #:ZEROP))
+           #:ZEROP)
+  (:NICKNAMES #:SCHEMEISH #:SCM))
 

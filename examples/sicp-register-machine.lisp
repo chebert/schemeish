@@ -1,5 +1,5 @@
 (defpackage #:sicp-register-machine
-  (:use #:schemeish.schemeish))
+  (:use #:schemeish))
 
 (in-package #:sicp-register-machine)
 
