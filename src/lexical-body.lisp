@@ -160,4 +160,7 @@ See the results of evaluating (lexical-body2-definition-documentations) and (lex
 For documentation on the currently registered definition transformations."
    (lexical-body2-form lexical-body)))
 
+(lexical-body2-definition-documentations)
+
+
 (uninstall-syntax!)

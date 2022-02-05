@@ -28,6 +28,6 @@ Example (and-let* ((list (compute-list))
                    ((integer? item)))
           (sqrt item))"
   (and-let*-form clauses body))
-(export 'and-let*x)
+(export 'and-let*)
 
 (uninstall-syntax!)

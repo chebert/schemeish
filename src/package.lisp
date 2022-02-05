@@ -97,7 +97,6 @@
            #:ALIST-VALUES
            #:ALL-PACKAGES-WITH-STRING-PREFIX
            #:AND-LET*
-           #:AND-LET*X
            #:ANDMAP
            #:APPEND*
            #:APPEND-MAP
@@ -575,7 +574,6 @@
            #:ALPHANUMERICP
            #:AND
            #:AND-LET*
-           #:AND-LET*X
            #:ANDMAP
            #:APPEND
            #:APPEND*
