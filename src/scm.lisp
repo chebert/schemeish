@@ -8,11 +8,14 @@
   (hash-set! *transform-scm-special-form-table* symbol transform))
 
 (defmacro define-scm-special-transform (name (transformer expression environment) &body body)
+  "Define a special form transformer for the SCM macro-expansion.
+Name is the symbol naming the special-form. Transformer will be bound to the *SCM-TRANSFORMER*.
+Expression will be bound to the special form being transformed, and environment will be bound to the current lexical environment
+for body. Body should evaluate to the transformed form."
   `(for-macros
      (register-transform-scm-special-form ',name (lambda (,transformer ,expression ,environment)
-					       (declare (ignorable ,transformer ,expression ,environment))
-					       ,@body))))
-
+						   (declare (ignorable ,transformer ,expression ,environment))
+						   ,@body))))
 
 (defmacro lisp (form)
   "Within SCM, escapes form and evaluates it as if it were in Common-Lisp.
@@ -59,14 +62,9 @@ Within LISP, just evalutes form."
 	  body))))
 
 (define (variable? expr environment)
+  "Return true if EXPR is a variable in the given environment."
   (and (symbol? expr)
-       #+sbcl
-       (sb-cltl2:variable-information expr environment)
-       #-sbcl
-       (error "TODO: Don't know how to get the variable-information of ~S in ~S for lisp implementation: ~S"
-	      expr
-	      environment
-	      (lisp-implementation-type))))
+       (trivial-cltl2:variable-information expr environment)))
 
 (define-scm-special-transform cl:progn (transformer expr env)
   `(cl:progn ,@(transform-lexical-body transformer (progn-forms expr))))
@@ -241,12 +239,18 @@ Within LISP, just evalutes form."
 If an expression is a proper list, it is transformed into (funcall function args).
 If an expression is a dotted list, it is transformed into (apply function args... rest-arg)
 If an expression is a symbol, its value is looked up in the variable environment at macro-expansion-time.
-If not found, it is assumed to be in the function-namespace.
-The following symbols from the COMMON-LISP package are assumed to be functions rather than parameters: (+ ++ +++ * ** *** - / // ///)
-A form (LISP form) will escape SCM and process form as if it is in Common-Lisp.
+If expression is not a variable it is assumed to be in the function-namespace.
+If a symbol is both SPECIAL and a bound FUNCTION, it is treated as a function rather than a variable.
+  This is to deal with the unfortunate cases: (+ * / -).
+  Typically functions and specials will not have the same name if the *EAR-MUFF* convention is followed.
+ 
+A (LISP form) will escape SCM and process form as if it is in Common-Lisp.
 E.g. (SCM (LISP +)) => the last evaluated repl form
-     (SCM +) => #'+
-DEFINE forms may appear at the top of a lexical body, and are gathered together converted into a LETREC."
+     (SCM +) => #'+.
+All forms with explicit/implicit blocks/progns are now lisp-1 style lexical-bodies.
+For more details see (lexical-body-definition-documentations) for information about 
+the available lexical-body-definition expansions.
+These lexical-body's are the lisp-1 analogue to the lisp-2 style lexical-bodies defined by LEXICALLY."
   (transform-expression *scm-transformer* `(progn ,@body) environment))
 
 (assert (equal? (scm
@@ -269,10 +273,19 @@ DEFINE forms may appear at the top of a lexical body, and are gathered together 
 		  (((nested 1) 2) 3 4 5))
 		'(1 2 3 4 5)))
 
-(defmacro def (name-field &body body)
-  `(scm
-     (def ,name-field ,@body)
-     (expose-functions ,(schemeish.internals::definition-name-field->name name-field))))
+(export-definition
+  (defmacro def (name-field &body body)
+    "Defines a top-level function using SCM to transform name-field and body from a lisp-1 style.
+Essentially expands to (scm (def name-field body...) (expose-functions name)).
+The lisp-1 analogue to DEFINE.
+See also SCM, EXPOSE."
+    (let ((name (schemeish.internals::definition-name-field->name name-field)))
+      `(for-macros
+	 (fmakunbound ',name)
+	 (scm
+	   (def ,name-field ,@body)
+	   (expose-functions ,name))
+	 ',name))))
 
 (def 2+ (lcurry + 2))
 (def (((test-nested a) b) . c)

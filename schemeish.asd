@@ -7,7 +7,7 @@
   :version "0.0.1"
   :serial t
   :pathname "src/"
-  :depends-on (:trivial-arguments)
+  :depends-on (:trivial-arguments :trivial-cltl2)
   :components ((:file "package")
 	       ;; SCHEMEISH.INTERNALS
 	       (:file "named-let")

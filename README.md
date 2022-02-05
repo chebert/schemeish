@@ -9,7 +9,6 @@ There are still separate namespaces for functions and values. `LET`, `DEFUN`, an
 The SCHEMEISH package can be used in place of CL.
 
     (defpackage my-new-package
-       (:shadowing-import-from :cl :lambda)
        (:use :schemeish))
 
 You can find examples of this usage in the `examples/` folder of this project.
@@ -26,8 +25,112 @@ The rest of Schemeish is fully compatible with the `CL` package. If you'd like t
 
 ## SYNTAX
 
-Schemeish provides `[...]` syntax which expands to `(funcall ...)`.
-To use [] syntax (described below) you can use `INSTALL-SYNTAX!` and to disable it again you can use `UNINSTALL-SYNTAX!`. 
+Schemeish provides:
+ - `[...]` syntax which expands to `(funcall ...)`.
+ - #G(guard-clauses...) syntax which is used to annotate function-definitions. These create guard clauses for functions as well as for documentation.
+ - #Ddocumentation-source syntax which is used to annotate function-definitions. These enable rich documentation (more than just documentation-strings).
+   A documentation-source is any object which implements the `DOCUMENTATION-STRING` method.
+
+To use Schemeish syntax you can use `INSTALL-SYNTAX!` and to disable it again you can use `UNINSTALL-SYNTAX!`.
+Typically this is done at the start/end of each file, but it may be helpful to leave out the `UNINSTALL-SYNTAX!` during development.
+
+## LEXICAL-BODY
+
+There are two styles of lexical-body. Lisp-2 style, which has a separated function/variable namespace, and Lisp-1 style for a unified function/variable namespace.
+`LEXICALLY` enables lisp-2 style lexical bodies, while `SCM` performs code-walking to enable lisp-1 style lexical bodies.
+
+### LEXICALLY
+
+From the doc-strings:
+
+```
+Expands lisp-2 style lexical-body definitions in body. 
+A lexical-body is (lexical-body-definitions... declarations... forms...).
+If definition is LISP-2 it is transformed and its labels-bindings are used.
+If definition is not LISP-2, but is LISP-1 it is transformed and a DEFAULT-LABELS-BINDING is used.
+Creates mutually-recursive variable and function bindings for all definitions.
+See REGISTER-LEXICAL-BODY-DEFINITION and REGISTER-LEXICAL-BODY2-DEFINITION for more information about how
+to extend LEXICALLY.
+See the results of evaluating (lexical-body2-definition-documentations) and (lexical-body-definition-documentations)
+For documentation on the currently registered definition transformations.
+```
+
+### LEXICAL BODY DEFINITIONS
+
+The following lexical body definitions are accepted by default for lisp-2 style lexical bodies.
+From the doc-strings:
+
+ - DEFINE: ```Transforms (define name-field ...) for lisp-2 style lexical-body.
+If name-field is a symbol the expected form is (define symbol [documentation-source] value).
+  A let binding is created for symbol, and value is assigned to it.
+  A DEFAULT-LABELS-BINDING is created for symbol.
+  The documentation-source and documentation string for value is set.
+If name-field is a pair, the expected form is (define name-field function-body...)
+  If name-field is a pair: ((...) . scm-parameters)
+    A closure is created with the given scm-parameters, and define is recursively applied.
+    E.g. (define (((nested x) y) z) function-body...) => 
+         (define (nested x) (lambda (y) (lambda (z) function-body...)))
+  If name-field is a pair: (symbol . scm-parameters)
+    A labels binding is created with the given scm-parameters and function-body, expanded using PARSE-FUNCTION.
+    A let binding is created for symbol, with #'symbol assigned to it.```
+
+ - DEFINE-VALUES: ```Transforms (define-values name-or-names values-form) for lisp-1 style lexical-body.
+If name-or-names is a symbol:
+  A let binding is created, and the (multiple-values-list values-form) is assigned to it.
+If name-or-names is a list of symbols:
+  A let binding is created for each symbol, and they are bound using multiple-value-setq.
+See also: LEXICALLY.
+```
+
+ - DEFINE-DESTRUCTURING: ```Transforms (define-destructuring destructuring-lambda-list expression) for lisp-1 style lexical-body.
+Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each name in destructuring-lambda-list.
+```
+
+
+### SCM
+
+From the doc-strings:
+
+```
+Evaluates body in the SCM langauge. Similar to Common Lisp with the following changes:
+If an expression is a proper list, it is transformed into (funcall function args).
+If an expression is a dotted list, it is transformed into (apply function args... rest-arg)
+If an expression is a symbol, its value is looked up in the variable environment at macro-expansion-time.
+If expression is not a variable it is assumed to be in the function-namespace.
+If a symbol is both SPECIAL and a bound FUNCTION, it is treated as a function rather than a variable.
+  This is to deal with the unfortunate cases: (+ * / -).
+  Typically functions and specials will not have the same name if the \*EAR-MUFF\* convention is followed.
+ 
+A (LISP form) will escape SCM and process form as if it is in Common-Lisp.
+E.g. (SCM (LISP +)) => the last evaluated repl form
+     (SCM +) => #'+.
+All forms with explicit/implicit blocks/progns are now lisp-1 style lexical-bodies.
+For more details see (lexical-body-definition-documentations) for information about 
+the available lexical-body-definition expansions.
+These lexical-body's are the lisp-1 analogue to the lisp-2 style lexical-bodies defined by LEXICALLY.
+```
+
+### Lisp-1 Style Lexical Body Expansions
+
+The same definitions types are accepted by default as the lisp-2 style lexical body.
+
+## EXPOSE
+
+```
+Define var-specs as parameters in the global scope via DEFPARAMETER.
+Define fn-specs as functions in the global scope via (SETF FDEFINITION).
+Designed to be used within a lexical-body. See LEXICALLY, DEFINE, SCM, DEF.
+
+Fn-spec is one of:
+  fn-name: Expands to (setf (fdefinition 'fn-name) fn-name)
+  (global-fn-name value): Expands to (setf (fdefinition 'global-fn-name) value)
+
+Var-spec one of:
+  VAR-NAME: \*Ear-muffs\* are added to symbol to create \*VAR-NAME\*. Expands to (defparameter \*var-name\* var-name).
+  (\*global-special-name* value): Expands to (defparameter \*global-special-name\* value).
+
+The return value is (PARAMETER-NAMES... GLOBAL-FN-NAMES ...)
+```
 
 ## DEFINE
 
@@ -67,6 +170,10 @@ If a define is nested within another define, it is used to define mutually recur
 
 Value-slots and function-slots are bound to the function object created by a nested define.
 
+## DEF
+
+`DEF` is the lisp-1 analogue to `DEFINE`, providing the same functionality, but in a lisp-1 style context.
+
 ## NAMED LET
 
 In all cases the `LET` provided by Schemeish works the same as `CL:LET`
@@ -93,11 +200,6 @@ Schemeish provides utilities for working with:
 ## CUT
 
 Cut provides a macro for creating curried functions. See documentation for `CUT`.
-
-## Lexically
-
-Lexically provides a new lexical environment which can have nested defines. Functions/variables can be exported to global scope using
-expose. See `DEFINE` and `EXPOSE`. 
 
 ## AND-LET*
 

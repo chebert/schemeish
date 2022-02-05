@@ -15,9 +15,9 @@
 (export
  (define (parameter? symbol (environment))
    "Returns true if symbol is a parameter i.e. dynamically scoped."
-   #+sbcl
-   (eq? :special (sb-cltl2:variable-information symbol environment))
-   #-sbcl
+   (eq? :special (trivial-cltl2:variable-information symbol environment))
+
+   #+slow-check-for-parameter
    (and (not (constantp symbol))
 	;; If we have an error, its because the parameter has a type
 	;; associated with it. Therefore we know its a parameter.
