@@ -124,6 +124,7 @@ The same definitions types are accepted by default as the lisp-2 style lexical b
 ## EXPOSE
 
 ```
+(EXPOSE (&rest fn-specs) (&rest var-specs))
 Define var-specs as parameters in the global scope via DEFPARAMETER.
 Define fn-specs as functions in the global scope via (SETF FDEFINITION).
 Designed to be used within a lexical-body. See LEXICALLY, DEFINE, SCM, DEF.
@@ -133,15 +134,15 @@ Fn-spec is one of:
   (global-fn-name value): Expands to (setf (fdefinition 'global-fn-name) value)
 
 Var-spec one of:
-  VAR-NAME: \*Ear-muffs\* are added to symbol to create \*VAR-NAME\*. Expands to (defparameter \*var-name\* var-name).
-  (\*global-special-name* value): Expands to (defparameter \*global-special-name\* value).
+  VAR-NAME: *Ear-muffs* are added to symbol to create *VAR-NAME*. Expands to (defparameter *var-name* var-name).
+  (*global-special-name* value): Expands to (defparameter *global-special-name* value).
 
 The return value is (PARAMETER-NAMES... GLOBAL-FN-NAMES ...)
 ```
 
 ## DEFINE
 
-`DEFINE` is Schemeish's major provision. Defines have two similar behaviors depending on if they are nested.
+`DEFINE` is one of Schemeish's major provisions. Defines have two similar behaviors depending on if they are nested.
 
 If a define is at the top level, it is only used to define functions, since CL doesn't have a global lexical environment for values.
 
