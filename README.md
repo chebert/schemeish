@@ -60,7 +60,9 @@ For documentation on the currently registered definition transformations.
 The following lexical body definitions are accepted by default for lisp-2 style lexical bodies.
 From the doc-strings:
 
- - DEFINE: ```Transforms (define name-field ...) for lisp-2 style lexical-body.
+ - DEFINE: 
+```
+Transforms (define name-field ...) for lisp-2 style lexical-body.
 If name-field is a symbol the expected form is (define symbol [documentation-source] value).
   A let binding is created for symbol, and value is assigned to it.
   A DEFAULT-LABELS-BINDING is created for symbol.
@@ -72,9 +74,12 @@ If name-field is a pair, the expected form is (define name-field function-body..
          (define (nested x) (lambda (y) (lambda (z) function-body...)))
   If name-field is a pair: (symbol . scm-parameters)
     A labels binding is created with the given scm-parameters and function-body, expanded using PARSE-FUNCTION.
-    A let binding is created for symbol, with #'symbol assigned to it.```
+    A let binding is created for symbol, with #'symbol assigned to it.
+```
 
- - DEFINE-VALUES: ```Transforms (define-values name-or-names values-form) for lisp-1 style lexical-body.
+ - DEFINE-VALUES:
+```
+Transforms (define-values name-or-names values-form) for lisp-1 style lexical-body.
 If name-or-names is a symbol:
   A let binding is created, and the (multiple-values-list values-form) is assigned to it.
 If name-or-names is a list of symbols:
@@ -82,7 +87,9 @@ If name-or-names is a list of symbols:
 See also: LEXICALLY.
 ```
 
- - DEFINE-DESTRUCTURING: ```Transforms (define-destructuring destructuring-lambda-list expression) for lisp-1 style lexical-body.
+ - DEFINE-DESTRUCTURING: 
+```
+Transforms (define-destructuring destructuring-lambda-list expression) for lisp-1 style lexical-body.
 Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each name in destructuring-lambda-list.
 ```
 
