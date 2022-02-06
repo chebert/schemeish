@@ -81,7 +81,9 @@ Parameter-bindings-form is evaluates to a list of (parameter-name value) for par
   `(when *guard-clauses-enabled?*
      ,@(mapcar (cl:lambda (guard-clause)
 		 `(unless ,guard-clause
-		    (error "Failed function guard-clause: ~S with the given parameter bindings: ~S" ',guard-clause ,parameter-bindings-form)))
+		    ,(if parameter-bindings-form
+			 `(error "Failed function guard-clause: ~S with the given parameter bindings: ~S" ',guard-clause ,parameter-bindings-form)
+			 `(error "Failed function guard-clause: ~S" ',guard-clause))))
 	       guard-clauses)))
 
 (assert (equal (enforce-guard-clauses-form '((numberp x) (listp xs)) '((x 3) (xs (1 2 3))))

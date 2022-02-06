@@ -828,6 +828,9 @@ Non-inline markups will be rendered with a fresh line before/after."
   (list (render-markup-to-string markup)
 	(render-markup-html-tag-to-string markup)))
 
+(defmethod documentation-string ((markup markup))
+  (render-markup-to-string markup))
+
 
 (show-markup (table (list (inline-text "Header1") (bold (inline-text "Header2")) (italic (bold (inline-text "header3"))))
 		    (list (list (inline-text "1.1") (inline-text "1.2") (inline-text "1.3"))
