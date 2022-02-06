@@ -16,11 +16,11 @@ for body. Body should evaluate to the transformed form."
      (register-transform-scm-special-form ',name (lambda (,transformer ,expression ,environment)
 						   (declare (ignorable ,transformer ,expression ,environment))
 						   ,@body))))
-
-(defmacro lisp (form)
-  "Within SCM, escapes form and evaluates it as if it were in Common-Lisp.
+(export-definition
+  (defmacro lisp (form)
+    "Within SCM, escapes form and evaluates it as if it were in Common-Lisp.
 Within LISP, just evalutes form."
-  form)
+    form))
 
 (define (transform* transformer forms)
   "Map transform across forms."
@@ -234,8 +234,9 @@ Within LISP, just evalutes form."
 			 (copy (list a a a)))))
 		'(1 1 1)))
 
-(defmacro scm (&body body &environment environment)
-  "Evaluates body in the SCM langauge. Similar to Common Lisp with the following changes:
+(export-definition
+  (defmacro scm (&body body &environment environment)
+    "Evaluates body in the SCM langauge. Similar to Common Lisp with the following changes:
 If an expression is a proper list, it is transformed into (funcall function args).
 If an expression is a dotted list, it is transformed into (apply function args... rest-arg)
 If an expression is a symbol, its value is looked up in the variable environment at macro-expansion-time.
@@ -251,7 +252,7 @@ All forms with explicit/implicit blocks/progns are now lisp-1 style lexical-bodi
 For more details see (lexical-body-definition-documentations) for information about 
 the available lexical-body-definition expansions.
 These lexical-body's are the lisp-1 analogue to the lisp-2 style lexical-bodies defined by LEXICALLY."
-  (transform-expression *scm-transformer* `(progn ,@body) environment))
+    (transform-expression *scm-transformer* `(progn ,@body) environment)))
 
 (assert (equal? (scm
 		  (define a 1)

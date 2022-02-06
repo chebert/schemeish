@@ -1,27 +1,47 @@
 # schemeish
-### Chebert
+## Introduction
 
-Provide Scheme/Racket style naming conventions and objects in Common Lisp.
+A Scheme/Racket inspired library for Common Lisp. 
 
-With a couple of minor exceptions Schemeish is designed to enhance Common Lisp by providing new functionality.
-There are still separate namespaces for functions and values. `LET`, `DEFUN`, and `DEFMACRO` all work the same.
+- Lisp-2 (separate function and variable namespaces) definition macro, which binds values/functions in both namespaces
+  - Clean `[...]` syntax for `(FUNCALL ...)` 
+- Lisp-1 (unified function and variable namespace) definition macro, which performs code-walking to achieve a single namespace
+- Compact, scheme-style argument lists with an easy syntax for specifying optional, keyword, rest, and ignorable arguments
+- Enriched package functions which bring packages to the level of first class objects
+- Optional guard clauses which are enforced by functions, and provide documentation
+- Enriched documentation for functions allow objects other than strings
+  - A markup language which can be rendered as plain-text or HTML, which can be used for rich documentation
+- Named `LET` for generating a locally recursive form
+- Scheme-inspired `STREAM`s and `BUNDLE`s
+- Record-style `DEFINE-STRUCT`
+- Utility functions for: lists, alists, list-based sets, hash-tables, procedures, procedure arities, strings
+- `CUT` macro for easily creating curried functions
+- A code transformer for transforming SEXP-based languages
+- TODO: Planned implementation of delimited continuations with similar semantics to `CONTROL`/`RUN` as used by Racket
+  - These continuations would be respectful of dynamic forms such as `CATCH` and `UNWIND-PROTECT`
 
 The SCHEMEISH package can be used in place of CL.
 
     (defpackage my-new-package
-       (:use :schemeish))
+       (:use #:schemeish))
 
-You can find examples of this usage in the `examples/` folder of this project.
-
+With a few minor exceptions Schemeish is designed to enhance Common Lisp by providing new functionality, rather than replacing exisiting symbols.
 The following CL symbols are replaced by Schemeish:
 
  - `LAMBDA` uses scheme-style argument lists with nestable defines.
- - `LET` is fully compatible with `CL:LET`, but with named let syntax described below
+ - `LET` is fully compatible with `CL:LET`, but with additionaly named let syntax
  - `SORT` is a non-modifying sort for lists
  - `MAP` maps a function over a list (equivalent to `MAPCAR`)
  - `STREAM` constructs a Scheme-style stream of elements.
 
 The rest of Schemeish is fully compatible with the `CL` package. If you'd like to favor `CL` in conflicts you can use `:SHADOWING-IMPORT-FROM`.
+
+```
+(defpackage my-streamless-package
+   (:use #:schemeish)
+   (:shadowing-import-from #:cl #:stream))
+```
+
 
 ## SYNTAX
 
@@ -34,153 +54,214 @@ Schemeish provides:
 To use Schemeish syntax you can use `INSTALL-SYNTAX!` and to disable it again you can use `UNINSTALL-SYNTAX!`.
 Typically this is done at the start/end of each file, but it may be helpful to leave out the `UNINSTALL-SYNTAX!` during development.
 
+```
+(install-syntax!)
+[(lcurry #'+ 2) 1 2 3] ;; => 8
+
+#g((number? x) (string? y)) ;; => #g((number? x) (string? y)) 
+#d(format nil "Hello") ;; => #d(format nil "Hello")
+```
+
+## DEFINE: Lisp-2 Definitions for Separate Function/Variable Namespaces
+
+At the top-level, `DEFINE` defines a global function.
+
+`DEFINE` takes one of three forms
+
+- `(define name [documentation] function)` defines a function named name
+
+```
+(define 2+ "Adds (+ 2 args...)" (lcurry #'+ 2)) ;; => 2+
+(2+ 1 2 3) ;; => 8
+(documentation #'2+ t) ;; => "Adds (+ 2 args...)"
+```
+
+- `(define (name . scm-parameters) function-body...)` defines a function named name with the given `scm-parameters` and `function-body` 
+
+```
+(define (frobnicate a b (:keyword1 3))
+  (list a b keyword1)) ;; => frobnicate
+
+(frobnicate 1 2 :keyword1 'c) ;; => (1 2 C)
+```
+
+- `(define ((...) . scm-parameters) function-body...)` defines a function which takes `scm-parameters` and returns a closure whose body is function-body
+
+```
+(define (((nested-foo a) b) . c)
+  (list* a b c)) ;; => nested-foo
+
+[[(nested-foo 1) 2] 3 4 5] => (1 2 3 4 5)
+(funcall (funcall (nested-foo 1) 2) 3 4 5) => (1 2 3 4 5)
+```
+
+## FUNCTION-BODY
+
+Function bodies in Schemeish take documentation objects, guard tags, and expand defintions in a lexical-body.
+A function body takes the form `([documentation] [guard] lexical-body...)`
+
+If provided, `documentation` may either be a `documentation-tag` (a documentation object prepended with "#D") or a string.
+  - A `documentation-tag`'s object is evaluated each time the function is compiled.
+If provided, `guard` is a `guard-tag` (an unevaluated list of guard clauses prepended with "#G")
+
+```
+(define (guarded-foo index vector)
+  #d(format nil "Returns the value at (aref vector index)")
+  #g((number? index) (vectorp vector) (< index (length vector)))
+  (aref vector index)) ;; => guarded-foo
+
+(guarded-foo 3 #(1 2)) ;; => ERROR: Failed function guard-clause: (< INDEX (LENGTH VECTOR))
+(guarded-foo 1 #(1 2)) ;; => 2
+(documentation #'guarded-foo t)
+;; =>
+"Returns the value at (aref vector index)
+
+Parameters: (INDEX VECTOR)
+Definition Form: (GUARDED-FOO INDEX VECTOR)
+
+GUARDED-FOO has the following guard clauses:
+((NUMBER? INDEX) (VECTORP VECTOR) (< INDEX (LENGTH VECTOR)))"
+
+```
+
 ## LEXICAL-BODY
 
-There are two styles of lexical-body. Lisp-2 style, which has a separated function/variable namespace, and Lisp-1 style for a unified function/variable namespace.
-`LEXICALLY` enables lisp-2 style lexical bodies, while `SCM` performs code-walking to enable lisp-1 style lexical bodies.
+A `LEXICAL-BODY` in Schemeish expands mutually recursive definitions (a la `LETREC` or `LABELS`).
+There are two types of `lexical-body`s: Lisp-1 style (unified function/variable namespace) and Lisp-2 style (separate function/variable namespaces).
+A `lexical-body` takes the form `(definitions declarations forms...)`, where definitions are `lexical-body-definition`s, declarations are of the form `(cl:declare ...)`,
+and forms... are evaluated in an implicit progn.
 
-### LEXICALLY
+The following definition forms are available by default:
 
-From the doc-strings:
-
-```
-Expands lisp-2 style lexical-body definitions in body. 
-A lexical-body is (lexical-body-definitions... declarations... forms...).
-If definition is LISP-2 it is transformed and its labels-bindings are used.
-If definition is not LISP-2, but is LISP-1 it is transformed and a DEFAULT-LABELS-BINDING is used.
-Creates mutually-recursive variable and function bindings for all definitions.
-See REGISTER-LEXICAL-BODY-DEFINITION and REGISTER-LEXICAL-BODY2-DEFINITION for more information about how
-to extend LEXICALLY.
-See the results of evaluating (lexical-body2-definition-documentations) and (lexical-body-definition-documentations)
-For documentation on the currently registered definition transformations.
-```
-
-### LEXICAL BODY DEFINITIONS
-
-The following lexical body definitions are accepted by default for lisp-2 style lexical bodies.
-From the doc-strings:
-
- - DEFINE: 
-```
-Transforms (define name-field ...) for lisp-2 style lexical-body.
-If name-field is a symbol the expected form is (define symbol [documentation-source] value).
-  A let binding is created for symbol, and value is assigned to it.
-  A DEFAULT-LABELS-BINDING is created for symbol.
-  The documentation-source and documentation string for value is set.
-If name-field is a pair, the expected form is (define name-field function-body...)
-  If name-field is a pair: ((...) . scm-parameters)
-    A closure is created with the given scm-parameters, and define is recursively applied.
-    E.g. (define (((nested x) y) z) function-body...) => 
-         (define (nested x) (lambda (y) (lambda (z) function-body...)))
-  If name-field is a pair: (symbol . scm-parameters)
-    A labels binding is created with the given scm-parameters and function-body, expanded using PARSE-FUNCTION.
-    A let binding is created for symbol, with #'symbol assigned to it.
-```
-
- - DEFINE-VALUES:
-```
-Transforms (define-values name-or-names values-form) for lisp-1 style lexical-body.
-If name-or-names is a symbol:
-  A let binding is created, and the (multiple-values-list values-form) is assigned to it.
-If name-or-names is a list of symbols:
-  A let binding is created for each symbol, and they are bound using multiple-value-setq.
-See also: LEXICALLY.
-```
-
- - DEFINE-DESTRUCTURING: 
-```
-Transforms (define-destructuring destructuring-lambda-list expression) for lisp-1 style lexical-body.
-Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each name in destructuring-lambda-list.
-```
-
-
-### SCM
-
-From the doc-strings:
+- `DEFINE` and `DEF`: Follows the same rules as `DEFINE`, but defines a local function using `labels`, and a variable using `let`.
+- `(DEFINE-VALUES (names...) values-form)`: Uses `multiple-value-setq` to assign names
+- `(DEFINE-DESTRUCTURING destructuring-lambda-list form)`: Uses `destructuring-bind` to assign values to the parameters named by `destructuring-lambda-list`
 
 ```
-Evaluates body in the SCM langauge. Similar to Common Lisp with the following changes:
-If an expression is a proper list, it is transformed into (funcall function args).
-If an expression is a dotted list, it is transformed into (apply function args... rest-arg)
-If an expression is a symbol, its value is looked up in the variable environment at macro-expansion-time.
-If expression is not a variable it is assumed to be in the function-namespace.
-If a symbol is both SPECIAL and a bound FUNCTION, it is treated as a function rather than a variable.
-  This is to deal with the unfortunate cases: (+ * / -).
-  Typically functions and specials will not have the same name if the \*EAR-MUFF\* convention is followed.
- 
-A (LISP form) will escape SCM and process form as if it is in Common-Lisp.
-E.g. (SCM (LISP +)) => the last evaluated repl form
-     (SCM +) => #'+.
-All forms with explicit/implicit blocks/progns are now lisp-1 style lexical-bodies.
-For more details see (lexical-body-definition-documentations) for information about 
-the available lexical-body-definition expansions.
-These lexical-body's are the lisp-1 analogue to the lisp-2 style lexical-bodies defined by LEXICALLY.
+(define (foo)
+  (define-values (number remainder) (truncate 3 4))
+  (define-destructuring (&whole whole a b c &rest more)
+    (list :a :b :c :r1 :r2 :r3))
+  (define v :v)
+  (define (f x) (list 'f x))
+  (define (((g x) y) z) `(((g ,x) ,y) ,z))
+  
+  (list number remainder
+        whole a b c more
+        v
+        (f :x)
+        [[(g :x) :y] :z])) ;; => foo
+(foo) ;; => (0 3 (:A :B :C :R1 :R2 :R3) :A :B :C (:R1 :R2 :R3) :V (F :X) (((G :X) :Y) :Z))
 ```
 
-### Lisp-1 Style Lexical Body Expansions
+More definition forms can be added using `register-lexical-body-definition` and `register-lexical-body2-definition` (for Lisp-2 style).
 
-The same definitions types are accepted by default as the lisp-2 style lexical body.
+`lexically` can be used to create an explicit lisp-2 style `lexical-body`
+`scm` (see `DEF`) can be used to create an explicit lisp-1 style `lexical-body` 
 
-## EXPOSE
+## DEF: Lisp-1 Definitions for a Unified Function/Variable Namespace
+
+At the top-level `DEF` is very similar to `DEFINE`, except that it performs code-transformation to create a Lisp-1 style unified function/variable namespace.
+The `SCM` macro performs the code transformation, and can be used to create Lisp-1 contexts.
+
+The following are the same examples as in `DEFINE`, but using `DEF` instead.
+
 
 ```
-(EXPOSE (&rest fn-specs) (&rest var-specs))
-Define var-specs as parameters in the global scope via DEFPARAMETER.
-Define fn-specs as functions in the global scope via (SETF FDEFINITION).
-Designed to be used within a lexical-body. See LEXICALLY, DEFINE, SCM, DEF.
+(def 2+ "Adds (+ 2 args...)" (lcurry + 2)) ;; => 2+
+(2+ 1 2 3) ;; => 8
+(scm (documentation 2+ t)) ;; => "Adds (+ 2 args...)"
 
-Fn-spec is one of:
-  fn-name: Expands to (setf (fdefinition 'fn-name) fn-name)
-  (global-fn-name value): Expands to (setf (fdefinition 'global-fn-name) value)
+(def (frobnicate a b (:keyword1 3))
+  (list a b keyword1)) ;; => frobnicate
 
-Var-spec one of:
-  VAR-NAME: *Ear-muffs* are added to symbol to create *VAR-NAME*. Expands to (defparameter *var-name* var-name).
-  (*global-special-name* value): Expands to (defparameter *global-special-name* value).
+(frobnicate 1 2 :keyword1 'c) ;; => (1 2 C)
 
-The return value is (PARAMETER-NAMES... GLOBAL-FN-NAMES ...)
+(def (((nested-foo a) b) . c)
+  (list* a b c)) ;; => nested-foo
+
+(scm (((nested-foo 1) 2) 3 4 5)) => (1 2 3 4 5)
 ```
 
-## DEFINE
+## PACKAGE-UTILS
 
-`DEFINE` is one of Schemeish's major provisions. Defines have two similar behaviors depending on if they are nested.
+Schemeish provides enriched package utilities. Some examples:
 
-If a define is at the top level, it is only used to define functions, since CL doesn't have a global lexical environment for values.
+- `(package-symbols package)`: returns a list of all symbols in package
+- `(defpackage-form package)`: Returns a `DEFPACKAGE` form
+- `(hierarchical-defpackage-forms packages)`: Returns a list of `DEFPACKAGE` forms that have been organized hierarchically for use in `package.lisp`
+- `((package-re-export-shadowing . re-exported-packages) package)`: Uses and re-exports `re-exported-packages` from `package`.
+- Many more
 
-    (define (add2 n) (+ 2 n))
+## GUARD CLAUSES
 
-If define is just given a name, it sets the function value of the symbol:
+Guard clauses provide both documentation and enforcement:
 
-    (define add2 (lcurry #'+ 2))
 
-If define is nested or at the top level it can be used to define functions:
+```
+(define (guarded-foo index vector)
+  #d(format nil "Returns the value at (aref vector index)")
+  #g((number? index) (vectorp vector) (< index (length vector)))
+  (aref vector index)) ;; => guarded-foo
 
-Define/Lambda can take rest parameters:
+(guarded-foo 3 #(1 2)) ;; => ERROR: Failed function guard-clause: (< INDEX (LENGTH VECTOR))
+(guarded-foo 1 #(1 2)) ;; => 2
+(documentation #'guarded-foo t)
+;; =>
+"Returns the value at (aref vector index)
 
-    (define (add2 . args) (apply #'+ 2 args))
+Parameters: (INDEX VECTOR)
+Definition Form: (GUARDED-FOO INDEX VECTOR)
 
-It can take optional arguments:
+GUARDED-FOO has the following guard clauses:
+((NUMBER? INDEX) (VECTORP VECTOR) (< INDEX (LENGTH VECTOR)))"
 
-    (define (greet name (greeting "Hello") (out))
-      (format out "~A ~A" greeting name))
-	  
-Or it can take keyword arguments:
+```
 
-    (define (greet name (:greeting "Hello") (:out))
-      (format out "~A ~A" greeting name))
-	  
-If a define is nested within another define, it is used to define mutually recursive functions/variables.
+The runtime-enforcement of guard-clauses can be dynamically circumvented using `with-guard-clauses-disabled` 
 
-    (define (top-level)
-	  (define x 3)
-      (define f (lambda (v) (g v 2)))
-	  (define (g x y) (+ x y))
-      (f x))
+```
+[(lambda (x y) #g((number? x) (string? y)) (list x y)) nil nil] ;; => ERROR: Failed function guard-clause: (NUMBER? X)
+(with-guard-clauses-disabled [(lambda (x y) #g((number? x) (string? y)) (list x y)) nil nil]) ;; => (nil nil)
+```
 
-Value-slots and function-slots are bound to the function object created by a nested define.
+## RICH DOCUMENTATION
 
-## DEF
+Schemeish provides an extensible markup language and a means of providing richer text for documentation.
+This can be used to generate both human-readable docstrings as well as HTML.
+Schemeish provides a basic text renderer for its markup language, which renders to Markdown-like plain text.
 
-`DEF` is the lisp-1 analogue to `DEFINE`, providing the same functionality, but in a lisp-1 style context.
+```
+(define (fancy-docs)
+		  #d(paragraph "This is some fancy documentation with "
+			       (italic (inline-text "italics"))
+			       " with "
+			       (bold (inline-text "bolds"))
+			       " with " (br)
+			       (block-quote (inline-text "Quotes")))
+		  :ok) ;; => fancy-docs
+		  
+(documentation #'fancy-docs t)
+;; =>
+"This is some fancy
+documentation with 
+_italics_ with 
+*bolds* with 
+> Quotes
+
+
+
+Parameters: NIL
+Definition Form: (FANCY-DOCS)
+
+FANCY-DOCS has no guard clauses."
+
+(type-of (object-documentation-source #'fancy-docs)) ;; markup
+
+```
+
+Any object which implements the `documentation-string` method can be used with `documentation-tag`s.
+
 
 ## NAMED LET
 
@@ -194,20 +275,17 @@ Additionally you can create a local named procedure with `LET`
           result
           (recurse (* result n) (1- n))))
 
-## SCHEMISH BASE
 
-Schemeish provides utilities for working with:
-
-- Alists
-- Function objects: e.g. currying, composing, arity,
-- Lists
-- Hash tables
-- Scheme-style streams
-- Vectors
 
 ## CUT
 
-Cut provides a macro for creating curried functions. See documentation for `CUT`.
+Cut provides a macro for creating curried functions using placeholders.
+
+```
+(scm ((cut (list 1 _ 3 . _)) 2 4 5 6)) ;; => (1 2 3 4 5 6)
+```
+
+
 
 ## AND-LET*
 
@@ -221,18 +299,86 @@ If the clause is (identifier expression) it creates a binding for the rest of th
                ((integer? item)))
       (sqrt item))
 
-## BUNDLE
+## STREAMS
 
-Bundles are closure objects which provide an object-oriented style interface. See documentation of `BUNDLE`.
+Provides functions for creating and manipulating streams e.g.: `stream-cons`, `stream-append`, `stream-map`.
+
+Provides the `stream-collect` macro for efficient implementation of combinatorial algorithms. 
+
+```
+(define (prime? num)
+  (let ((root (floor (sqrt num))))
+    (not (find-if (lambda (div) (zerop (rem num div))) (range (1+ root) 2)))))
+
+(define (prime-sum-pairs n)
+  (stream-collect
+   (list i j (+ i j))
+   ((i (stream-range 1 n))
+    (j (stream-range 1 (1- i))))
+   (prime? (+ i j))))
+
+(stream->list (prime-sum-pairs 6)) ;; => ((2 1 3) (3 2 5) (4 1 5) (4 3 7) (5 2 7) (6 1 7) (6 5 11))))
+```
 
 ## DEFINE-STRUCT
 
-Define-struct provides a syntax for creating records. See documentation of `DEFINE-STRUCT`. The underlying type is a CLOS object, but this is subject to change.
+Define-struct provides a syntax for creating records. See documentation of `DEFINE-STRUCT`.
+The underlying type is a CLOS object.
+Transparent structs (the default) can be deep-compared using `equal?`, and have a readable implementation of the `print-object` method.
 
-## PACKAGE-UTILS
+```
+(define-struct p2
+  (x y)) ;; => (P2 MAKE-P2 P2? P2-X P2-Y)
 
-Schemeish also exports tools for dealing with packages, including reconstructing `DEFPACKAGE` forms from the current state of a package.
-See `DEFPACKAGE-FORM`.
+(p2? (make-p2 3 4)) ;; => T
+(let ((p (make-p2 3 4)))
+  (sqrt (+ (* (p2-x p) (p2-x p))
+        (* (p2-y p) (p2-y p))))) ;; => 5.0
+```
+
+Structs have simple inheritance (one parent).
+
+```
+(define-struct p3
+  (z)
+  :super 'p2) ;; => (P3 MAKE-P3 P3? P3-Z)
+  
+(p2? (make-p3 1 2 3)) ;; => T
+(p3? (make-p3 1 2 3)) ;; => T
+
+(make-p3 1 2 3) ;; => (make-p3 1 2 3)
+
+(def x p2-x)
+(def y p2-y)
+(def z p2-z)
+
+(let ((p (make-p3 1 2 3)))
+  (list (x p) (y p) (z p))) ;; => (1 2 3)
+```
+
+By default structs are immutable, but `SET-` functions can be generated.
+
+## UTILITIES
+
+There are quite a number of general purpose utilities. Here are a few interesting ones:
+
+- Alist functions for creating and manipulating association-lists
+- `(group key-fn list)` Groups elements of list that have the same key-fn into an alist.
+- `(hash-map table proc)` Maps [proc key value] over the keys and values of table, producing a list as a result.
+- `(has-specific-arity? arity-list fixed-arity-n)` Returns true if an arity-list (retrieved from procedure-arity) has the specific fixed arity.
+- `(string-map proc string)` Applies proc to each character in string, returning a new string 
+of the results appended together. Proc is expected to return a character or string
+
+## CODE-TRANSFORMER
+
+A code transformer (or code walker) can transform a SEXP-based expression from language to another, expanding any macros along the way.
+The transformation is defined by a `TRANSFORMER` structure, which has transform functions for special forms, lists (function application in CL), and atoms.
+Each transform function has access to the the transformer, the expression being transformed, and the environment (from a macro's `&ENVIRONMNENT`).
+See `scm.lisp` for an example usage of code-transformation.
+
+## BUNDLE
+
+Bundles are closure objects which provide an object-oriented style interface. See documentation of `BUNDLE`.
 
 ## EMACS
 

@@ -125,6 +125,7 @@
            #:COPY-RENDERER-WITH-NEW-STREAM
            #:CUT
            #:DECLARE?
+           #:DEF
            #:DEFINE-BUNDLE-PRINT-OBJECT
            #:DEFINE-PACKAGE
            #:DEFINE-PACKAGE-FORM
@@ -227,6 +228,7 @@
            #:LET-BODY-FORMS
            #:LETREC
            #:LINK
+           #:LISP
            #:LIST->STREAM
            #:LIST->STRING
            #:LIST->VECTOR
@@ -355,6 +357,7 @@
            #:RETURN-FROM-NAME
            #:RETURN-FROM-VALUE
            #:SAFE-VECTOR-REF
+           #:SCM
            #:SEQ
            #:SET!
            #:SET->STREAM
@@ -465,7 +468,8 @@
            #:WITH-TEMPORARY-PACKAGE
            #:WORD-WRAP-LINE
            #:XOR
-           #:ZERO?)
+           #:ZERO?
+           #:_)
   (:SHADOW #:LAMBDA #:MAP #:SORT #:STREAM))
 
 (DEFPACKAGE #:SCHEMEISH.SCHEMEISH
@@ -1564,6 +1568,7 @@
            #:SBIT
            #:SCALE-FLOAT
            #:SCHAR
+           #:SCM
            #:SCM-PARAMETERS->ORDINARY-LAMBDA-LIST
            #:SEARCH
            #:SECOND
@@ -1903,6 +1908,7 @@
            #:Y-OR-N-P
            #:YES-OR-NO-P
            #:ZERO?
-           #:ZEROP)
+           #:ZEROP
+           #:_)
   (:NICKNAMES #:SCHEMEISH #:SCM))
 

@@ -93,7 +93,7 @@ See PARSE-FUNCTION, REGISTER-DEFINITION-FUNCTION-METADATA, PARSED-FUNCTION->LAMB
     (multiple-value-bind (body documentation-source guard-clauses declarations)
 	(parse-metadata-from-function-body function-body)
       (let recurse ((name-field definition-name-field)
-		    (body (append declarations `((lexically ,@body)))))
+		    (body (append declarations (enforce-guard-clauses-forms guard-clauses ()) `((lexically ,@body)))))
 	(let ((name (first name-field))
 	      (parameters (rest name-field)))
 	  (cond
@@ -110,7 +110,8 @@ See PARSE-FUNCTION, REGISTER-DEFINITION-FUNCTION-METADATA, PARSED-FUNCTION->LAMB
 				   ,documentation-source
 				   ',definition-name-field))
 		     (multiple-value-bind (ordinary-lambda-list ignorable-parameters) (scm-parameters->ordinary-lambda-list parameters)
-		       (list `(,name ,ordinary-lambda-list ,@(declare-ignorable-forms ignorable-parameters) ,@body)))))))))))
+		       (list `(,name ,ordinary-lambda-list ,@(declare-ignorable-forms ignorable-parameters)
+				     ,@body)))))))))))
 
 (defun transform-lexical-body-define-symbol (definition)
   "Transforms (define symbol [documentation] value) for lisp-1 style lexical-body."
