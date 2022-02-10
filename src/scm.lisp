@@ -16,6 +16,7 @@ for body. Body should evaluate to the transformed form."
      (register-transform-scm-special-form ',name (lambda (,transformer ,expression ,environment)
 						   (declare (ignorable ,transformer ,expression ,environment))
 						   ,@body))))
+
 (export-definition
   (defmacro lisp (form)
     "Within SCM, escapes form and evaluates it as if it were in Common-Lisp.
@@ -49,7 +50,7 @@ Within LISP, just evalutes form."
 
 (define (transform-function-binding transformer binding)
   `(,(function-binding-name binding) ,(transform-ordinary-lambda-list transformer (function-binding-parameters binding))
-    ,@(transform transformer `(lexically ,@(function-binding-body binding)))))
+    ,@(transform-lexical-body transformer (function-binding-body binding))))
 
 (define (transform-lexical-body transformer body)
   (multiple-value-bind (body declarations names set-forms) (parse-lexical-body body)
@@ -58,6 +59,9 @@ Within LISP, just evalutes form."
 	  `((cl:let ,names
 	      ,@(transform* transformer set-forms)
 	      (cl:let ,(mapcar (cl:lambda (name) (list name name)) names)
+		;; Some names may only be used for intermediate definitions,
+		;; so we just mark all names as ignorable
+		,@(schemeish.internals::declare-ignorable-forms names)
 		,@body)))
 	  body))))
 
@@ -70,7 +74,7 @@ Within LISP, just evalutes form."
   `(cl:progn ,@(transform-lexical-body transformer (progn-forms expr))))
 (define-scm-special-transform cl:lambda (transformer expr env)
   `(cl:lambda ,(transform-ordinary-lambda-list transformer (lambda-parameters expr))
-     ,@(transform* transformer (lambda-body expr))))
+     ,@(transform-lexical-body transformer (lambda-body expr))))
 
 (define-scm-special-transform lexically (transformer expr env)
   `(lisp ,@(transform-lexical-body transformer (rest expr))))
@@ -100,14 +104,31 @@ Within LISP, just evalutes form."
 (define-scm-special-transform cl:declare (transformer expr env)
   expr)
 
-(define-scm-special-transform cl:let (transformer expr env)
+(define (transform-scm-let transformer expr env)
+  (declare (ignorable env))
   (define bindings (map (lambda (binding) (transform-let-binding transformer binding)) (let-bindings expr)))
   `(cl:let ,bindings
      ,@(transform-lexical-body transformer (let-body expr))))
+(define-scm-special-transform cl:let (transformer expr env)
+  (transform-scm-let transformer expr env))
 (define-scm-special-transform cl:let* (transformer expr env)
   (define bindings (map (lambda (binding) (transform-let-binding transformer binding)) (let*-bindings expr)))
   `(cl:let* ,bindings
      ,@(transform-lexical-body transformer (let*-body expr))))
+;; Named let without labels bindings
+(define-scm-special-transform let (transformer expr env)
+  (cond
+    ((and (not (null (second expr))) (symbol? (second expr)))
+     ;; Named let
+     (destructuring-bind (name bindings . body) (rest expr)
+       ;; TODO: let-binding-name let-binding-value in code-transformer
+       (let ((parameters (map (lambda (binding) (if (symbol? binding) binding (first binding))) bindings))
+	     (arguments (map (lambda (binding) (if (symbol? binding) nil (second binding))) bindings)))
+	 `(cl:progn ,@(transform-lexical-body
+		       transformer
+		       `((define (,name ,@parameters) ,@body)
+			 (,name ,@arguments)))))))
+    (t (transform-scm-let transformer expr env))))
 
 (define-scm-special-transform cl:labels (transformer expr env)
   (define bindings (map (lcurry #'transform-function-binding transformer)
@@ -126,7 +147,7 @@ Within LISP, just evalutes form."
   `(cl:symbol-macrolet ,(symbol-macrolet-bindings expr)
      ,@(transform-lexical-body transformer (symbol-macrolet-body expr))))
 (define-scm-special-transform cl:throw (transformer expr env)
-  `(cl:throw ,(transform transformer (throw-tag expr))))
+  `(cl:throw ,(transform transformer (throw-tag expr)) ,(transform transformer (throw-result expr))))
 (define-scm-special-transform cl:catch (transformer expr env)
   `(cl:catch ,(transform transformer (catch-tag expr))
      ,@(transform-lexical-body transformer (catch-forms expr))))

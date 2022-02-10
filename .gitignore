@@ -1,2 +1,4 @@
 *.fasl
 unused/
+src/continuations-notes.lisp
+src/continuations-old.lisp

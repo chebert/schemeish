@@ -255,10 +255,16 @@ group is one of (:optional :key :aux :rest :positional :whole)."
 	   (map-group (group-name parameters result)
 	     (cond
 	       ((null parameters) result)
+	       ((symbolp parameters)
+		;; End of a dotted list: Rest parameter
+		(list* (funcall proc :rest parameters) (funcall proc :keyword 'cl:&rest) result))
 	       (t (let ((parameter (first parameters))
 			(rest-parameters (rest parameters)))
 		    (cond
 		      ((member parameter keywords) (map-keyword parameter rest-parameters result))
+		      ((and (eq group-name :positional) (consp parameter))
+		       ;; Positional parameter is a nested lambda-list.
+		       (map-group group-name rest-parameters (append (nreverse (map-lambda-list proc parameter keywords)) result)))
 		      (t (map-group group-name rest-parameters (cons (funcall proc group-name parameter) result)))))))))
     (nreverse
      (if (and (member 'cl:&whole keywords) (eq (first lambda-list) 'cl:&whole))
