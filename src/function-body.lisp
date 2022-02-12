@@ -5,9 +5,10 @@
   (and (consp form)
        (eq (first form) 'cl:declare)))
 
-(defun parse-declarations (body)
-  "Returns (values declarations forms)"
-  (splitf body #'declaration?))
+(export
+ (defun parse-declarations (body)
+   "Returns (values declarations forms)"
+   (splitf body #'declaration?)))
 
 (defun parse-documentation-source (body)
   "Returns (values forms documentation-source).

@@ -127,25 +127,25 @@ A lexical body is (definitions... declarations... forms...)"
        (multiple-value-bind (declarations body) (parse-declarations body)
 	 (values body declarations names set-forms))))))
 (defun parse-lexical-body2 (body)
-  "Returns (values body names set-forms labels-bindings) for SCHEMEISH (lisp-2) lexical-body.
+  "Returns (values declarations body names set-forms labels-bindings) for SCHEMEISH (lisp-2) lexical-body.
 A lexical body is (definitions... declarations... forms...)"
   (multiple-value-bind (definitions body) (parse-lexical-body2-definitions body)
-    (multiple-value-bind (names set-forms labels-bindings) (collect-lexical-body2-definitions-names-and-set-forms definitions)
-      (values body names set-forms labels-bindings))))
+    (multiple-value-bind (declarations body) (parse-declarations body)
+      (multiple-value-bind (names set-forms labels-bindings) (collect-lexical-body2-definitions-names-and-set-forms definitions)
+	(values body declarations names set-forms labels-bindings)))))
 
 (export
  (defun lexical-body2-form (body)
    "Expands LISP-2 lexical-body definitions in BODY. A lexical-body is (definitions... declarations... forms...)"
-   (multiple-value-bind (body names set-forms labels-bindings) (parse-lexical-body2 body)
+   (multiple-value-bind (body declarations names set-forms labels-bindings) (parse-lexical-body2 body)
      `(cl:let ,names
+	(declare (ignorable ,@names))
 	(cl:labels ,labels-bindings
 	  ;; Declare local function bindings ignorable.
 	  (declare (ignorable ,@(mapcar (cl:lambda (name) `(function ,name)) names)))
+	  ,@declarations
 	  ,@set-forms
-	  (cl:let ,(mapcar (cl:lambda (name) (list name name)) names)
-	    ;; Declare names ignorable.
-	    (declare (ignorable ,@names))
-	    ,@body))))))
+	  ,@body)))))
 
 (export
  (defmacro lexically (&body lexical-body)

@@ -62,8 +62,8 @@ TEST has the following guard clauses:
 		     (define lexical-test-w 1)
 		     (expose ((lexical-test-y test-y)
 			      lexical-test-z)
-			     ((*lexical-test-x* test-x)
-			      lexical-test-w)))
+			 ((*lexical-test-x* test-x)
+			  lexical-test-w)))
 
 		   '(*LEXICAL-TEST-X* *lexical-test-w* LEXICAL-TEST-Y LEXICAL-TEST-Z)))
 

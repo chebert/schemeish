@@ -7,27 +7,39 @@
 (define (register-transform-scm-special-form symbol transform)
   (hash-set! *transform-scm-special-form-table* symbol transform))
 
-(defmacro define-scm-special-transform (name (transformer expression environment) &body body)
+(defmacro define-scm-special-transform (name (expression environment) &body body)
   "Define a special form transformer for the SCM macro-expansion.
 Name is the symbol naming the special-form. Transformer will be bound to the *SCM-TRANSFORMER*.
 Expression will be bound to the special form being transformed, and environment will be bound to the current lexical environment
 for body. Body should evaluate to the transformed form."
-  `(for-macros
-     (register-transform-scm-special-form ',name (lambda (,transformer ,expression ,environment)
-						   (declare (ignorable ,transformer ,expression ,environment))
-						   ,@body))))
+  (let ((transformer (unique-symbol 'transformer)))
+    `(for-macros
+       (register-transform-scm-special-form ',name (lambda (,transformer ,expression ,environment)
+						     (declare (ignore ,transformer))
+						     (declare (ignorable ,expression ,environment))
+						     ,@body)))))
 
 (export-definition
-  (defmacro lisp (form)
+  (defmacro no-scm (form)
     "Within SCM, escapes form and evaluates it as if it were in Common-Lisp.
 Within LISP, just evalutes form."
     form))
+
+(for-macros
+  (defvar *scm-transformer*))
+
+(define (transform-scm expr)
+  `(no-scm ,(transform *scm-transformer* expr)))
 
 (define (transform* transformer forms)
   "Map transform across forms."
   (map (lcurry #'transform transformer) forms))
 
-(define (transform-ordinary-lambda-list transformer ordinary-lambda-list)
+(define (transform-scm* forms)
+  "Map *scm-transformer* across forms."
+  (transform* *scm-transformer* forms))
+
+(define (transform-ordinary-lambda-list ordinary-lambda-list)
   "Transform the bindings in ordinary-lambda-list."
   (map-ordinary-lambda-list
    (lambda (group parameter)
@@ -38,85 +50,93 @@ Within LISP, just evalutes form."
 	  ((pair? parameter)
 	   (ecase (length parameter)
 	     (1 parameter)
-	     (2 (list (first parameter) (transform transformer (second parameter))))
-	     (3 (list (first parameter) (transform transformer (second parameter)) (third parameter)))))
+	     (2 (list (first parameter) (transform-scm (second parameter))))
+	     (3 (list (first parameter) (transform-scm (second parameter)) (third parameter)))))
 	  (t parameter)))))
    ordinary-lambda-list))
 
-(define (transform-let-binding transformer binding)
+(define (transform-let-binding binding)
   (if (pair? binding)
-      (list (first binding) (transform transformer (second binding)))
+      (list (first binding) (transform-scm (second binding)))
       (list binding ())))
 
-(define (transform-function-binding transformer binding)
-  `(,(function-binding-name binding) ,(transform-ordinary-lambda-list transformer (function-binding-parameters binding))
-    ,@(transform-lexical-body transformer (function-binding-body binding))))
+(define (transform-function-binding binding)
+  `(,(function-binding-name binding) ,(transform-ordinary-lambda-list (function-binding-parameters binding))
+    ,@(transform-lexical-body (function-binding-body binding))))
 
-(define (transform-lexical-body transformer body)
+(define (transform-lexical-body body)
   (multiple-value-bind (body declarations names set-forms) (parse-lexical-body body)
-    (let ((body (append declarations (transform* transformer body))))
+    (let ((body (transform-scm* body)))
       (if names
 	  `((cl:let ,names
-	      ,@(transform* transformer set-forms)
-	      (cl:let ,(mapcar (cl:lambda (name) (list name name)) names)
-		;; Some names may only be used for intermediate definitions,
-		;; so we just mark all names as ignorable
-		,@(schemeish.internals::declare-ignorable-forms names)
-		,@body)))
-	  body))))
+	      ,@declarations
+	      ,@(transform-scm* set-forms)
+	      ,@body))
+	  (append declarations body)))))
 
 (define (variable? expr environment)
   "Return true if EXPR is a variable in the given environment."
   (and (symbol? expr)
        (trivial-cltl2:variable-information expr environment)))
 
-(define-scm-special-transform cl:progn (transformer expr env)
-  `(cl:progn ,@(transform-lexical-body transformer (progn-forms expr))))
-(define-scm-special-transform cl:lambda (transformer expr env)
-  `(cl:lambda ,(transform-ordinary-lambda-list transformer (lambda-parameters expr))
-     ,@(transform-lexical-body transformer (lambda-body expr))))
+;; IF a CPS macro is encountered, we want it to be processed after the SCM transformation has occuurred
+(define-scm-special-transform cps (expr env)
+  (define-destructuring (cps-expr) (rest expr))
+  `(cps ,(transform-scm cps-expr)))
+(define-scm-special-transform no-cps (expr env)
+  (define-destructuring (no-cps-expr) (rest expr))
+  `(no-cps ,(transform-scm no-cps-expr)))
+(define-scm-special-transform fcontrol (expr env)
+  (define-destructuring (tag value) (rest expr))
+  `(fcontrol ,(transform-scm tag) ,(transform-scm value)))
 
-(define-scm-special-transform lexically (transformer expr env)
-  `(lisp ,@(transform-lexical-body transformer (rest expr))))
+(define-scm-special-transform cl:progn (expr env)
+  `(cl:progn ,@(transform-lexical-body (progn-forms expr))))
+(define-scm-special-transform cl:lambda (expr env)
+  `(cl:lambda ,(transform-ordinary-lambda-list (lambda-parameters expr))
+     ,@(transform-lexical-body (lambda-body expr))))
 
-(define-scm-special-transform cl:block (transformer expr env)
+(define-scm-special-transform lexically (expr env)
+  `(no-scm (cl:progn ,@(transform-lexical-body (rest expr)))))
+
+(define-scm-special-transform cl:block (expr env)
   `(cl:block ,(block-name expr)
-     ,@(transform-lexical-body transformer (block-body expr))))
-(define-scm-special-transform cl:return-from (transformer expr env)
-  `(cl:return-from ,(return-from-name expr) ,(transform transformer (return-from-value expr))))
+     ,@(transform-lexical-body (block-body expr))))
+(define-scm-special-transform cl:return-from (expr env)
+  `(cl:return-from ,(return-from-name expr) ,(transform-scm (return-from-value expr))))
 
-(define-scm-special-transform cl:tagbody (transformer expr env)
+(define-scm-special-transform cl:tagbody (expr env)
   (define parsed (parse-tagbody (rest expr)))
   (define (transform-tag-and-forms tag-and-forms)
     (cons (first tag-and-forms)
-	  (transform* transformer (rest tag-and-forms))))
-  (define untagged-forms (transform* transformer (first parsed)))
+	  (transform-scm* (rest tag-and-forms))))
+  (define untagged-forms (transform-scm* (first parsed)))
   (define tags-and-forms (append-map transform-tag-and-forms (rest parsed)))
   `(cl:tagbody
       ,@untagged-forms
       ,@tags-and-forms))
-(define-scm-special-transform cl:go (transformer expr env)
+(define-scm-special-transform cl:go (expr env)
   expr)
-(define-scm-special-transform cl:quote (transformer expr env)
+(define-scm-special-transform cl:quote (expr env)
   expr)
-(define-scm-special-transform cl:function (transformer expr env)
+(define-scm-special-transform cl:function (expr env)
   expr)
-(define-scm-special-transform cl:declare (transformer expr env)
+(define-scm-special-transform cl:declare (expr env)
   expr)
 
-(define (transform-scm-let transformer expr env)
+(define (transform-scm-let expr env)
   (declare (ignorable env))
-  (define bindings (map (lambda (binding) (transform-let-binding transformer binding)) (let-bindings expr)))
+  (define bindings (map (lambda (binding) (transform-let-binding binding)) (let-bindings expr)))
   `(cl:let ,bindings
-     ,@(transform-lexical-body transformer (let-body expr))))
-(define-scm-special-transform cl:let (transformer expr env)
-  (transform-scm-let transformer expr env))
-(define-scm-special-transform cl:let* (transformer expr env)
-  (define bindings (map (lambda (binding) (transform-let-binding transformer binding)) (let*-bindings expr)))
+     ,@(transform-lexical-body (let-body expr))))
+(define-scm-special-transform cl:let (expr env)
+  (transform-scm-let expr env))
+(define-scm-special-transform cl:let* (expr env)
+  (define bindings (map (lambda (binding) (transform-let-binding binding)) (let*-bindings expr)))
   `(cl:let* ,bindings
-     ,@(transform-lexical-body transformer (let*-body expr))))
+     ,@(transform-lexical-body (let*-body expr))))
 ;; Named let without labels bindings
-(define-scm-special-transform let (transformer expr env)
+(define-scm-special-transform let (expr env)
   (cond
     ((and (not (null (second expr))) (symbol? (second expr)))
      ;; Named let
@@ -125,80 +145,78 @@ Within LISP, just evalutes form."
        (let ((parameters (map (lambda (binding) (if (symbol? binding) binding (first binding))) bindings))
 	     (arguments (map (lambda (binding) (if (symbol? binding) nil (second binding))) bindings)))
 	 `(cl:progn ,@(transform-lexical-body
-		       transformer
 		       `((define (,name ,@parameters) ,@body)
 			 (,name ,@arguments)))))))
-    (t (transform-scm-let transformer expr env))))
+    (t (transform-scm-let expr env))))
 
-(define-scm-special-transform cl:labels (transformer expr env)
-  (define bindings (map (lcurry #'transform-function-binding transformer)
-			(labels-bindings expr)))
+(define-scm-special-transform cl:labels (expr env)
+  (define bindings (map #'transform-function-binding (labels-bindings expr)))
   `(cl:labels ,bindings
-     ,@(transform-lexical-body transformer (labels-body expr))))
-(define-scm-special-transform cl:flet (transformer expr env)
-  (define bindings (map (lcurry #'transform-function-binding transformer)
-			(flet-bindings expr)))
+     ,@(transform-lexical-body (labels-body expr))))
+(define-scm-special-transform cl:flet (expr env)
+  (define bindings (map #'transform-function-binding (flet-bindings expr)))
   `(cl:flet ,bindings
-     ,@(transform-lexical-body transformer (flet-body expr))))
-(define-scm-special-transform cl:macrolet (transformer expr env)
+     ,@(transform-lexical-body (flet-body expr))))
+(define-scm-special-transform cl:macrolet (expr env)
   `(cl:macrolet ,(macrolet-bindings expr)
-     ,@(transform-lexical-body transformer (macrolet-body expr))))
-(define-scm-special-transform cl:symbol-macrolet (transformer expr env)
+     ,@(transform-lexical-body (macrolet-body expr))))
+(define-scm-special-transform cl:symbol-macrolet (expr env)
   `(cl:symbol-macrolet ,(symbol-macrolet-bindings expr)
-     ,@(transform-lexical-body transformer (symbol-macrolet-body expr))))
-(define-scm-special-transform cl:throw (transformer expr env)
-  `(cl:throw ,(transform transformer (throw-tag expr)) ,(transform transformer (throw-result expr))))
-(define-scm-special-transform cl:catch (transformer expr env)
-  `(cl:catch ,(transform transformer (catch-tag expr))
-     ,@(transform-lexical-body transformer (catch-forms expr))))
-(define-scm-special-transform cl:unwind-protect (transformer expr env)
-  `(cl:unwind-protect ,(transform transformer (unwind-protect-protected expr))
-     ,@(transform-lexical-body transformer (unwind-protect-cleanup expr))))
-(define-scm-special-transform cl:load-time-value (transformer expr env)
-  `(cl:load-time-value ,(transform transformer (load-time-value-form expr))
-		       ,(transform transformer (load-time-value-read-only-p expr))))
-(define-scm-special-transform cl:eval-when (transformer expr env)
+     ,@(transform-lexical-body (symbol-macrolet-body expr))))
+(define-scm-special-transform cl:throw (expr env)
+  `(cl:throw ,(transform-scm (throw-tag expr)) ,(transform-scm (throw-result expr))))
+(define-scm-special-transform cl:catch (expr env)
+  `(cl:catch ,(transform-scm (catch-tag expr))
+     ,@(transform-lexical-body (catch-forms expr))))
+(define-scm-special-transform cl:unwind-protect (expr env)
+  `(cl:unwind-protect ,(transform-scm (unwind-protect-protected expr))
+     ,@(transform-lexical-body (unwind-protect-cleanup expr))))
+(define-scm-special-transform cl:load-time-value (expr env)
+  `(cl:load-time-value ,(transform-scm (load-time-value-form expr))
+		       ,(transform-scm (load-time-value-read-only-p expr))))
+(define-scm-special-transform cl:eval-when (expr env)
   `(cl:eval-when ,(eval-when-situations expr)
-     ,@(transform-lexical-body transformer (eval-when-forms expr))))
-(define-scm-special-transform cl:multiple-value-prog1 (transformer expr env)
-  `(cl:multiple-value-prog1 ,(transform transformer (multiple-value-prog1-values-form expr))
-     ,@(transform-lexical-body transformer (multiple-value-prog1-forms expr))))
-(define-scm-special-transform cl:multiple-value-call (transformer expr env)
-  `(cl:multiple-value-call ,(transform transformer (multiple-value-call-function expr))
-     ,@(transform* transformer (multiple-value-call-arguments expr))))
-(define-scm-special-transform cl:the (transformer expr env)
-  `(cl:the ,(the-value-type expr) ,(transform transformer (the-form expr))))
-(define-scm-special-transform cl:if (transformer expr env)
-  `(cl:if ,(transform transformer (if-test expr))
-	  ,(transform transformer (if-then expr))
-	  ,(transform transformer (if-else expr))))
-(define-scm-special-transform cl:setq (transformer expr env)
+     ,@(transform-lexical-body (eval-when-forms expr))))
+(define-scm-special-transform cl:multiple-value-prog1 (expr env)
+  `(cl:multiple-value-prog1 ,(transform-scm (multiple-value-prog1-values-form expr))
+     ,@(transform-lexical-body (multiple-value-prog1-forms expr))))
+(define-scm-special-transform cl:multiple-value-call (expr env)
+  `(cl:multiple-value-call ,(transform-scm (multiple-value-call-function expr))
+     ,@(transform-scm* (multiple-value-call-arguments expr))))
+(define-scm-special-transform cl:the (expr env)
+  `(cl:the ,(the-value-type expr) ,(transform-scm (the-form expr))))
+(define-scm-special-transform cl:if (expr env)
+  `(cl:if ,(transform-scm (if-test expr))
+	  ,(transform-scm (if-then expr))
+	  ,(transform-scm (if-else expr))))
+(define-scm-special-transform cl:setq (expr env)
   (define (transform-pair pair)
     (define name (first pair))
     (define value (second pair))
-    (list name (transform transformer value)))
+    (list name (transform-scm value)))
   (define pairs (append-map transform-pair (setq-pairs expr)))
   `(setq ,@pairs))
 
-(define-scm-special-transform lisp (transformer expr env)
-  (second expr))
+(define-scm-special-transform no-scm (expr env)
+  expr)
 
 (define (transform-proper-list transformer expr env)
+  (declare (ignore transformer))
   (define fn (first expr))
   (if (or (pair? fn) (variable? fn env))
-      `(cl:funcall ,@(transform* transformer expr))
-      `(,fn ,@(transform* transformer (rest expr)))))
+      `(cl:funcall ,@(transform-scm* expr))
+      `(,fn ,@(transform-scm* (rest expr)))))
 (define (transform-cyclic-list transformer expr env)
   (declare (ignorable transformer expr env))
   (error "Detected cyclic list."))
 (define (transform-dotted-list transformer expr env)
-  (declare (ignorable env))
+  (declare (ignorable transformer env))
   (define (recurse expr)
     (cond
       ((pair? (rest expr))
-       (cons (transform transformer (first expr))
+       (cons (transform-scm (first expr))
 	     (recurse (rest expr))))
-      (t (list (transform transformer (first expr)) (transform transformer (rest expr))))))
+      (t (list (transform-scm (first expr)) (transform-scm (rest expr))))))
   `(cl:apply ,@(recurse expr)))
 
 (define (transform-atom transformer expr env)
@@ -213,12 +231,12 @@ Within LISP, just evalutes form."
     (t `(function ,expr))))
 
 (for-macros
-  (defparameter *scm-transformer*
-    (make-transformer *transform-scm-special-form-table*
-		      'transform-proper-list
-		      'transform-dotted-list
-		      'transform-cyclic-list
-		      'transform-atom)))
+  (setq *scm-transformer*
+	(make-transformer *transform-scm-special-form-table*
+			  'transform-proper-list
+			  'transform-dotted-list
+			  'transform-cyclic-list
+			  'transform-atom)))
 
 (assert (equal? (eval (transform-expression
 		       *scm-transformer*
@@ -266,8 +284,8 @@ If a symbol is both SPECIAL and a bound FUNCTION, it is treated as a function ra
   This is to deal with the unfortunate cases: (+ * / -).
   Typically functions and specials will not have the same name if the *EAR-MUFF* convention is followed.
  
-A (LISP form) will escape SCM and process form as if it is in Common-Lisp.
-E.g. (SCM (LISP +)) => the last evaluated repl form
+A (no-scm form) will escape SCM and process form as if it is in Common-Lisp.
+E.g. (SCM (no-scm +)) => the last evaluated repl form
      (SCM +) => #'+.
 All forms with explicit/implicit blocks/progns are now lisp-1 style lexical-bodies.
 For more details see (lexical-body-definition-documentations) for information about 
@@ -283,7 +301,6 @@ These lexical-body's are the lisp-1 analogue to the lisp-2 style lexical-bodies 
 		    (if (empty? x)
 			()
 			(append (reverse (rest x)) (list (first x)))))
-		  (declare (ignore b))
 		  (progn
 		    (define b 'b)
 		    (reverse (list c b a))))

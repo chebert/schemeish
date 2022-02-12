@@ -23,6 +23,17 @@
   "Associate the cps-function with the given function."
   (hash-set! *function->cps-function-table* function cps-function))
 
+(defmacro cps-lambda (continuation-name &body body)
+  #+nil
+  (let ((function (unique-symbol 'function)))
+    `(cl:let ((,function (cl:lambda (,continuation-name)
+			   ,@body)))
+       ;; TODO: does this table need a weakness on values too? separate table, maybe?
+       (set-cps-function! ,function ,function)
+       ,function))
+  `(cl:lambda (,continuation-name)
+     ,@body))
+
 (define (funcall/c continuation function . arguments)
   "Call function with arguments, passing the resulting values to continuation. 
 If function has an associated CPS-FUNCTION, call it with the given continuation and arguments."
@@ -91,7 +102,7 @@ for body. Body should evaluate to the transformed form."
 
 (def (atom->cps expression)
   (define-unique-symbols continue-from-atom)
-  `(cl:lambda (,continue-from-atom)
+  `(cps-lambda ,continue-from-atom
      (multiple-value-call ,continue-from-atom ,expression)))
 
 (def (transform-cps-atom _ expression _)
@@ -126,13 +137,16 @@ before evaluating (body-proc arguments)"
 Special cases currently exist for funcall and apply."
   (define-unique-symbols continue-from-function-application)
   (define-destructuring (function-name . argument-forms) expression)
-  `(cl:lambda (,continue-from-function-application)
+  `(cps-lambda ,continue-from-function-application
      ;; Evaluate all arguments from left to right
      ,(eval-arguments->cps-form
        argument-forms
-       (lambda (arguments)
+       (cl:lambda (arguments)
 	 ;; Perform function application, using FUNCALL/C
 	 `(funcall/c ,continue-from-function-application (function ,function-name) ,@arguments)))))
+
+(define-transform-cps-special-form no-cps (expression environment)
+  (atom->cps expression))
 
 (define-transform-cps-special-form cl:function (expression environment)
   (atom->cps expression))
@@ -143,6 +157,7 @@ Special cases currently exist for funcall and apply."
   (cond
     ;; (progn) => NIL
     ((empty? forms) (atom->cps nil))
+    ;; (progn . forms)
     (t
      (define-destructuring (form . rest-of-forms) forms)
      (cond
@@ -150,7 +165,7 @@ Special cases currently exist for funcall and apply."
        ((empty? rest-of-forms) (transform-cps form))
        ;; (progn form . rest-of-forms)
        (t (define-unique-symbols continue ignored)
-	  `(cl:lambda (,continue)
+	  `(cps-lambda ,continue
 	     (funcall ,(transform-cps form)
 		      (cl:lambda (&rest ,ignored)
 			(declare (ignore ,ignored))
@@ -162,18 +177,17 @@ Special cases currently exist for funcall and apply."
 
 (define-transform-cps-special-form cl:let (expression environment)
   (define-destructuring (bindings . body) (rest expression))
-  (define-values (declarations forms) (schemeish.internals::parse-declarations body))
+  (define-values (declarations forms) (parse-declarations body))
+  (define-unique-symbols continue-from-let)
   (def binding-names (map let-binding-name bindings))
   (def (iterate bindings binding-values)
     (cond
       ((empty? bindings)
-       (define-unique-symbols continue-from-let)
        (def new-bindings (map list binding-names (nreverse binding-values)))
-       `(cl:lambda (,continue-from-let)
-	  ;; Establish bindings from name->let-binding-value-name in let
-	  (cl:let ,new-bindings
-	    ,@declarations
-	    (funcall ,(transform-forms forms) ,continue-from-let))))
+       ;; Establish bindings from name->let-binding-value-name in let
+       `(cl:let ,new-bindings
+	  ,@declarations
+	  (funcall ,(progn->cps forms) ,continue-from-let)))
       (t
        (define-destructuring (binding . rest-of-bindings) bindings)
        (define-unique-symbols binding-value)
@@ -181,12 +195,40 @@ Special cases currently exist for funcall and apply."
        ;; Bind value to a unique name
        (cps->primary-value value-form binding-value
 			   (list (iterate rest-of-bindings (cons binding-value binding-values)))))))
-  (define transform-forms progn->cps)
-  (iterate bindings ()))
+  `(cps-lambda ,continue-from-let
+     ,(iterate bindings ())))
+
+
+(define-transform-cps-special-form cl:let* (expression environment)
+  (define-destructuring (bindings . body) (rest expression))
+  (define-values (declarations forms) (parse-declarations body))
+  (define-unique-symbols continue-from-let*)
+  (def (iterate bindings)
+    (cond
+      ;; Base case: Evaluate body
+      ;; Unfortunately declarations can only apply to the body.
+      ;; This is inevitable, since each binding depends on the previous binding.
+      ((empty? bindings)
+       ;; Unfortunately, using locally will cause most declarations to be out of scope.
+       ;; The only real solution for this is to parse the declarations ourselves,
+       ;; and sort them to be with the definition of the binding they are declaring.
+       `(cl:locally
+	    ,@declarations
+	  (funcall ,(progn->cps forms) ,continue-from-let*)))
+      ;; Iteration case: evaluate value of next binding, and bind it.
+      (t (define-destructuring (binding . rest-of-bindings) bindings)
+	 (define name (let-binding-name binding))
+	 (define value (let-binding-value binding))
+	 ;; Evaluate the next binding's value, binding it to name.
+	 (cps->primary-value value name
+			     (list `(declare (ignorable ,name))
+				   (iterate rest-of-bindings))))))
+  `(cps-lambda ,continue-from-let*
+     ,(iterate bindings)))
 
 (define-transform-cps-special-form cl:lambda (expression environment)
   (define-destructuring (ordinary-lambda-list . body) (rest expression))
-  (define-values (declarations forms) (schemeish.internals::parse-declarations body))
+  (define-values (declarations forms) (parse-declarations body))
   ;; TODO: Convert (lambda (... (arg arg-default-form arg-provided?) ...) body...)
   ;; into (lambda (... (arg NIL arg-provided?) ...) ... (unless arg-provided? (setq arg arg-default-form)) ... body...)
   ;; before converting to CPS
@@ -200,7 +242,7 @@ Special cases currently exist for funcall and apply."
 	,@declarations
 	(funcall ,(transform-cps `(cl:progn ,@forms)) ,continue-from-lambda)))
      ;; Return a function which takes a continuation and returns the un-transformed lambda expression.
-     (cl:lambda (,continue-from-creating-lambda)
+     (cps-lambda ,continue-from-creating-lambda
        (funcall ,continue-from-creating-lambda ,function))))
 
 (define-transform-cps-special-form cl:setq (expression environment)
@@ -209,7 +251,7 @@ Special cases currently exist for funcall and apply."
     (define (pair->cps pair rest-of-pairs last-pair?)
       (define-destructuring (name value-form) pair)
       (define-unique-symbols value continue-from-setq)
-      `(cl:lambda (,continue-from-setq)
+      `(cps-lambda ,continue-from-setq
 	 ,(cps->primary-value
 	   value-form value
 	   `((setq ,name ,value)
@@ -232,13 +274,59 @@ Special cases currently exist for funcall and apply."
 
 (define-transform-cps-special-form cl:if (expression environment)
   (define-destructuring (test-form then-form &optional else-form) (rest expression))
-  (define-unique-symbols test)
-  (cps->primary-value test-form test
-		      `((cl:if ,test
-			       ,(transform-cps then-form)
-			       ,(transform-cps else-form)))))
+  (define-unique-symbols test continue-from-if)
+  `(cps-lambda ,continue-from-if
+     ,(cps->primary-value test-form test
+			  `((cl:if ,test
+				   (funcall ,(transform-cps then-form) ,continue-from-if)
+				   (funcall ,(transform-cps else-form) ,continue-from-if))))))
 
+(define-transform-cps-special-form cl:the (expression environment)
+  (define-destructuring (type-form value-form) (rest expression))
+  (define-unique-symbols results continue-from-the)
+  `(cps-lambda ,continue-from-the
+     (funcall ,(transform-cps value-form)
+	      (cl:lambda (&rest ,results)
+		(funcall ,(atom->cps `(the ,type-form (values-list ,results))) ,continue-from-the)))))
 
+(define-transform-cps-special-form cl:multiple-value-call (expression environment)
+  (define-destructuring (function-form . arguments) (rest expression))
+  (define-unique-symbols function accumulated-argument-values continue-from-multiple-value-call)
+  
+  (define arguments->cps
+    (let iterate ((arguments arguments))
+      (cond
+	;; Base Case: no arguments, just return no values
+	((empty? arguments)
+	 (define-unique-symbols continuation)
+	 `(cl:lambda (,continuation) (funcall ,continuation)))
+	(t
+	 (define-unique-symbols continuation argument-values accumulated-argument-values)
+	 (define-destructuring (argument . rest-of-arguments) arguments)
+	 ;; A function that takes CONTINUATION and applies it to (append argument-values accumulated-argument-values)
+	 `(cps-lambda ,continuation
+	    ;; evaluate the next argument...
+	    (funcall ,(transform-cps argument)
+		     (cl:lambda (&rest ,argument-values)
+		       ;; ...capturing the values in argument-values
+		       ;; Then evaluate the rest of the argument-values...
+		       (funcall ,(iterate (rest arguments))
+				(cl:lambda (&rest ,accumulated-argument-values)
+				  ;; ...capturing the values in accumulated-argument-values
+				  ;; Apply the continuation to the first argument-values appended to the rest of the accumulated-argument-values
+				  (apply ,continuation (append ,argument-values ,accumulated-argument-values)))))))))))
+
+  `(cps-lambda ,continue-from-multiple-value-call
+     ;;  evalaute the primary value of function-form and capture it in FUNCTION
+     ,(cps->primary-value
+       function-form function
+       `(
+	 ;; evaluate the arguments...
+	 (funcall ,arguments->cps
+		  (cl:lambda (&rest ,accumulated-argument-values)
+		    ;; ...capturing the values in accumulated-argument-values
+		    ;; Apply the function to the accumulated-arguments-results with the given continuation.
+		    (apply/c ,continue-from-multiple-value-call ,function ,accumulated-argument-values)))))))
 
 (def (catch-tags-in-thunk tags thunk)
   "Equivalent to (catch tag1 (catch tag2 ... (catch tagN (thunk))))"
@@ -251,18 +339,14 @@ Special cases currently exist for funcall and apply."
     :opaque)
 
 (for-macros (defvar *current-run-tags* ()))
-(def (run tag cps-thunk handler)
-  "Perform CPS-THUNK catching any tag in the list tags.
+(def (run tag thunk handler)
+  "Perform THUNK catching any tag in the list tags.
 If thunk exits normally (no FCONTROL is encountered), the result of thunk is returned.
 If thunk returns multiple-values, only the first value is returned.
 If thunk does not exit normally (FCONTROL aborts the continuation), 
-the (handler tag value continuation) is invoked.
-
-CPS-THUNK is expected to be a function defined in continuation passing style. 
-E.g. (lambda (continue) (continue values...))"
+the (handler tag value continuation) is invoked."
   (let ((thunk-result (let ((*current-run-tags* (cons tag *current-run-tags*)))
-			(catch-tags-in-thunk *current-run-tags*
-					     (lambda () (cps-thunk values))))))
+			(catch-tags-in-thunk *current-run-tags* thunk))))
     ;; If the result is an fcontrol-signal, it means an (FCONTROL value) form was encountered.
     (cond
       ((fcontrol-signal? thunk-result)
@@ -286,7 +370,7 @@ E.g. (lambda (continue) (continue values...))"
 	     value
 	     (lambda arguments
 	       (run tag
-		    (lambda (continue) ((apply continuation arguments) continue))
+		    (lambda () (apply continuation arguments))
 		    handler)))))))
       ;; Otherwise, we encountered a normal exit: return the result
       (t thunk-result))))
@@ -297,19 +381,19 @@ E.g. (lambda (continue) (continue values...))"
 (define-transform-cps-special-form fcontrol (expression environment)
   (define-unique-symbols continue-from-fcontrol)
   (define arguments (rest expression))
-  `(cl:lambda (,continue-from-fcontrol)
+  `(cps-lambda ,continue-from-fcontrol
      ,(eval-arguments->cps-form
        arguments
        (lambda (argument-names)
 	 (define-destructuring (tag value) argument-names)
 	 `(throw ,tag (make-fcontrol-signal ,tag ,value ,continue-from-fcontrol))))))
-(defmacro fcontrol (&whole whole tag value)
+(defmacro fcontrol (tag value)
   "Evaluates tag, then value, throwing tag, value, and the current continuation
 to the dynamically nearest established RUN, aborting the current continuation.
 If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluates to VALUE."
   (declare (ignore tag))
   `(progn
-     (warn "Attempt to ~S in a non-CPS environment. Evaluating to value." ',whole)
+     (warn "Attempt to FCONTROL in a non-CPS environment. Evaluating to value.")
      ,value))
 
 
@@ -327,6 +411,7 @@ If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluate
   "Transforms EXPR into continuation-passing-style."
   `(funcall ,(transform-cps expr) #'values))
 
+(defmacro no-cps (expr) expr)
 
 (defmacro cps-form-equal? (form)
   (let ((results (unique-symbol 'results)))
@@ -335,23 +420,53 @@ If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluate
 	       ,results))))
 
 
+;; %/FCONTROL
+(defmacro % (expr &key tag handler)
+  `(run ,tag (cl:lambda () (no-cps (cps ,expr))) ,handler))
+
 
 
 
 ;; atoms
 (assert (cps-form-equal? 1))
-;; function application
-(assert (cps-form-equal? (values 1 2 3 4 5)))
-(assert (cps-form-equal? (+ (values 1 2) (values 3 4))))
-(assert (cps-form-equal? (+ 1 2 (+ 3 4))))
+(assert (cps-form-equal? (no-cps (values 1 2 3))))
+(assert (cps-form-equal? (no-cps (cps (values 1 2 3)))))
 ;; Function
 (assert (cps-form-equal? #'+))
 ;; Quote
 (assert (cps-form-equal? '(the quick brown fox)))
+
+;; function application
+(assert (cps-form-equal? (values 1 2 3 4 5)))
+(assert (cps-form-equal? (+ (values 1 2) (values 3 4))))
+(assert (cps-form-equal? (+ 1 2 (+ 3 4))))
+
+(assert (equal? (scm
+		  (let* ((xs ())
+			 (push-v (lambda (x) (push x xs) x)))
+		    (list
+		     (% (+
+			 ;; Called once
+			 (push-v 1)
+			 ;; Called each time continue is called. (twice)
+			 (push-v (fcontrol :pause :value))
+			 ;; Called each time continue is called. (twice)
+			 (push-v 3))
+			:tag :pause
+			:handler
+			;; Called once.
+			(lambda (value continue)
+			  ;; (:VALUE (+ 1 2 3) (+ 1 3 3)) => (:value 6 7) 
+			  (list value (continue 2) (continue 3))))
+		     (nreverse xs))))
+		'((:VALUE 6 7) (1 2 3 3 3))))
+
+
 ;; Progn
 (assert (cps-form-equal? (progn)))
 (assert (cps-form-equal? (progn (values 1 2 3))))
 (assert (cps-form-equal? (progn 1 2 3 4 (values 1 2 3))))
+
 
 ;; TODO: it would be cool to have (define-output-to-string stream) ... just a thought
 (assert (equal? (with-output-to-string (s)
@@ -361,12 +476,111 @@ If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluate
 (assert (cps-form-equal? (progn '(the quick brown fox) #'+)))
 (assert (cps-form-equal? (progn #'+ '(the quick brown fox))))
 
+
+;; (progn forms... (fcontrol ...))
+(assert (equal? (scm
+		  (% (progn (fcontrol :abort :value))
+		     :tag :abort
+		     :handler
+		     (lambda (v k)
+		       (list v
+			     (multiple-value-list (k 1 2 3))
+			     (multiple-value-list (k 4 5 6))))))
+		'(:value (1 2 3) (4 5 6))))
+;; (progn forms... (fcontrol ...) forms...)
+(assert (equal? (scm
+		  (let* ((vs ())
+			 (v (lambda (x) (push x vs) x)))
+		    (list (% (progn (v (fcontrol :abort :value)) (v 2) (v 3))
+			     :tag :abort
+			     :handler
+			     (lambda (v k)
+			       ;; vs: (3 2 1)
+			       (k 1)
+			       ;; vs: (3 2 :one 3 2 1)
+			       (k :one)
+			       ;; :value
+			       v))
+			  ;; (3 2 :one 3 2 1)
+			  vs)))
+		'(:VALUE (3 2 :ONE 3 2 1))))
+
 ;; Let
 (assert (cps-form-equal? (let () (values 1 2 3))))
 (assert (cps-form-equal? (let ((a 1) (b :steak)) (values a b))))
 (assert (cps-form-equal? (let ((a (values 1 2 3)) (b (values :steak :sauce))) (values a b))))
 ;; Verifies that names aren't visible, but causes a warning
 ;; (assert (not (ignore-errors (cps (let ((a 1) (b a)) (values a b))))))
+
+
+(assert (equal? (scm
+		  (% (let ()
+		       (fcontrol :abort :value))
+		     :tag :abort
+		     :handler
+		     (lambda (v k)
+		       (list v (multiple-value-list (k 1 2 3))))))
+		'(:value (1 2 3))))
+
+(assert (equal? (scm
+		  (define vs ())
+		  (define (v x) (push x vs) x)
+		  (list (% (let ((binding1 (v 1))
+				 (binding2 (v (fcontrol :abort :value)))
+				 (binding3 (v 3)))
+			     (values binding1 binding2 binding3))
+			   :tag :abort
+			   :handler
+			   (lambda (v k)
+			     (list
+			      ;; :value
+			      v
+			      ;; (1 2 3)
+			      (multiple-value-list (k 2 :ignored))
+			      ;; (1 :two 3)
+			      (multiple-value-list (k :two :ignored)))))
+			(nreverse vs)))
+		'((:VALUE (1 2 3) (1 :TWO 3)) (1 2 3 :TWO 3))))
+
+
+;; LET*
+(assert (cps-form-equal? (let* () (values 1 2 3))))
+(assert (cps-form-equal? (let* ((a 1) (b (1+ a)) (c (1+ b)))
+			   (declare (ignore c))
+			   (values a b))))
+(assert (cps-form-equal? (let* ((a 1) b (c (1+ a)))
+			   (declare (ignorable b))
+			   (values a c))))
+
+
+(assert (equal? (scm
+		  (% (let* ()
+		       (fcontrol :abort :value))
+		     :tag :abort
+		     :handler
+		     (lambda (v k)
+		       (list v (multiple-value-list (k 1 2 3))))))
+		'(:value (1 2 3))))
+
+(assert (equal? (scm
+		  (define vs ())
+		  (define (v x) (push x vs) x)
+		  (list (% (let* ((binding1 (v 1))
+				  (binding2 (v (fcontrol :abort :value)))
+				  (binding3 (v (+ binding1 binding2))))
+			     (values binding1 binding2 binding3))
+			   :tag :abort
+			   :handler
+			   (lambda (v k)
+			     (list
+			      ;; :value
+			      v
+			      ;; (1 2 (+ 1 2))
+			      (multiple-value-list (k 2 :ignored))
+			      ;; (1 4 (+ 1 4))
+			      (multiple-value-list (k 4 :ignored)))))
+			(nreverse vs)))
+		'((:VALUE (1 2 3) (1 4 5)) (1 2 3 4 5))))
 
 
 ;; Lambda
@@ -380,6 +594,25 @@ If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluate
 			   1 2 3)
 		'(1 2 3)))
 
+
+(assert (equal? (scm
+		  (define vs ())
+		  (define (v x) (push x vs) x)
+		  (list (% (funcall (cl:lambda (a b c) (values (v a) (v (fcontrol :abort b)) (v c))) 1 :value 3)
+			   :tag :abort
+			   :handler
+			   (lambda (v k)
+			     (list
+			      ;; :value
+			      v
+			      ;; (1 2 3)
+			      (multiple-value-list (k 2))
+			      ;; (1 :two 3)
+			      (multiple-value-list (k :two)))))
+			(nreverse vs)))
+		'((:VALUE (1 2 3) (1 :TWO 3)) (1 2 3 :TWO 3))))
+
+
 ;; Setq
 (assert (cps-form-equal? (setq)))
 (assert (let (a b c)
@@ -387,59 +620,169 @@ If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluate
 				 b (1+ a)
 				 c (1+ b)))))
 
+(assert (equal? (scm
+		  (define vs ())
+		  (define (v x) (push x vs) x)
+		  (let (a b c)
+		    (list (% (setq a (v :a)
+				   b (v (fcontrol :abort :value))
+				   c (v b))
+			     :tag :abort
+			     :handler (lambda (v k)
+					(list v
+					      (list a b c)
+					      (k :b :ignored)
+					      (list a b c)
+					      (k :bee :ignored)
+					      (list a b c))))
+			  (nreverse vs))))
+		'((:VALUE (:A NIL NIL) :B (:A :B :B) :BEE (:A :BEE :BEE)) (:A :B :B :BEE :BEE))))
+
+
 ;; If
 (assert (cps-form-equal? (if (values t nil nil)
 			     (progn 1 2 3)
+			     ;; Unreachable
 			     (values 4 5 6))))
 (assert (cps-form-equal? (if (values nil t nil)
 			     (progn 1 2 3)
 			     (values 4 5 6))))
 
+(assert (equal? (scm
+		  (define vs ())
+		  (define (v x) (push x vs) x)
+		  (list (% (if (v (fcontrol :abort :value))
+			       (v :true)
+			       (v :false))
+			   :tag :abort
+			   :handler (lambda (v k)
+				      (list v (k t :ignored) (k nil :ignored))))
+			(nreverse vs)))
+		'((:value :true :false)
+		  (t :true nil :false))))
 
 
-;; RUN/FCONTROL
-(defmacro % (tag expr handler)
-  `(run ,tag (cps-function (cl:lambda () ,expr)) ,handler))
+;; The
+(assert (cps-form-equal? (the (values number string &optional) (values 3 "string"))))
+(assert (equal? (scm
+		  (list (% (the (values number string &optional) (fcontrol :abort :value))
+			   :tag :abort
+			   :handler (lambda (v k)
+				      (list v (multiple-value-list (k 3 "hello")))))))
+		'((:VALUE (3 "hello")))))
 
-(assert (equal? (cps
-		 (% :abort
-		    (list (fcontrol :abort :one) 2 3)
-		    (cl:lambda (value continuation)
-		      (list value (funcall continuation 1)))))
+
+
+;; Multiple-value-call
+(assert (cps-form-equal? (multiple-value-call (values #'list 2 3 4) (values) (values))))
+(assert (cps-form-equal? (multiple-value-call (values #'list 2 3 4))))
+(assert (cps-form-equal? (multiple-value-call (values #'values 2 3 4) (values 1 2) (values 3 4) (values 5 6))))
+
+
+(assert (equal?
+	 (scm
+	   (define vs ())
+	   (define (v x) (push x vs) x)
+	   (list
+	    (% (multiple-value-call list (values (v 1) (v 2)) (fcontrol :abort :value) (values (v 5) (v 6)))
+	       :tag :abort
+	       :handler
+	       (lambda (v k)
+		 (list v (k 3 4) (k :three :four))))
+	    (nreverse vs)))
+	 '((:VALUE (1 2 3 4 5 6) (1 2 :THREE :FOUR 5 6))
+	   (1 2 5 6 5 6))))
+
+
+(assert (equal? (% (list (fcontrol :abort :one) 2 3)
+		   :tag :abort
+		   :handler
+		   (cl:lambda (value continuation)
+		     (list value (funcall continuation 1))))
 		'(:one (1 2 3))))
 
 ;; Re-establish inner prompts when continuing from an outer prompt:
-(assert (equal? (cps
-		 (% :outer-abort
-		    (% :inner-abort
-		       (list (fcontrol :outer-abort :one) (fcontrol :inner-abort :two) 3)
-		       (cl:lambda (value continuation)
-			 (declare (ignore value))
-			 (funcall continuation 2)))
-		    (cl:lambda (value continuation)
-		      (declare (ignore value))
-		      (funcall continuation 1))))
+(assert (equal? (% (% (list (fcontrol :outer-abort :one) (fcontrol :inner-abort :two) 3)
+		      :tag :inner-abort
+		      :handler
+		      (cl:lambda (value continuation)
+			(declare (ignore value))
+			(funcall continuation 2)))
+		   :tag :outer-abort
+		   :handler
+		   (cl:lambda (value continuation)
+		     (declare (ignore value))
+		     (funcall continuation 1)))
 		'(1 2 3)))
 
 ;; Simple-exit example
-(assert (= (cps
-	    (cl:let (product)
-	      (setq product
-		    (cl:lambda (numbers) 
-		      (% :product
-			 (cl:let (recurse)
-			   (setq recurse
-				 (cl:lambda (numbers)
-				   (if (empty? numbers)
-				       1
-				       (cl:let ((number (first numbers)))
-					 ;; Short-circut if any number is 0
-					 (if (zero? number)
-					     (fcontrol :product 0)
-					     (* number (funcall recurse (rest numbers))))))))
-			   (funcall recurse numbers))
-			 (cl:lambda (result continuation)
-			   (declare (ignore continuation))
-			   result))))
-	      (funcall product '(1 2 3 4 5))))
-	   (* 1 2 3 4 5)))
+(def (product . numbers)
+  (% (let recurse ((numbers numbers))
+       (cond
+	 ((empty? numbers) 1)
+	 (t (define-destructuring (number . rest-of-numbers) numbers)
+	    ;; Short-circut if any number is 0
+	    (cond
+	      ((zero? number) (fcontrol :product :zero))
+	      (t (* number (recurse rest-of-numbers)))))))
+     :tag :product
+     :handler
+     (lambda (result _continuation)
+       result)))
+
+(assert (= (product 1 2 3 4 5) (* 1 2 3 4 5)))
+(assert (eq? :zero (product 0 1 2 3 4 5)))
+
+;; Tree matching
+(def ((make-fringe tree))
+  (cps
+   (progn
+     (let recurse ((tree tree))
+       (cond
+	 ((pair? tree)
+	  (recurse (car tree))
+	  (recurse (cdr tree)))
+	 ((empty? tree) :*)
+	 (t
+	  (fcontrol :yield tree))))
+     (fcontrol :yield ()))))
+
+(def (collect-fringe tree)
+  (define leaves ())
+  (let recurse ((fringe (make-fringe tree)))
+    (% (fringe)
+       :tag :yield
+       :handler
+       (lambda (leaf rest-of-fringe)
+	 (cond
+	   ((null? leaf) leaves)
+	   (t
+	    (push leaf leaves)
+	    (recurse rest-of-fringe))))))
+  leaves)
+
+(def (same-fringe? tree1 tree2)
+  (let recurse ((fringe1 (make-fringe tree1))
+		(fringe2 (make-fringe tree2)))
+    (% (fringe1)
+       :tag :yield
+       :handler
+       (lambda (leaf1 rest-of-fringe1)
+	 (% (fringe2)
+	    :tag :yield
+	    :handler
+	    (lambda (leaf2 rest-of-fringe2)
+	      (if (eq? leaf1 leaf2)
+		  (if (null? leaf1)
+		      t
+		      (recurse rest-of-fringe1 rest-of-fringe2))
+		  nil)))))))
+
+(assert (equal? (collect-fringe '((1 2) ((3 (4 5)) (6 7))))
+		'(7 6 5 4 3 2 1)))
+(assert (same-fringe? '((1 2) ((3) (4 5)))
+		      '((1 . 2) . ((3 . ()) . (4 . 5)))))
+(assert (not (same-fringe? '((1 2) ((3) (4 5)))
+			   '((1 2) ((3 4) (4 5))))))
+
+

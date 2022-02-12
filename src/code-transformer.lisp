@@ -60,7 +60,7 @@ Otherwise, the form is treated as an atom and transformed using the transformer'
   (define (transform transformer expression)
     "Returns a form that when evaluated, will transform the given expression
 in the current *LEXICAL-CONTEXT*."
-    `(lisp (transform-in-lexical-environment ,transformer ,expression ,*lexical-context*))))
+    `(transform-in-lexical-environment ,transformer ,expression ,*lexical-context*)))
 
 (export-definition
   (define (declare? form)
