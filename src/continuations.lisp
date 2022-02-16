@@ -379,44 +379,21 @@ Aux variables will be (name value)"
 		    ;; Apply the function to the accumulated-arguments-results with the given continuation.
 		    (apply/c ,continue-from-multiple-value-call ,function ,accumulated-argument-values)))))))
 
-
-
-;; TODO
-#;
-(cps (scm
-       (def vs ())
-       (def (v x) (push x vs) x)
-       (tagbody
-	  (v :start)
-	:tag1
-	  (v :tag1)
-	  (unwind-protect
-	       (progn
-		 (v :inside-protected)
-		 (go :tag2))
-	    (v :cleanup))
-	:tag2
-	  (v :tag2))
-       (nreverse vs)))
-
-
-
-;; TODO
-;; tagbody should be dynamic
-
-;; Use unwind-protect for definition of unwind-protect
-;;   what about fcontrol inside cleanup forms of unwind-protect?
-;; use %/fcontrol for definitions of block/tagbody
-
-;; I Think this should work for unwind-protect, once I switch from throw tag to throw :fcontrol
-
-
-
-(def (catch-tags-in-thunk tags thunk)
-  "Equivalent to (catch tag1 (catch tag2 ... (catch tagN (thunk))))"
-  (if (empty? tags)
-      (thunk)
-      (catch-tags-in-thunk (rest tags) (lambda () (catch (first tags) (thunk))))))
+(assert (cps-form-equal? (scm
+			   (def vs ())
+			   (def (v x) (push x vs) x)
+			   (tagbody
+			      (v :start)
+			    :tag1
+			      (v :tag1)
+			      (unwind-protect
+				   (progn
+				     (v :inside-protected)
+				     (go :tag2))
+				(v :cleanup))
+			    :tag2
+			      (v :tag2))
+			   (nreverse vs))))
 
 (define-struct fcontrol-signal
     (tag value continuation)
@@ -628,65 +605,83 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; if there is no matching tag visible to go, results are undefined.
 (define-transform-cps-special-form cl:tagbody (expression environment)
   (define-destructuring (untagged-statements . tagged-forms) (parse-tagbody (rest expression)))
-  (define-unique-symbols continue-from-tagbody go-tag->function-alist continue-from-run handler)
+  (define-unique-symbols continue-from-tagbody handler tagbody-prompt-tag)
   (define tags (map first tagged-forms))
 
-  (define go-tag->function-alist-form
-    `(list ,@(map (lambda (tag statements next-tag)
-		    `(cons ',tag (cl:lambda ()
-				   (funcall ,(transform-cps
-					      `(progn
-						 ,@statements
-						 ,@(when next-tag
-						     `((funcall (alist-ref ,go-tag->function-alist ',next-tag))))))
-					    #'values))))
-		  tags
-		  (map rest tagged-forms)
-		  (append (rest tags) (list nil)))))
+  (define (thunk-form statements)
+    "Return a thunk that calls (progn statements...) in continuation-passing style."
+    `(cl:lambda () (funcall ,(transform-cps `(progn ,@statements)) #'values)))
+  
+  (define (tag-thunk-form statements next-tag)
+    "Return a thunk that evaluates a tag's statements before calling the next-tag's thunk."
+    (thunk-form (append statements (list `(funcall ,(tag->function-name next-tag))))))
 
-  `(cps-lambda ,continue-from-tagbody
-     (let ((,go-tag->function-alist)
-	   (,continue-from-run (cl:lambda (&rest results) (declare (ignore results)) (funcall ,continue-from-tagbody nil)))
-	   (,handler))
-       (setq ,go-tag->function-alist ,go-tag->function-alist-form)
-       (setq ,handler
-	     (cl:lambda (tag continue-from-go)
-	       (declare (ignore continue-from-go))
-	       (let ((tag-thunk (alist-ref ,go-tag->function-alist tag)))
-		 (if tag-thunk
-		     ;; Ignore results from tag-thunk
-		     (run (lambda results (declare (ignore results)) nil)
-			  *tagbody-go-tag*
-			  tag-thunk
-			  ,handler)
-		     ;; If we don't have go-tag, then we need to re-throw
-		     (throw *fcontrol-tag*
-		       (make-fcontrol-signal
-			*tagbody-go-tag*
-			tag
-			;; Continuation is irrelevant since either
-			;;   an outer tagbody handles this and sets the continuation
-			;;   no tagbody is found with the given tag.
-			(lambda _ (error "Should not happen."))))))))
+  (define (last-tag-thunk-form statements)
+    "Return a thunk that evaluates a tag's statements."
+    (thunk-form statements))
 
-       (run ,continue-from-run
-	    *tagbody-go-tag*
-	    (cl:lambda ()
-	      (funcall ,(transform-cps `(progn
-					  ,@untagged-statements
-					  ,@(unless (empty? tags)
-					      `((funcall (alist-ref ,go-tag->function-alist ',(first tags)))))))
-		       #'values))
-	    ,handler))))
+  (define tag->function-name-alist
+    (map (lambda (tag) (cons tag (unique-symbol (symbolicate tag '-function))))
+	 tags))
+  (define (tag->function-name tag)
+    (alist-ref tag->function-name-alist tag))
+  (define function-names (map tag->function-name tags))
+  
+  (define (tag->statements tag)
+    (alist-ref tagged-forms tag))
 
+  ;; GO needs to throw to a specific tagbody, and the name of a tag-thunk to throw
+  (define (extend-lexical-context alist)
+    (alist-update alist :tagbody-context-alist
+		  (lambda (alist)
+		    (append (map (lambda (tag)
+				   (cons tag (list tagbody-prompt-tag (tag->function-name tag))))
+				 tags)
+			    alist))))
+
+  (define (untagged-thunk-form)
+    (if (empty? tags)
+	(last-tag-thunk-form untagged-statements)
+	(tag-thunk-form untagged-statements (first tags))))
+  (define (function-name-assignments)
+    (append
+     (map (lambda (tag next-function-name)
+	    `(setq ,(tag->function-name tag) ,(tag-thunk-form (tag->statements tag) next-function-name)))
+	  tags
+	  (rest tags))
+     (map (lambda (tag)
+	    `(setq ,(tag->function-name tag) ,(last-tag-thunk-form (tag->statements tag))))
+	  (last tags))))
+
+  (let* ((*lexical-context* (extend-lexical-context *lexical-context*)))
+    `(cps-lambda ,continue-from-tagbody
+       (let (,handler
+	     ,@function-names)
+	 ,@(function-name-assignments)
+	 (setq ,handler
+	       (cl:lambda (tag-thunk continue-from-go)
+		 (declare (ignore continue-from-go))
+		 ;; Ignore results from tag-thunk
+		 (run (cl:lambda (&rest _results) (declare (ignore _results)) nil)
+		      ',tagbody-prompt-tag
+		      tag-thunk
+		      ,handler)))
+	 ;; Ignore results, just return nil
+	 (run (cl:lambda (&rest _results) (declare (ignore _results)) (funcall ,continue-from-tagbody nil))
+	      ',tagbody-prompt-tag
+	      ,(untagged-thunk-form)
+	      ,handler)))))
 
 (define-transform-cps-special-form cl:go (expression environment)
   (define-unique-symbols continue-from-go)
   (define-destructuring (tag) (rest expression))
-  ;; TODO: check lexical body for tag names
-  `(no-cps
-    (cps-lambda ,continue-from-go
-      (funcall ,(transform-cps `(fcontrol *tagbody-go-tag* ',tag)) ,continue-from-go))))
+  (define tag-data (alist-ref (alist-ref *lexical-context* :tagbody-context-alist) tag))
+  (cond
+    (tag-data
+     (define-destructuring (tagbody-prompt-tag function-name) tag-data)
+     `(cps-lambda ,continue-from-go
+	(no-cps (funcall ,(transform-cps `(fcontrol ',tagbody-prompt-tag ,function-name)) ,continue-from-go))))
+    (t (error "Could not find TAG ~S in lexical-context of GO." tag))))
 
 
 ;; TODO:
@@ -1081,7 +1076,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 
 (assert (cps-form-equal? (scm
 			   (def vs ())
-			   (def (v x) (print (list 'pushing x)) (push x vs) (print (list 'vs-value vs)) x)
+			   (def (v x) (push x vs) x)
 			   (list
 			    (v 'before)
 			    (tagbody
@@ -1102,9 +1097,6 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			     tag2 (v :t2) (go tag1) (v :t22)
 			     end (v :end))
 			    (nreverse vs)))))
-
-
-
 
 (assert (cps-form-equal? (scm
 			   (def vs ())
@@ -1282,7 +1274,6 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 	    :end)
 	   (nreverse vs))))
 
-
 ;; catch/throw
 (assert (cps-form-equal? (catch :tag (throw :tag (values 1 2 3)) (error "unreached"))))
 (assert (cps-form-equal? (catch :tag (throw (throw :tag (values :one :two :three)) (values 1 2 3)) (error "unreached"))))
@@ -1333,8 +1324,6 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 
 ;; load-time-value
 ;; multiple-value-prog1
-
-
 
 
 (assert (equal? (% (list (fcontrol :abort :one) 2 3)
@@ -1430,3 +1419,5 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			   '((1 2) ((3 4) (4 5))))))
 
 
+
+;; TODO: Idea. register names for transformers to that the output is more legible
