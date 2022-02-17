@@ -50,12 +50,10 @@ If function has an associated CPS-FUNCTION, call it with the given continuation 
 (define (register-transform-cps-special-form symbol transform)
   (hash-set! *transform-cps-special-form-table* symbol transform))
 
-(for-macros
-  (defvar *cps-transformer*))
 (define (transform-cps form)
-  (transform *cps-transformer* form))
+  (transform 'cps form))
 (define (transform-cps* forms)
-  (transform* *cps-transformer* forms))
+  (transform* 'cps forms))
 
 (defmacro define-transform-cps-special-form (name (expression environment) &body body)
   "Define a special form transformer for the CPS macro-expansion.
@@ -264,37 +262,46 @@ Aux variables will be (name value)"
 			(:aux ())))
 		    ordinary-lambda-list)))))
 
+(def (function-binding->cps name full-lambda-list body)
+  (define continue (unique-symbol (symbolicate 'continue-from- name)))
+  (define default-parameter-assignments ())
+  (define lambda-list (cons continue
+			    (map-ordinary-lambda-list
+			     (lambda (key parameter)
+			       (ecase key
+				 (:positional parameter)
+				 ((:optional :key)
+				  (push `(unless ,(third parameter)
+					   (setq ,(first parameter)
+						 ,(second parameter)))
+					default-parameter-assignments)
+				  (list (first parameter) nil (third parameter)))
+				 (:keyword parameter)
+				 (:rest parameter)))
+			     full-lambda-list)))
+  (define-values (declarations forms) (parse-declarations body))
+  `(,name ,lambda-list
+	  ,@declarations
+	  (funcall ,(transform-cps
+		     `(progn
+			,@(nreverse default-parameter-assignments)
+			,@forms))
+		   ,continue)))
+
+
 (define-transform-cps-special-form cl:lambda (expression environment)
   (define-destructuring (ordinary-lambda-list . body) (rest expression))
-  (define-values (declarations forms) (parse-declarations body))
-  ;; TODO: Convert (lambda (... (arg arg-default-form arg-provided?) ...) body...)
-  ;; into (lambda (... (arg NIL arg-provided?) ...) ... (unless arg-provided? (setq arg arg-default-form)) ... body...)
-  ;; before converting to CPS
-  (define-unique-symbols function continue-from-lambda continue-from-creating-lambda cps-function)
+  (define-unique-symbols function continue-from-creating-lambda cps-function)
   (def full-lambda-list (full-ordinary-lambda-list ordinary-lambda-list))
-  #;
-  (def continuation-lambda-list (cons continue-from-lambda
-				      (map-ordinary-lambda-list
-				       (lambda (key parameter)
-					 (ecase key
-					   (:positional parameter)
-					   ((:optional :key)
-					    (list (first parameter) nil (third parameter)))
-					   (:keyword parameter)
-					   (:rest parameter)))
-				       full-lambda-list)))
-  ;; The value being returned is the un-transformed lambda expression
-  `(cl:let* ((,cps-function (cl:lambda ,(cons continue-from-lambda full-lambda-list)
-			      ,@declarations
-			      ;; TODO: establish bindings from full-lambda-list at the beginning of forms
-			      (funcall ,(transform-cps `(cl:progn ,@forms)) ,continue-from-lambda)))
-	     ;; TODO: create a function-call from an ordinary-lambda-list
-	     (,function (cl:lambda ,full-lambda-list (apply ,cps-function #'values ,(full-ordinary-lambda-list->function-argument-list-form full-lambda-list)))))
-     ;; Transform the lambda expression and register it as the CPS-function of the function
-     (set-cps-function! ,function ,cps-function)
-     ;; Return a function which takes a continuation and returns the un-transformed lambda expression.
-     (cps-lambda ,continue-from-creating-lambda
-       (funcall ,continue-from-creating-lambda ,function))))
+  `(no-cps
+    (cl:let* ((,cps-function ,(function-binding->cps 'cl:lambda full-lambda-list body))
+	      ;; The continuation function curried with #'values as the continuation
+	      (,function (cl:lambda ,full-lambda-list (apply ,cps-function #'values ,(full-ordinary-lambda-list->function-argument-list-form full-lambda-list)))))
+      ;; Transform the lambda expression and register it as the CPS-function of the function
+      (set-cps-function! ,function ,cps-function)
+      ;; Return a function which doesn't take a continuation, but has a cps-function associated with it.
+      (cps-lambda ,continue-from-creating-lambda
+	(funcall ,continue-from-creating-lambda ,function)))))
 
 (define-transform-cps-special-form cl:setq (expression environment)
   (def pairs (setq-pairs expression))
@@ -379,21 +386,6 @@ Aux variables will be (name value)"
 		    ;; Apply the function to the accumulated-arguments-results with the given continuation.
 		    (apply/c ,continue-from-multiple-value-call ,function ,accumulated-argument-values)))))))
 
-(assert (cps-form-equal? (scm
-			   (def vs ())
-			   (def (v x) (push x vs) x)
-			   (tagbody
-			      (v :start)
-			    :tag1
-			      (v :tag1)
-			      (unwind-protect
-				   (progn
-				     (v :inside-protected)
-				     (go :tag2))
-				(v :cleanup))
-			    :tag2
-			      (v :tag2))
-			   (nreverse vs))))
 
 (define-struct fcontrol-signal
     (tag value continuation)
@@ -589,14 +581,21 @@ This way, every time thunk is executed, before-thunk will be run before and afte
   (define-destructuring (expr &key tag (handler ''default-prompt-handler)) (rest expression))
   `(cps-lambda ,continue-from-%
      (multiple-value-call ,continue-from-%
+       ;; Evaluate the tag and store it in tag-name
        ,(cps->primary-value
 	 tag tag-name
-	 `(,(cps->primary-value
-	     handler handler-name
-	     `((no-cps (run ,continue-from-% ,tag-name (cl:lambda () (cps ,expr)) ,handler-name)))))))))
-;; TODO: Merge with above
+	 (list
+	  ;; Evaluate the handler and store it in handler-name
+	  (cps->primary-value
+	   handler handler-name
+	   ;; Run the expr with the given tag and handler.
+	   `((no-cps (run ,continue-from-%
+			  ,tag-name
+			  (cl:lambda () (funcall ,(transform-cps expr) #'values))
+			  ,handler-name)))))))))
 (defmacro % (expr &key tag (handler ''default-prompt-handler))
-  `(no-cps (run #'values ,tag (cl:lambda () (cps ,expr)) ,handler)))
+  ;; This version is only called from non-cps code, so as a shortcut we can enable CPS code.
+  `(cps (% ,expr :tag ,tag :handler ,handler)))
 
 (defvar *tagbody-go-tag* (unique-symbol 'tagbody-go-tag))
 
@@ -605,7 +604,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; if there is no matching tag visible to go, results are undefined.
 (define-transform-cps-special-form cl:tagbody (expression environment)
   (define-destructuring (untagged-statements . tagged-forms) (parse-tagbody (rest expression)))
-  (define-unique-symbols continue-from-tagbody handler tagbody-prompt-tag)
+  (define-unique-symbols continue-from-tagbody recurse thunk tagbody-prompt-tag)
   (define tags (map first tagged-forms))
 
   (define (thunk-form statements)
@@ -639,38 +638,42 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 				 tags)
 			    alist))))
 
-  (define (untagged-thunk-form)
-    (if (empty? tags)
-	(last-tag-thunk-form untagged-statements)
-	(tag-thunk-form untagged-statements (first tags))))
-  (define (function-name-assignments)
-    (append
-     (map (lambda (tag next-function-name)
-	    `(setq ,(tag->function-name tag) ,(tag-thunk-form (tag->statements tag) next-function-name)))
-	  tags
-	  (rest tags))
-     (map (lambda (tag)
-	    `(setq ,(tag->function-name tag) ,(last-tag-thunk-form (tag->statements tag))))
-	  (last tags))))
-
   (let* ((*lexical-context* (extend-lexical-context *lexical-context*)))
+    (define untagged-thunk-form
+      (if (empty? tags)
+	  (last-tag-thunk-form untagged-statements)
+	  (tag-thunk-form untagged-statements (first tags))))
+
+    (define function-name-assignments
+      (append
+       (map (lambda (tag next-function-name)
+	      `(setq ,(tag->function-name tag) ,(tag-thunk-form (tag->statements tag) next-function-name)))
+	    tags
+	    (rest tags))
+       (map (lambda (tag)
+	      `(setq ,(tag->function-name tag) ,(last-tag-thunk-form (tag->statements tag))))
+	    (last tags))))
+    
     `(cps-lambda ,continue-from-tagbody
-       (let (,handler
-	     ,@function-names)
-	 ,@(function-name-assignments)
-	 (setq ,handler
-	       (cl:lambda (tag-thunk continue-from-go)
-		 (declare (ignore continue-from-go))
-		 ;; Ignore results from tag-thunk
-		 (run (cl:lambda (&rest _results) (declare (ignore _results)) nil)
-		      ',tagbody-prompt-tag
-		      tag-thunk
-		      ,handler)))
-	 ;; Ignore results, just return nil
-	 (run (cl:lambda (&rest _results) (declare (ignore _results)) (funcall ,continue-from-tagbody nil))
-	      ',tagbody-prompt-tag
-	      ,(untagged-thunk-form)
-	      ,handler)))))
+       (no-cps
+	(let (,@function-names)
+	  ,@function-name-assignments
+	  (let ,recurse ((,thunk ,untagged-thunk-form))
+	    (let (encountered-go?)
+	      (run (lambda results
+		     ;; If a go was encountered loop until no more go forms are encountered
+		     (if encountered-go?
+			 ;; a go was encountered, loop with the tag-thunk returned from the handler
+			 (,recurse (first results))
+			 ;; Otherwise, return nil from the tagbody
+			 (funcall ,continue-from-tagbody nil)))
+		   ',tagbody-prompt-tag
+		   ,thunk
+		   (lambda (tag-thunk _continue-from-go)
+		     ;; Encountered a go, we will continue looping
+		     (set! encountered-go? t)
+		     ;; return the tag-thunk to the continuation
+		     tag-thunk)))))))))
 
 (define-transform-cps-special-form cl:go (expression environment)
   (define-unique-symbols continue-from-go)
@@ -698,12 +701,12 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 
 (for-macros
   (scm
-    (expose-variables
-     (*cps-transformer* (make-transformer *transform-cps-special-form-table*
-					  transform-cps-proper-list
-					  (lambda (_ expression _) (error "Attempt to compile invalid dotted list: ~S" expression))
-					  (lambda (_ expression _) (error "Attempt to compile invalid cyclic list: ~S" expression))
-					  transform-cps-atom)))))
+    (register-transformer 'cps
+			  (make-transformer *transform-cps-special-form-table*
+					    transform-cps-proper-list
+					    (lambda (_ expression _) (error "Attempt to compile invalid dotted list: ~S" expression))
+					    (lambda (_ expression _) (error "Attempt to compile invalid cyclic list: ~S" expression))
+					    transform-cps-atom))))
 
 (defmacro cps (expr)
   "Transforms EXPR into continuation-passing-style."
@@ -902,6 +905,17 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			      (multiple-value-list (k :two)))))
 			(nreverse vs)))
 		'((:VALUE (1 2 3) (1 :TWO 3)) (1 2 3 :TWO 3))))
+
+(assert (equal? (cps
+		 (scm
+		   (% (funcall (cl:lambda (p1 p2 &optional (o1 (fcontrol :abort :o1)) (o2 (fcontrol :abort :o2)))
+				 (list p1 p2 o1 o2))
+			       :p1 :P2 :o1)
+		      :tag :abort
+		      :handler
+		      (cl:lambda (v k)
+			(list v (funcall k :o2) (funcall k :o2-again))))))
+		'(:O2 (:P1 :P2 :O1 :O2) (:P1 :P2 :O1 :O2-AGAIN))))
 
 
 ;; Setq
@@ -1124,62 +1138,87 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 				  :end
 				    (v :end))
 				 (nreverse vs)))))
-
 (assert (equal? (scm
 		  (def vs ())
 		  (def (v x) (push x vs) x)
-		  (list (% (tagbody
-			      (v :u1)
-			      (go :t2)
-			    :t1
-			      (v :t1)
-			      (go :end)
-			    :t2
-			      (v :t2)
-			      (v (fcontrol :abort :value))
-			      (go :t1)
-			    :end
-			      (v :end))
+		  (list (% (list
+			    (v :before)
+			    (tagbody
+			       (v :u1)
+			       (go :t2)
+			     :t1
+			       (v :t1)
+			       (go :end)
+			     :t2
+			       (v :t2)
+			       (v (fcontrol :abort :value))
+			       (go :t1)
+			     :end
+			       (v :end))
+			    (v :after))
 			   :tag :abort
 			   :handler
 			   (lambda (v k)
 			     (list v (k :resume) (k :resume))))
 			(nreverse vs)))
-		'((:VALUE NIL NIL) (:U1 :T2 :RESUME :T1 :END :RESUME :T1 :END))))
+		'((:VALUE (:BEFORE NIL :AFTER) (:BEFORE NIL :AFTER))
+		  (:BEFORE :U1 :T2 :RESUME :T1 :END :AFTER :RESUME :T1 :END :AFTER))))
 
 ;; Nested tagbody
 (assert (equal? (scm
 		  (def vs ())
 		  (def (v x) (push x vs) x)
-		  (list (% (tagbody
-			      (v :outer-u1)
-			    :outer-t1
-			      (v :outer-t1)
-			      (tagbody
-				 (v :inner-u1)
-				 (go :inner-t2)
-			       :inner-t1
-				 (v :t1)
-				 (go :outer-t2)
-			       :inner-t2
-				 (v :t2)
-				 (v (fcontrol :abort :value))
-				 (go :inner-t1))
-			    :outer-t2
-			      (v :outer-t2)
-			      (go :end)
-			    :end
-			      (v :end))
+		  (list (% (list
+			    (v :before)
+			    (tagbody
+			       (v :outer-u1)
+			     :outer-t1
+			       (v :outer-t1)
+			       (tagbody
+				  (v :inner-u1)
+				  (go :inner-t2)
+				:inner-t1
+				  (v :t1)
+				  (go :outer-t2)
+				:inner-t2
+				  (v :t2)
+				  (v (fcontrol :abort :value))
+				  (go :inner-t1))
+			     :outer-t2
+			       (v :outer-t2)
+			       (go :end)
+			     :end
+			       (v :end))
+			    (v :after))
 			   :tag :abort
 			   :handler
 			   (lambda (v k)
 			     (list v (k :resume) (k :resume))))
 			(nreverse vs)))
-		'((:VALUE NIL NIL)
-		  (:OUTER-U1 :OUTER-T1 :INNER-U1 :T2
+		'((:VALUE (:BEFORE NIL :AFTER) (:BEFORE NIL :AFTER))
+		  (:BEFORE
+		   :OUTER-U1 :OUTER-T1 :INNER-U1 :T2
 		   :RESUME :T1 :OUTER-T2 :END
-		   :RESUME :T1 :OUTER-T2 :END))))
+		   :AFTER
+		   :RESUME :T1 :OUTER-T2 :END
+		   :AFTER))))
 
+
+(assert (cps-form-equal? (scm
+			   (def vs ())
+			   (def (v x) (push x vs) x)
+			   (tagbody
+			      (v :start)
+			    :tag1
+			      (v :tag1)
+			      (unwind-protect
+				   (progn
+				     (v :inside-protected)
+				     (go :tag2))
+				(v :cleanup))
+			    :tag2
+			      (v :tag2))
+			   (nreverse vs))))
 
 ;; progv
 
@@ -1417,7 +1456,3 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 		      '((1 . 2) . ((3 . ()) . (4 . 5)))))
 (assert (not (same-fringe? '((1 2) ((3) (4 5)))
 			   '((1 2) ((3 4) (4 5))))))
-
-
-
-;; TODO: Idea. register names for transformers to that the output is more legible

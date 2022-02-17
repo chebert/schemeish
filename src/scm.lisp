@@ -29,15 +29,14 @@ Within LISP, just evalutes form."
   (defvar *scm-transformer*))
 
 (define (transform-scm expr)
-  `(no-scm ,(transform *scm-transformer* expr)))
+  `(no-scm ,(transform 'scm expr)))
 
 (define (transform* transformer forms)
   "Map transform across forms."
   (map (lcurry #'transform transformer) forms))
 
 (define (transform-scm* forms)
-  "Map *scm-transformer* across forms."
-  (transform* *scm-transformer* forms))
+  (transform* 'scm forms))
 
 (define (transform-ordinary-lambda-list ordinary-lambda-list)
   "Transform the bindings in ordinary-lambda-list."
@@ -89,6 +88,9 @@ Within LISP, just evalutes form."
 (define-scm-special-transform fcontrol (expr env)
   (define-destructuring (tag value) (rest expr))
   `(fcontrol ,(transform-scm tag) ,(transform-scm value)))
+(define-scm-special-transform % (expr env)
+  (define-destructuring (cps-expr &key tag handler) (rest expr))
+  `(% ,(transform-scm cps-expr) :tag ,(transform-scm tag) :handler ,(transform-scm handler)))
 
 (define-scm-special-transform cl:progn (expr env)
   `(cl:progn ,@(transform-lexical-body (progn-forms expr))))
@@ -231,38 +233,35 @@ Within LISP, just evalutes form."
     (t `(function ,expr))))
 
 (for-macros
-  (setq *scm-transformer*
-	(make-transformer *transform-scm-special-form-table*
-			  'transform-proper-list
-			  'transform-dotted-list
-			  'transform-cyclic-list
-			  'transform-atom)))
+  (register-transformer 'scm
+			(make-transformer *transform-scm-special-form-table*
+					  'transform-proper-list
+					  'transform-dotted-list
+					  'transform-cyclic-list
+					  'transform-atom)))
 
-(assert (equal? (eval (transform-expression
-		       *scm-transformer*
+
+(assert (equal? (eval (transform-scm
 		       '(let ((f (lambda args args))
 			      (args '(1 2 3)))
 			 (f . args))))
 
 		'(1 2 3)))
 
-(assert (equal? (eval (transform-expression
-		       *scm-transformer*
+(assert (equal? (eval (transform-scm
 		       '(let ((f (lambda args args))
 			      (args '(1 2 3)))
 			 (list* (list 1 2 3) (f . args)))))
 		'((1 2 3) 1 2 3)))
 
-(assert (equal? (eval (transform-expression
-		       *scm-transformer*
+(assert (equal? (eval (transform-scm
 		       '(let ((f (lambda args (+ . args)))
 			      (args '(1 2 3)))
 			 (list* (+ 1 2 3) (f . args)))))
 		'(6 . 6)))
 
 
-(assert (equal? (eval (transform-expression
-		       *scm-transformer*
+(assert (equal? (eval (transform-scm
 		       '(let ()
 			 (define a 1)
 			 (define copy (lambda (x)
@@ -274,7 +273,7 @@ Within LISP, just evalutes form."
 		'(1 1 1)))
 
 (export-definition
-  (defmacro scm (&body body &environment environment)
+  (defmacro scm (&body body)
     "Evaluates body in the SCM langauge. Similar to Common Lisp with the following changes:
 If an expression is a proper list, it is transformed into (funcall function args).
 If an expression is a dotted list, it is transformed into (apply function args... rest-arg)
@@ -291,7 +290,7 @@ All forms with explicit/implicit blocks/progns are now lisp-1 style lexical-bodi
 For more details see (lexical-body-definition-documentations) for information about 
 the available lexical-body-definition expansions.
 These lexical-body's are the lisp-1 analogue to the lisp-2 style lexical-bodies defined by LEXICALLY."
-    (transform-expression *scm-transformer* `(progn ,@body) environment)))
+    (transform-scm `(progn ,@body))))
 
 (assert (equal? (scm
 		  (define a 1)

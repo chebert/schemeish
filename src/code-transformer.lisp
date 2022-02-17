@@ -46,21 +46,29 @@ Otherwise, the form is treated as an atom and transformed using the transformer'
 	 (:dotted [(transformer-transform-dotted-list transformer) transformer expression environment])))
       (t [(transformer-transform-atom transformer) transformer expression environment]))))
 
+(for-macros
+  (defvar *transformer-table* (make-hash-table))
+  (export
+   (define (register-transformer transformer-name transformer)
+     (hash-set! *transformer-table* transformer-name transformer)))
+  (define (registered-transformer name)
+    (hash-ref *transformer-table* name)))
+
 (export-definition
   (for-macros
     (defvar *lexical-context* ())))
 (export-definition
-  (defmacro transform-in-lexical-environment (transformer expression lexical-context &environment environment)
+  (defmacro transform-in-lexical-environment (transformer-name expression lexical-context &environment environment)
     "Applies transformer to expression in environment.
 *LEXICAL-CONTEXT* will be bound to the given lexical-context for the duration of the transformation."
     (let ((*lexical-context* lexical-context))
-      (transform-expression transformer expression environment))))
+      (transform-expression (registered-transformer transformer-name) expression environment))))
 
 (export-definition
-  (define (transform transformer expression)
+  (define (transform transformer-name expression)
     "Returns a form that when evaluated, will transform the given expression
 in the current *LEXICAL-CONTEXT*."
-    `(transform-in-lexical-environment ,transformer ,expression ,*lexical-context*)))
+    `(transform-in-lexical-environment ,transformer-name ,expression ,*lexical-context*)))
 
 (export-definition
   (define (declare? form)
