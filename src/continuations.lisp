@@ -3,20 +3,18 @@
 (install-syntax!)
 
 (for-macros
- (defvar *lexical-cps-function-names* ())
- (defvar *function->cps-function-table* (make-hash-table :weakness :key))
- (defvar *block-table* ())
- (defvar *tag->function-name-table* ()))
+  (defvar *function->cps-function-table* (make-hash-table :weakness :key)))
 
-(define (lexical-cps-function-name? name)
-  "True if name names a function defined in CPS style."
-  (member name *lexical-cps-function-names*))
-(defmacro with-lexical-cps-function-names (names &body body)
-  "Append names to *LEXICAL-CPS-FUNCTION-NAMES* for the duration of body."
-  `(let ((*lexical-cps-function-names* (append ,names *lexical-cps-function-names*)))
+(defmacro with-lexical-function-names (function-names &body body)
+  `(let ((*lexical-context* (alist-update *lexical-context*
+					  :lexical-function-names
+					  (lambda (names) (append ,function-names names)))))
      ,@body))
 
-(define (cps-function function)
+(def (lexical-function-name? function-name)
+  (member function-name (alist-ref *lexical-context* :lexical-function-names)))
+
+(define (function->cps-function function)
   "Return the cps-function associated with function or nil if there is none."
   (hash-ref *function->cps-function-table* function nil))
 (define (set-cps-function! function cps-function)
@@ -30,7 +28,7 @@
 (define (funcall/c continuation function . arguments)
   "Call function with arguments, passing the resulting values to continuation. 
 If function has an associated CPS-FUNCTION, call it with the given continuation and arguments."
-  (let ((cps-function (cps-function function)))
+  (let ((cps-function (function->cps-function function)))
     (if cps-function
 	(apply cps-function continuation arguments)
 	(multiple-value-call continuation (apply function arguments)))))
@@ -133,14 +131,25 @@ Special cases currently exist for funcall and apply."
      ,(eval-arguments->cps-form
        argument-forms
        (cl:lambda (arguments)
-	 ;; Perform function application, using FUNCALL/C
-	 `(funcall/c ,continue-from-function-application (function ,function-name) ,@arguments)))))
+	 (if (lexical-function-name? function-name)
+	     ;; Call the function with the continuation as the first argument
+	     `(,function-name ,continue-from-function-application ,@arguments)
+	     ;; Perform function application, using FUNCALL/C
+	     `(funcall/c ,continue-from-function-application (function ,function-name) ,@arguments))))))
 
 (define-transform-cps-special-form no-cps (expression environment)
   (atom->cps expression))
 
 (define-transform-cps-special-form cl:function (expression environment)
-  (atom->cps expression))
+  (def name (second expression))
+  (define-unique-symbols continue-from-function function cps-function)
+  (if (lexical-function-name? name)
+      `(cps-lambda ,continue-from-function
+	 (let* ((,cps-function (function ,name))
+		(,function (cl:lambda (&rest arguments) (apply ,cps-function #'values arguments))))
+	   (set-cps-function! ,function ,cps-function)
+	   (funcall ,continue-from-function ,function)))
+      (atom->cps expression)))
 (define-transform-cps-special-form cl:quote (expression environment)
   (atom->cps expression))
 
@@ -394,13 +403,13 @@ Aux variables will be (name value)"
 (for-macros (defvar *fcontrol-tag* (unique-symbol "FCONTROL-TAG")))
 (for-macros (defvar *prompt-established?* nil))
 
-(def (run continue-from-run tag thunk handler)
+(def (run continue-from-run tag thunk handler (modify-suspended-continuation identity))
   "Perform THUNK in a dynamic context that catches all tags (cons tag *current-run-tags*).
 Return the results to continue-from-run.
 If tag is caught because of (fcontrol tag value), the (handler value rest-of-thunk) is invoked with
 the rest-of-thunk.
 If a different tag is caught because of (fcontrol another-tag value), the control is re-signaled
-with a continuation: rest-of-thunk in the re-established dynamic context before continuing to continue-from-run."
+with a continuation: (modify-suspended-continuation rest-of-thunk) in the re-established dynamic context before continuing to continue-from-run."
   (def thunk-result (let ((*prompt-established?* t))
 		      (catch *fcontrol-tag* (multiple-value-list (thunk)))))
   ;; If the result is an fcontrol-signal, it means an (FCONTROL value) form was encountered.
@@ -424,8 +433,9 @@ with a continuation: rest-of-thunk in the re-established dynamic context before 
 	   (lambda arguments
 	     (run continue-from-run
 		  tag
-		  (lambda () (apply rest-of-thunk arguments))
-		  handler)))))))
+		  (lambda () (apply (modify-suspended-continuation rest-of-thunk) arguments))
+		  handler
+		  modify-suspended-continuation)))))))
     ;; Otherwise, we encountered a normal exit: return the results
     (t (apply continue-from-run thunk-result))))
 
@@ -689,14 +699,136 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 
 ;; TODO:
 ;; Labels
-;; FLet
+
+
+
+(define-transform-cps-special-form cl:labels (expression environment)
+  (define-unique-symbols continue-from-labels)
+  (define-destructuring (definitions &body body) (rest expression))
+  (define-values (declarations forms) (parse-declarations body))
+
+  
+  (define (labels-binding->cps binding)
+    (define-destructuring (name ordinary-lambda-list . body) binding)
+    (def full-lambda-list (full-ordinary-lambda-list ordinary-lambda-list))
+    (function-binding->cps name full-lambda-list body))
+
+  (def function-names (map first definitions))
+  `(cps-lambda ,continue-from-labels
+     ,(with-lexical-function-names function-names
+	`(cl:labels ,(map labels-binding->cps definitions)
+	   ,@declarations
+	   (funcall ,(transform-cps `(progn ,@forms)) ,continue-from-labels)))))
+
+
+(define-transform-cps-special-form cl:flet (expression environment)
+  (define-unique-symbols continue-from-flet)
+  (define-destructuring (definitions &body body) (rest expression))
+  (define-values (declarations forms) (parse-declarations body))
+  
+  (define (flet-binding->cps binding)
+    (define-destructuring (name ordinary-lambda-list . body) binding)
+    (def full-lambda-list (full-ordinary-lambda-list ordinary-lambda-list))
+    (function-binding->cps name full-lambda-list body))
+
+  (def function-names (map first definitions))
+  `(cps-lambda ,continue-from-flet
+     (cl:flet ,(map flet-binding->cps definitions)
+       ,@declarations
+       ,(with-lexical-function-names function-names
+	  `(funcall ,(transform-cps `(progn ,@forms)) ,continue-from-flet)))))
+
+
 ;; Eval-when
+(define-transform-cps-special-form cl:eval-when (expression environment)
+  (define-destructuring ((&rest situations) &body body) (rest expression))
+  (define-unique-symbols continue-from-eval-when)
+  ;; if eval-when is called within a CPS form, then it isn't at the top level
+  ;; so :load-toplevel and :compile-toplevel are irrelevant.
+  ;; therefore we only need to handle the :execute case.
+  `(cps-lambda ,continue-from-eval-when
+     ,(cond
+	((member :execute situations)
+	 `(funcall ,(transform-cps `(progn ,@body)) ,continue-from-eval-when))
+	(t `(funcall ,continue-from-eval-when nil)))))
+
 ;; Macrolet
+(define-transform-cps-special-form cl:macrolet (expression environment)
+  (define-destructuring (definitions &body body) (rest expression))
+  (define-values (declarations forms) (parse-declarations body))
+  (define-unique-symbols continue-from-macrolet)
+  `(cps-lambda ,continue-from-macrolet
+     (cl:macrolet ,definitions
+       ,@declarations
+       (funcall ,(transform-cps `(progn ,@body)) ,continue-from-macrolet))))
+
 ;; symbol-Macrolet
+(define-transform-cps-special-form cl:symbol-macrolet (expression environment)
+  (define-destructuring (definitions &body body) (rest expression))
+  (define-values (declarations forms) (parse-declarations body))
+  (define-unique-symbols continue-from-symbol-macrolet)
+  `(cps-lambda ,continue-from-symbol-macrolet
+     (cl:symbol-macrolet ,definitions
+       ,@declarations
+       (funcall ,(transform-cps `(progn ,@body)) ,continue-from-symbol-macrolet))))
+
 ;; locally
+(define-transform-cps-special-form cl:locally (expression environment)
+  (def body (rest expression))
+  (define-values (declarations forms) (parse-declarations body))
+  (define-unique-symbols continue-from-locally)
+  `(cps-lambda ,continue-from-locally
+     (cl:locally ,@declarations
+       (funcall ,(transform-cps `(progn ,@forms)) ,continue-from-locally))))
+
 ;; progv
+;; Progv forms can be re-entered, but the dynamic bindings will no longer be in effect.
+(define-transform-cps-special-form cl:progv (expression environment)
+  (define-destructuring (vars-form vals-form &body forms) (rest expression))
+  (define-unique-symbols continue-from-progv vars vals tag)
+  `(cps-lambda ,continue-from-progv
+     ,(cps->primary-value
+       vars-form vars
+       (list (cps->primary-value
+	      vals-form vals
+	      `((run ,continue-from-progv
+		     ',tag
+		     (cl:lambda () (progv ,vars ,vals (funcall ,(transform-cps `(progn ,@forms)) #'values)))
+		     (lambda (v _) v)
+		     ;; TODO: It might be nice if we could resume with the dynamic bindings intact.
+		     ;; The issue is that we need to grab the current bindings right before exiting the continuation.
+		     ;; So that we can re-establish when resuming.
+		     ;; Since we only get the continuation after exiting the dynamic context, it's too late.
+		     ;; we would need to modify FCONTROL within cps progv forms to grab the current dynamic bindings
+		     ;; To do this, each fcontrol signal would need to have a list of dynamic bindings, as which
+		     ;; prompt they came from.
+		     ;; The alternative is to let dynamic bindings go, and instead rely on new forms that
+		     ;; establish fluid bindings.
+		     ;; It's hard to say which is the right default, but since I don't use progv that often anyways,
+		     ;; I don't have a problem with just dropping them for now.
+		     )))))))
+
+
 ;; load-time-value
-;; multiple-value-prog1
+;; continuation barrier around load-time-value's form, since it is evaluated at a different time
+(define-transform-cps-special-form cl:load-time-value (expression environment)
+  (define-destructuring (form &optional read-only?) (rest expression))
+  (define-unique-symbols continue-from-load-time-value)
+  `(cps-lambda ,continue-from-load-time-value
+     (multiple-value-call ,continue-from-load-time-value
+       (cl:load-time-value (funcall ,(transform-cps form) #'values) ,read-only?))))
+
+
+;; multiple-value-prog1: why is this a special form?
+(define-transform-cps-special-form cl:multiple-value-prog1 (expression environment)
+  (define-destructuring (values-form . forms) (rest expression))
+  (define-unique-symbols continue-from-multiple-value-prog1 results)
+  `(cps-lambda ,continue-from-multiple-value-prog1
+     ;; Evaluate the values form first, saving the results
+     (funcall ,(transform-cps values-form)
+	      (cl:lambda (&rest ,results)
+		(funcall ,(transform-cps `(progn ,@forms))
+			 (lambda _ (apply ,continue-from-multiple-value-prog1 ,results)))))))
 
 
 (for-macros
@@ -707,6 +839,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 					    (lambda (_ expression _) (error "Attempt to compile invalid dotted list: ~S" expression))
 					    (lambda (_ expression _) (error "Attempt to compile invalid cyclic list: ~S" expression))
 					    transform-cps-atom))))
+
 
 (defmacro cps (expr)
   "Transforms EXPR into continuation-passing-style."
@@ -880,7 +1013,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; Lambda
 (assert (equal? (multiple-value-list (funcall (cps (cl:lambda (a b c) (values a b c))) 1 2 3))
 		'(1 2 3)))
-(assert (equal? (funcall (cps-function (cps (cl:lambda (a b c) (values a b c)))) #'list 1 2 3)
+(assert (equal? (funcall (function->cps-function (cps (cl:lambda (a b c) (values a b c)))) #'list 1 2 3)
 		'(1 2 3)))
 (assert (cps-form-equal? (funcall (cl:lambda (a b c) (values a b c)) 1 2 3)))
 (assert (equal? (funcall/c #'list (cps (funcall (cl:lambda (f) (cl:lambda (&rest args) (apply f args)))
@@ -1076,10 +1209,71 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 
 ;; Labels
 ;; FLet
+
+(assert (cps-form-equal? (list
+			  (labels ()
+			    :value)
+			  :after)))
+
+(assert (cps-form-equal? (list
+			  (flet ()
+			    :value)
+			  :after)))
+
+
+(assert (equal? (% (labels ((f1 (&optional (o1 (fcontrol :abort :value)))
+			      (f2 `(f1 ,o1)))
+			    (f2 (p)
+			      `(f2 ,p)))
+		     (f1))
+		   :tag :abort
+		   :handler (lambda (v k)
+			      (list v (funcall k :o1))))
+		'(:VALUE (F2 (F1 :O1)))))
+(assert (equal? (% (flet ((f1 (&optional (o1 (fcontrol :abort :value)))
+			    `(f1 ,o1))
+			  (f2 (v) `(f2 ,v)))
+		     (list (f1) (f2 :v)))
+		   :tag :abort
+		   :handler (lambda (v k)
+			      (list v (funcall k :o1))))
+		'(:VALUE ((F1 :O1) (F2 :V)))))
+
+
 ;; Eval-when
+;; Eval-when will never appear as a top-level-form if it is part of a CPS expression
+;; Therefore we only test the :execute
+(assert (cps-form-equal? (list (eval-when (:execute) (list 1 2 3)) 2 3)))
+(assert (cps-form-equal? (list (eval-when (:compile-toplevel :load-toplevel) (list 1 2 3)) 2 3)))
+
+
 ;; Macrolet
+(assert (scm
+	  (cps-form-equal?
+	   (let ((f (cl:lambda (x flag)
+		      (macrolet ((fudge (z)
+				   `(if flag (list '* ,z ,z) ,z)))
+			`(+ ,x
+			    ,(fudge x)
+			    ,(fudge `(+ ,x 1)))))))
+	     (list (f :x nil)
+		   (f :x :flag))))))
+
 ;; symbol-Macrolet
+(assert (cps-form-equal?
+	 (list (symbol-macrolet ((garner `(list :attention)))
+		 garner)
+	       'garner)))
+
 ;; locally
+(assert (cps-form-equal?
+	 (funcall (cl:lambda (y)
+		    (declare (special y))
+		    (let ((y t))
+		      (list y
+			    (locally (declare (special y)) y))))
+		  nil)))
+
 
 ;; tagbody/go
 (assert (cps-form-equal? (scm
@@ -1221,6 +1415,26 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			   (nreverse vs))))
 
 ;; progv
+(assert (cps-form-equal? (let ((x 3))
+			   (LIST
+			    (progv '(x) '(4)
+			      (list x (symbol-value 'x)))
+			    (list x (boundp 'x))))))
+
+(assert (equal? (scm
+		  (cps
+		   (% (let ((x 3))
+			(list
+			 (progv '(x) '(4)
+			   (list x (symbol-value 'x)
+				 (setf (symbol-value 'x) 2)
+				 (fcontrol :abort :value)
+				 (boundp 'x)))
+			 (list x (boundp 'x))))
+		      :tag :abort
+		      :handler (lambda (v k) (list v (k :resume))))))
+		'(:VALUE ((3 4 2 :RESUME NIL) (3 NIL)))))
+
 
 ;; unwind-protect
 (assert (cps-form-equal? (scm
@@ -1362,7 +1576,21 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 
 
 ;; load-time-value
+(assert (cps
+	 (scm
+	   (def (rnd) (list (load-time-value (random 17)) 2))
+	   (equal? (rnd) (rnd)))))
+
 ;; multiple-value-prog1
+(assert (cps-form-equal? (let (temp)
+			   (setq temp '(1 2 3))
+			   (list (multiple-value-list
+				  (multiple-value-prog1
+				      (values-list temp)
+				    (setq temp nil)
+				    (values-list temp)))
+				 temp)))) 
+
 
 
 (assert (equal? (% (list (fcontrol :abort :one) 2 3)
