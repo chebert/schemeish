@@ -92,7 +92,9 @@ for body. Body should evaluate to the transformed form."
 (def (atom->cps expression)
   (define-unique-symbols continue-from-atom)
   `(cps-lambda ,continue-from-atom
-     (multiple-value-call ,continue-from-atom ,expression)))
+     ,(if (atom expression)
+	  `(funcall ,continue-from-atom ,expression)
+	  `(multiple-value-call ,continue-from-atom ,expression))))
 
 (def (transform-cps-atom _ expression _)
   "Return a form that evaluates an atom in CPS."
@@ -563,7 +565,9 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 		  (make-fcontrol-signal (fcontrol-signal-tag ,result)
 					(fcontrol-signal-value ,result)
 					;; Don't allow re-entry into the protected froms
-					(lambda _ (error "Attempt to re-enter a protected form."))))))
+					(cl:lambda (&rest ,arguments)
+					  (declare (ignore ,arguments))
+					  (error "Attempt to re-enter a protected form."))))))
 	 (let ((,result (catch *fcontrol-tag* (cps (progn ,@cleanup)))))
 	   ;; Re-signal an fcontrol-signal, but with a modified continuation
 	   (when (fcontrol-signal? ,result)
@@ -614,7 +618,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; if there is no matching tag visible to go, results are undefined.
 (define-transform-cps-special-form cl:tagbody (expression environment)
   (define-destructuring (untagged-statements . tagged-forms) (parse-tagbody (rest expression)))
-  (define-unique-symbols continue-from-tagbody recurse thunk tagbody-prompt-tag)
+  (define-unique-symbols continue-from-tagbody recurse thunk tagbody-prompt-tag results)
   (define tags (map first tagged-forms))
 
   (define (thunk-form statements)
@@ -670,11 +674,11 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 	  ,@function-name-assignments
 	  (let ,recurse ((,thunk ,untagged-thunk-form))
 	    (let (encountered-go?)
-	      (run (lambda results
+	      (run (cl:lambda (&rest ,results)
 		     ;; If a go was encountered loop until no more go forms are encountered
 		     (if encountered-go?
 			 ;; a go was encountered, loop with the tag-thunk returned from the handler
-			 (,recurse (first results))
+			 (,recurse (first ,results))
 			 ;; Otherwise, return nil from the tagbody
 			 (funcall ,continue-from-tagbody nil)))
 		   ',tagbody-prompt-tag
@@ -785,7 +789,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; Progv forms can be re-entered, but the dynamic bindings will no longer be in effect.
 (define-transform-cps-special-form cl:progv (expression environment)
   (define-destructuring (vars-form vals-form &body forms) (rest expression))
-  (define-unique-symbols continue-from-progv vars vals tag)
+  (define-unique-symbols continue-from-progv vars vals tag value ignored-continuation)
   `(cps-lambda ,continue-from-progv
      ,(cps->primary-value
        vars-form vars
@@ -794,7 +798,9 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 	      `((run ,continue-from-progv
 		     ',tag
 		     (cl:lambda () (progv ,vars ,vals (funcall ,(transform-cps `(progn ,@forms)) #'values)))
-		     (lambda (v _) v)
+		     (cl:lambda (,value ,ignored-continuation)
+		       (declare (ignore ,ignored-continuation))
+		       ,value)
 		     ;; TODO: It might be nice if we could resume with the dynamic bindings intact.
 		     ;; The issue is that we need to grab the current bindings right before exiting the continuation.
 		     ;; So that we can re-establish when resuming.
@@ -822,13 +828,15 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; multiple-value-prog1: why is this a special form?
 (define-transform-cps-special-form cl:multiple-value-prog1 (expression environment)
   (define-destructuring (values-form . forms) (rest expression))
-  (define-unique-symbols continue-from-multiple-value-prog1 results)
+  (define-unique-symbols continue-from-multiple-value-prog1 results ignored)
   `(cps-lambda ,continue-from-multiple-value-prog1
      ;; Evaluate the values form first, saving the results
      (funcall ,(transform-cps values-form)
 	      (cl:lambda (&rest ,results)
 		(funcall ,(transform-cps `(progn ,@forms))
-			 (lambda _ (apply ,continue-from-multiple-value-prog1 ,results)))))))
+			 (cl:lambda (&rest ,ignored)
+			   (declare (ignore ,ignored))
+			   (apply ,continue-from-multiple-value-prog1 ,results)))))))
 
 
 (for-macros
@@ -1684,3 +1692,100 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 		      '((1 . 2) . ((3 . ()) . (4 . 5)))))
 (assert (not (same-fringe? '((1 2) ((3) (4 5)))
 			   '((1 2) ((3 4) (4 5))))))
+
+
+;;(cps (progn a b c))
+
+;; CURRENT State
+#;
+(FUNCALL
+ (COMMON-LISP:LAMBDA (#:CONTINUE1725)
+   (FUNCALL
+    (COMMON-LISP:LAMBDA (#:CONTINUE-FROM-ATOM1729)
+      (FUNCALL #:CONTINUE-FROM-ATOM1729 A))
+    (COMMON-LISP:LAMBDA (&REST #:IGNORED1726)
+      (DECLARE (IGNORE #:IGNORED1726))
+      (FUNCALL
+       (COMMON-LISP:LAMBDA (#:CONTINUE1727)
+         (FUNCALL
+          (COMMON-LISP:LAMBDA (#:CONTINUE-FROM-ATOM1730)
+            (FUNCALL #:CONTINUE-FROM-ATOM1730 B))
+          (COMMON-LISP:LAMBDA (&REST #:IGNORED1728)
+            (DECLARE (IGNORE #:IGNORED1728))
+            (FUNCALL
+             (COMMON-LISP:LAMBDA (#:CONTINUE-FROM-ATOM1731)
+               (FUNCALL #:CONTINUE-FROM-ATOM1731 C))
+             #:CONTINUE1727))))
+       #:CONTINUE1725))))
+ #'VALUES)
+;; vs: 7 funcalls vs 3. 7 lambdas vs 2
+#;
+(COMMON-LISP:LET ((#:CONTINUE-FROM-PROGN1744 *CONTINUATION*))
+  (COMMON-LISP:LET ((*CONTINUATION*
+                      (COMMON-LISP:LAMBDA (&REST #:RESULTS1743)
+			(DECLARE (IGNORE #:RESULTS1743))
+			(COMMON-LISP:LET ((*CONTINUATION*
+                                            (COMMON-LISP:LAMBDA
+						(&REST #:RESULTS1743)
+                                              (DECLARE (IGNORE #:RESULTS1743))
+                                              (COMMON-LISP:LET ((*CONTINUATION*
+								  #:CONTINUE-FROM-PROGN1744))
+						(FUNCALL *CONTINUATION*
+							 (PRINT C))))))
+                          (FUNCALL *CONTINUATION* B)))))
+    (FUNCALL *CONTINUATION* A)))
+
+
+;; GOAL:
+(defvar *continuation* #'values)
+(defmacro with-continuation (continuation &body body)
+  `(cl:let ((*continuation* ,continuation))
+     ,@body))
+
+(let ((continue-from-progn *continuation*))
+  (with-continuation
+      (cl:lambda (&rest results)
+	(declare (ignore results))
+	(with-continuation (cl:lambda (&rest results)
+			     (declare (ignore results))
+			     (funcall continue-from-progn (print 'c)))
+	  (funcall *continuation* (print 'b))))
+    (funcall *continuation* (print 'a))))
+
+(def (reduce-atom expression)
+  `(funcall *continuation* ,expression))
+(def (reduce-progn expression)
+  (def forms (rest expression))
+  (define-unique-symbols results continue-from-progn)
+  (def (reduce-progn-forms forms)
+    (cond
+      ((empty? forms) (reduce-atom nil))
+      (t
+       (define-destructuring (form . rest-of-forms) forms)
+       (cond
+	 ((empty? rest-of-forms) `(let ((*continuation* ,continue-from-progn))
+				    ,(reduce-atom form)))
+	 (t
+	  `(with-continuation
+	       (cl:lambda (&rest ,results)
+		 (declare (ignore ,results))
+		 ,(reduce-progn-forms rest-of-forms))
+	     ,(reduce-atom form)))))))
+  `(let ((,continue-from-progn *continuation*))
+     ,(reduce-progn-forms forms)))
+
+(reduce-progn '(progn (print 'a) (print 'b) (print 'c)))
+#;
+(LET ((#:CONTINUE-FROM-PROGN1744 *CONTINUATION*))
+  (WITH-CONTINUATION (COMMON-LISP:LAMBDA (&REST #:RESULTS1743)
+                       (DECLARE (IGNORE #:RESULTS1743))
+                       (WITH-CONTINUATION (COMMON-LISP:LAMBDA
+                                              (&REST #:RESULTS1743)
+                                            (DECLARE (IGNORE #:RESULTS1743))
+                                            (LET
+                                                ((*CONTINUATION*
+                                                   #:CONTINUE-FROM-PROGN1744))
+                                              (FUNCALL *CONTINUATION*
+                                                       (PRINT 'C))))
+                         (FUNCALL *CONTINUATION* (PRINT 'B))))
+    (FUNCALL *CONTINUATION* (PRINT 'A))))
