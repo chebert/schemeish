@@ -92,9 +92,7 @@ for body. Body should evaluate to the transformed form."
 (def (atom->cps expression)
   (define-unique-symbols continue-from-atom)
   `(cps-lambda ,continue-from-atom
-     ,(if (atom expression)
-	  `(funcall ,continue-from-atom ,expression)
-	  `(multiple-value-call ,continue-from-atom ,expression))))
+     (multiple-value-call ,continue-from-atom ,expression)))
 
 (def (transform-cps-atom _ expression _)
   "Return a form that evaluates an atom in CPS."
@@ -1718,7 +1716,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
              #:CONTINUE1727))))
        #:CONTINUE1725))))
  #'VALUES)
-;; vs: 7 funcalls vs 3. 7 lambdas vs 2
+;; vs: 7 funcalls vs 3, 7 lambdas vs 2, 6 bindings vs. 6
 #;
 (COMMON-LISP:LET ((#:CONTINUE-FROM-PROGN1744 *CONTINUATION*))
   (COMMON-LISP:LET ((*CONTINUATION*
@@ -1789,3 +1787,6 @@ This way, every time thunk is executed, before-thunk will be run before and afte
                                                        (PRINT 'C))))
                          (FUNCALL *CONTINUATION* (PRINT 'B))))
     (FUNCALL *CONTINUATION* (PRINT 'A))))
+
+;; A Cps expression would go from
+;;   (funcall cps-expr continuation) -> cps-expr
