@@ -89,8 +89,8 @@ Within LISP, just evalutes form."
   (define-destructuring (tag value) (rest expr))
   `(fcontrol ,(transform-scm tag) ,(transform-scm value)))
 (define-scm-special-transform % (expr env)
-  (define-destructuring (cps-expr &key tag handler) (rest expr))
-  `(% ,(transform-scm cps-expr) :tag ,(transform-scm tag) :handler ,(transform-scm handler)))
+  (define-destructuring (cps-expr &key (tag nil tag-provided?) (handler nil handler-provided?)) (rest expr))
+  `(% ,(transform-scm cps-expr) ,@(when tag-provided? `(:tag ,(transform-scm tag))) ,@(when handler-provided? `(:handler ,(transform-scm handler)))))
 
 (define-scm-special-transform cl:progn (expr env)
   `(cl:progn ,@(transform-lexical-body (progn-forms expr))))
