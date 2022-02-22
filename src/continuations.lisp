@@ -33,6 +33,7 @@ Aux variables will be (name value)"
     (map-ordinary-lambda-list
      (lambda (key parameter)
        (ecase key
+	 ;; TODO: don't build lists for positional arguments. (list* p1 p2 p3 (append o1 o2 o3 rest))
 	 (:positional (push `(list ,parameter) arguments))
 	 (:optional
 	  (define-destructuring (name default-value provided?) parameter)
@@ -49,15 +50,17 @@ Aux variables will be (name value)"
      full-lambda-list))
   (if (empty? arguments)
       ()
-      `(nconc ,@(nreverse arguments))))
+      `(append ,@(nreverse arguments))))
 (for-macros
   (defvar *function->cps-function-table* (make-hash-table :weakness :key)))
+
 
 (defmacro with-lexical-function-names (function-names &body body)
   `(let ((*lexical-context* (alist-update *lexical-context*
 					  :lexical-function-names
 					  (lambda (names) (append ,function-names names)))))
      ,@body))
+
 
 (def (lexical-function-name? function-name)
   (member function-name (alist-ref *lexical-context* :lexical-function-names)))
@@ -77,140 +80,18 @@ Under normal circumstances, this means the values of form will be passed to the 
 before evaluating the continuation-body."
   `(cl:let ((*continuation* ,continuation))
      ,form))
+(defmacro without-continuation (&body body)
+  "Evaluates body with *CONTINUATION* bound to #'VALUES"
+  `(cl:let ((*continuation* #'values))
+     ,@body))
 (defmacro save-continuation (name &body body)
   "Binds name to *CONTINUATION* in body"
   `(let ((,name *continuation*))
      ,@body))
 
-(def (continue-to continuation . values) (continuation . values))
 (def (continue-with . values) (*continuation* . values))
-
-;; Anytime a continuation is created (lambda (&rest results) ...) the *continuation* needs to be set/updated
-;; Anytime a continuation is passed, *continuation* needs to be (let ((*continuation* ,continuation)) ...) instead
-;; Anytime a continuation is recieved (lambda (,continuation) ...), (let ((,continuation *continuation*)) ...) instead
-;; If a function is called, the continuation argument is now implicit, so what now?
-;;    Function style | call style | expected behavior
-;;    CPS            | CPS        | results of function are passed to *continuation*, signaled continuation returns to *continuation*
-;;    CPS            | non-cps    | same as ^
-;;    non-cps        | cps        | results of function are passed to *continuation*
-
-
-;; Difference:
-;; Cps-function will call *continuation* with its results, we should assume that *continuation* is #'values in a non-cps call context
-;;(cps-function a b c)
-;; when calling regular-function from CPS code, results need to be passed to the continuation.
-;;(multiple-value-call *continuation* (regular-function a b c))
-
-
-;; would this work?
-#;
-(catch :return-values (multiple-value-call *continuation* (funcall
-							   (cl:lambda (a b c)
-							     (throw :return-values
-							       (funcall *continuation* a b c)))
-							   :a :b :c)))
-#;
-(catch :return-values (multiple-value-call *continuation* (funcall
-							   (cl:lambda (a b c)
-							     (values a b c))
-							   :a :b :c)))
-
-;; Ok now calling functions from a non-cps context
-;; (funcall (cl:lambda (a b c) (values a b c)) :a :b :c) ;; no problem, obviously
-
-
-;;(funcall (cl:lambda (a b c) (throw :return-values (funcall *continuation* a b c))) :a :b :c)
-;; 2 problems, no return-values set up, and no *continuation* set up.
-;; if nested within a cps context, this will short-circuit the rest of the non-cps code: BAD
-;; if not nested within a cps context, this will be an error (no catch for :return-values): BAD 
-
-
-#;
-(let ((fn (let* ((cps-function (cl:lambda (a b c)
-				 (throw :return-values
-				   (funcall *continuation* a b c))))
-		 (fn (cl:lambda (a b c)
-		       (let ((*continuation* #'values))
-			 (catch :return-values
-			   (funcall cps-function a b c))))))
-	    (set-cps-function! fn cps-function)
-	    fn)))
-  (list
-   ;; called from ordinary context
-   (multiple-value-list (funcall fn :a :b :c))
-   ;; called from cps context
-   (let ((*continuation* #'list))
-     (catch :return-values
-       (funcall (function->cps-function fn) :a :b :c)))))
-
-#;
-(cps
- (flet ((cps-function (a b c)
-	  (values a b c)))
-   (declare foo)
-   (list
-    (no-cps
-     (multiple-value-list (cps-function :a :b :c)))
-    (no-cps
-     (multiple-value-list (funcall (function cps-function) :a :b :c)))
-    (multiple-value-list (cps-function :a :b :c))
-    (multiple-value-list (funcall (function cps-function) :a :b :c)))))
-
-#;
-(flet ((cps-function (a b c)
-	 (throw :return-values
-	   (funcall *continuation* a b c))))
-  (declare foo)
-  (let ((ordinary-function (cl:lambda (a b c)
-			     (let ((*continuation* #'values))
-			       (catch :return-values
-				 (funcall cps-function a b c))))))
-    (set-cps-function! ordinary-function (function cps-function))
-    ;; in cps, setup (function cps-function to return ordinary-function in the rest of the body
-    
-    (list
-     ;; It's not easy to go back and forth between cps and no-cps code lexically.
-     ;; honestly it probably shouldn't even be allowed.
-     (flet ((cps-function (&rest any) (error "Attempt to call locally defined CPS function CPS-FUNCTION after lexically escaping (via NO-CPS).")))
-       (multiple-value-list (cps-function :a :b :c)))
-     (flet ((cps-function (&rest any) (error "Attempt to call locally defined CPS function CPS-FUNCTION after lexically escaping (via NO-CPS).")))
-       (multiple-value-list (funcall (function cps-function) :a :b :c)))
-
-     (multiple-value-list (cps-function :a :b :c))
-     (multiple-value-list (funcall (function->cps-function (function cps-function)) :a :b :c)))))
-
-
-;; in order to do the right thing, we need to know if we are being called in a CPS call context.
-;; how is this determined?
-
-
-;; so the best we can do is have a lookup table for cps-functions.
-;; UNLESS we can assume that cps style functions WILL NOT be called from outside a CPS context.
-;; IF WE CAN assume ^ above, is that really a big deal? you can just call (CPS (function-application))
-;; and avoid the hash table lookup. It's a slight burden to users of the cps functions,
-;; and it will likely be a difficult-to-detect error if they forget to do it: which would be a huge burden to debug.
-
-;; favor correctness over efficiency!
-
-#||
-(define (funcall/c continuation function . arguments)
-"Call function with arguments, passing the resulting values to continuation. 
-If function has an associated CPS-FUNCTION, call it with the given continuation and arguments."
-(let ((cps-function (function->cps-function function)))
-(if cps-function
-(apply cps-function continuation arguments)
-(multiple-value-call continuation (apply function arguments)))))
-(define (apply/c continuation function argument . arguments)
-"Apply function to arguments. If function has a CPS-FUNCTION, apply it with the given continuation."
-(when (and (empty? arguments) (not (list? argument)))
-(error "Non-list argument ~S to apply/c" argument))
-(if (empty? arguments)
-(apply #'funcall/c continuation function argument)
-(apply #'funcall/c continuation function argument (nconc (butlast arguments) (first (last arguments))))))
-
-(set-cps-function! #'funcall #'funcall/c)
-(set-cps-function! #'apply #'apply/c)
-||#
+(def (continue-with* values) (*continuation* . values))
+(defmacro continue-with-values (values-form) `(multiple-value-call *continuation* ,values-form))
 
 (for-macros
   (defvar *transform-cps-special-form-table* (make-hash-table)))
@@ -225,14 +106,14 @@ If function has an associated CPS-FUNCTION, call it with the given continuation 
 					  (lambda (_ expression _) (error "Attempt to compile invalid cyclic list: ~S" expression))
 					  'transform-cps-atom)))
 
-(define (transform-cps form)
+(define (transform-cps _environment form)
   (transform 'cps form))
 (define (transform-cps* forms)
   (transform* 'cps forms))
 
 (defmacro cps (expr &environment env)
   "Transforms EXPR into continuation-passing-style."
-  (macroexpand-1 (transform-cps expr) env))
+  (transform-cps env expr))
 
 (defmacro define-transform-cps-special-form (name (expression environment) &body body)
   "Define a special form transformer for the CPS macro-expansion.
@@ -270,34 +151,46 @@ for body. Body should evaluate to the transformed form."
       nil))
 
 (def (atom->cps expression)
-  expression)
+  `(continue-with ,expression))
 
 (def (transform-cps-atom _ expression _)
   "Return a form that evaluates an atom in CPS."
-  expression)
+  (atom->cps expression))
 
-(def (expand-cps environment cps-form)
-  "Returns (values expanded-form simple?). Transforms cps-form, macroexpands it in the given environment.
-The result is simple if the result is an atom or quote."
-  (let ((form (macroexpand (transform-cps cps-form) environment)))
-    (values form
-	    (or (atom form)
-		(and (pair? form) (member (first form) '(cl:quote cl:function)))))))
+(defmacro with-return-to-saved-continuation (continuation &body body)
+  "Evaluates from with *CONTINUATION* bound to continuation"
+  `(cl:let ((*continuation* ,continuation))
+     ,@body))
+(defmacro with-primary-value-continuation ((primary-value-name form) &body continuation-body)
+  "Evaluates form with *CONTINUATION* bound to continuation-body. 
+Only the primary-value is passed to continuation body.
+If no values are passed to the continuation, the primary-value is NIL."
+  (let ((ignored-rest-of-values (unique-symbol 'ignored-rest-of-values)))
+    `(with-continuation ,form
+       (cl:lambda (&optional ,primary-value-name &rest ,ignored-rest-of-values)
+	 (declare (ignore ,ignored-rest-of-values))
+	 (declare (ignorable ,primary-value-name))
+	 ,@continuation-body))))
+(defmacro with-ignored-values-continuation (form &body continuation-body)
+  "Evaluates form with *CONTINUATION* bound to continuation-body. Ignores values passed to the continuation."
+  (let ((ignored-values (unique-symbol 'ignored-values)))
+    `(with-continuation ,form
+       (cl:lambda (&rest ,ignored-values)
+	 (declare (ignore ,ignored-values))
+	 ,@continuation-body))))
+(defmacro with-values-continuation ((values-name form) &body continuation-body)
+  "Evaluates form with *CONTINUATION* bound to continuation-body. Binds values passed to the continuation to VALUES-NAME."
+  `(with-continuation ,form
+     (cl:lambda (&rest ,values-name)
+       ,@continuation-body)))
 
 (def (cps->primary-value environment cps-form primary-value-name continuation-form-proc)
   "Form that evaluates cps-form, passing the results to a continuation
 that can accept multiple values. Binds name to the primary value for continuation-form."
-  (define-unique-symbols ignored-rest-of-values)
-  (define-values (form simple?) (expand-cps environment cps-form))
-  (if simple?
-      (continuation-form-proc form)
-      `(with-continuation ,form
-	   (cl:lambda (&optional ,primary-value-name &rest ,ignored-rest-of-values)
-	     (declare (ignore ,ignored-rest-of-values))
-	     (declare (ignorable ,primary-value-name))
-	     ,(continuation-form-proc primary-value-name)))))
+  `(with-primary-value-continuation (,primary-value-name ,(transform-cps environment cps-form))
+     ,(continuation-form-proc primary-value-name)))
 
-(def (eval-arguments->cps-form env argument-forms form-proc)
+(def (eval-arguments->cps-form environment argument-forms form-proc)
   "Return a form that evalautes argument-forms from left to right in CPS,
 before evaluating (form-proc arguments)"
   (let iterate ((arguments ())
@@ -306,25 +199,24 @@ before evaluating (form-proc arguments)"
       ((empty? argument-forms) (form-proc (nreverse arguments)))
       (t
        (define-destructuring (argument-form . rest-argument-forms) argument-forms)
-       (cps->primary-value env argument-form
-			   (unique-symbol 'argument)
-			   (lambda (argument)
-			     (iterate (cons argument arguments) rest-argument-forms)))))))
+       (define-unique-symbols argument)
+       (define eval-rest-of-arguments-form (iterate (cons argument arguments) rest-argument-forms))
+       `(with-primary-value-continuation (,argument ,(transform-cps environment argument-form))
+	  ,eval-rest-of-arguments-form)))))
 
-(def (apply/c continuation function-designator arguments)
+(def (apply/c function-designator arguments)
   (def function (if (symbol? function-designator)
 		    (symbol-function function-designator)
 		    function-designator))
   (def cps-function (function->cps-function function))
   (if cps-function
-      ;; If the function has an associated cps-function, we need to set the *continuation*,
-      ;; so it can return to it. 
-      (with-continuation (apply cps-function arguments) continuation)
+      ;; If the function has an associated cps-function, we can just call it.
+      (apply cps-function arguments)
       ;; If the function is an ordinary function, we need to deliver its returned values
       ;; to the continuation
-      (multiple-value-call continuation (apply function arguments))))
-(def (funcall/c continuation function-designator . arguments)
-  (apply/c continuation function-designator arguments))
+      (multiple-value-call *continuation* (apply function arguments))))
+(def (funcall/c function-designator . arguments)
+  (apply/c function-designator arguments))
 
 (def (transform-cps-proper-list _ expression environment)
   "Return a form that evaluates function-application in CPS.
@@ -342,19 +234,29 @@ Special cases currently exist for funcall and apply."
 	 (cond
 	   ((lexical-function-name? function-name)
 	    ;; This is a known cps function, we can call it with continue as the continuation
-	    `(with-continuation (,function-name ,@arguments) ,continue))
+	    `(with-return-to-saved-continuation ,continue (,function-name ,@arguments)))
 
+	   ;; TODO: Special case higher order functions. funcall/apply/mapcar et. al.
 	   ((eq? function-name 'cl:funcall)
-	    `(funcall/c ,continue ,@arguments))
+	    ;; TODO: rename funcall/c funcall/cc
+	    `(with-return-to-saved-continuation ,continue (funcall/c ,@arguments)))
 	   ((eq? function-name 'cl:apply)
-	    `(apply/c ,continue ,(first arguments) (list* ,@(rest arguments))))
+	    `(with-return-to-saved-continuation ,continue (apply/c ,(first arguments) (list* ,@(rest arguments)))))
+	   ((eq? function-name 'dynamic-wind/cc)
+	    `(dynamic-wind ,continue ,@arguments))
+	   ((eq? function-name 'run/cc)
+	    `(run ,continue ,@arguments))
+
+	   ;; Special case values
 	   ((eq? function-name 'cl:values)
 	    `(funcall ,continue ,@arguments))
+
+	   ;; TODO: Special case: functions which are known to not have CPS-FUNCTIONS
+
+	   
 	   (t
 	    ;; Otherwise funcall it with continue
-	    `(funcall/c ,continue ',function-name ,@arguments)))))))
-
-;; maybe an Intermediate representation would be best. or maybe. it was alright before
+	    `(with-return-to-saved-continuation ,continue (funcall/c ',function-name ,@arguments))))))))
 
 (cps 1)
 (cps (+ 1 2))
@@ -373,33 +275,26 @@ Special cases currently exist for funcall and apply."
 (cps (list '(1 2 3)))
 
 (def (progn->cps environment forms)
-  (define-unique-symbols continue)
+  (define-unique-symbols continue-from-progn)
   (def (progn->cps-iteration forms)
+    ;; (progn . forms)
+    (define-destructuring (cps-form . rest-of-forms) forms)
+    (def form (transform-cps environment cps-form))
     (cond
-      ;; (progn) => NIL
-      ((empty? forms) (atom->cps nil))
-      ;; (progn . forms)
+      ;; (progn form) => form
+      ((empty? rest-of-forms)
+       `(with-return-to-saved-continuation ,continue-from-progn ,form))
+      ;; (progn form . rest-of-forms)
       (t
-       (define-destructuring (form . rest-of-forms) forms)
-       (cond
-	 ;; (progn form) => form
-	 ((empty? rest-of-forms)
-	  (define-values (expanded-form simple?) (expand-cps environment form))
-	  `,(if simple?
-		`(continue-to ,continue ,expanded-form)
-		`(with-continuation ,expanded-form ,continue)))
-	 ;; (progn form . rest-of-forms)
-	 (t
-	  (define-unique-symbols ignored)
-	  (define-values (expanded-form simple?) (expand-cps environment form))
-	  (if simple?
-	      `(progn ,expanded-form ,(progn->cps-iteration rest-of-forms))
-	      `(with-continuation ,expanded-form
-		 (cl:lambda (&rest ,ignored)
-		   (declare (ignore ,ignored))
-		   ,(progn->cps-iteration rest-of-forms)))))))))
-  `(save-continuation ,continue
-     ,(progn->cps-iteration forms)))
+       `(with-ignored-values-continuation ,form ,(progn->cps-iteration rest-of-forms)))))
+  (cond
+    ;; (progn) => nil
+    ((empty? forms) (atom->cps nil))
+    ;; (progn form) => form
+    ((empty? (rest forms)) (transform-cps environment (first forms)))
+    ;; (progn . forms)
+    (t `(save-continuation ,continue-from-progn
+	  ,(progn->cps-iteration forms)))))
 
 (define-transform-cps-special-form cl:progn (expression environment)
   (define forms (rest expression))
@@ -423,19 +318,15 @@ Special cases currently exist for funcall and apply."
        ;; Establish bindings from name->let-binding-value-name in let
        `(cl:let ,new-bindings
 	  ,@declarations
-	  (with-continuation
-	      ,(progn->cps environment forms)
-	      ,continue-from-let)))
+	  (with-return-to-saved-continuation ,continue-from-let
+	    ,(progn->cps environment forms))))
       (t
        (define-destructuring (binding . rest-of-bindings) bindings)
        (define value-form (let-binding-value binding))
+       (define binding-value(unique-symbol (format nil "~S ~S " 'let-binding-value-for (let-binding-name binding))))
        ;; Bind value to a unique name
-       (cps->primary-value
-	environment
-	value-form
-	(unique-symbol 'binding-value)
-	(lambda (binding-value)
-	  (iterate rest-of-bindings (cons binding-value binding-values)))))))
+       `(with-primary-value-continuation (,binding-value ,(transform-cps environment value-form))
+	  ,(iterate rest-of-bindings (cons binding-value binding-values))))))
   `(save-continuation ,continue-from-let
      ,(iterate bindings ())))
 
@@ -457,18 +348,14 @@ Special cases currently exist for funcall and apply."
        `(cl:locally ,@declarations
 	  (with-continuation
 	      ,(progn->cps environment forms)
-	      ,continue-from-let*)))
+	    ,continue-from-let*)))
       ;; Iteration case: evaluate value of next binding, and bind it.
       (t (define-destructuring (binding . rest-of-bindings) bindings)
 	 (define name (let-binding-name binding))
 	 (define value (let-binding-value binding))
 	 ;; Evaluate the next binding's value, binding it to name.
-	 (cps->primary-value
-	  environment
-	  value
-	  name
-	  (lambda (_)
-	    (iterate rest-of-bindings))))))
+	 `(with-primary-value-continuation (,name ,(transform-cps environment value))
+	    ,(iterate rest-of-bindings)))))
   `(save-continuation ,continue-from-let*
      ,(iterate bindings)))
 
@@ -490,36 +377,35 @@ Special cases currently exist for funcall and apply."
 			   (:rest parameter)))
 		       full-lambda-list))
   (define-values (declarations forms) (parse-declarations body))
-  (define-values (expanded-forms simple?) (expand-cps
-					   environment
-					   `(progn
-					      ,@(nreverse default-parameter-assignments)
-					      ,@forms)))
   `(,name ,lambda-list
 	  ,@declarations
-	  ,(if simple?
-	       `(funcall *continuation* ,expanded-forms)
-	       expanded-forms)))
+	  ,(progn->cps
+	    environment
+	    (append (nreverse default-parameter-assignments) forms))))
 
-(define-transform-cps-special-form cl:lambda (expression environment)
-  (define-destructuring (ordinary-lambda-list . body) (rest expression))
+(def (lambda->cps environment ordinary-lambda-list body)
   (define-unique-symbols ordinary-function cps-function)
   (def full-lambda-list (full-ordinary-lambda-list ordinary-lambda-list))
   (def cps-function-form (function-binding->cps environment 'cl:lambda full-lambda-list body))
+
   (def ordinary-function-form `(cl:lambda ,full-lambda-list
-				 ;; Call the underlying cps-function, returning the result to the caller.
-				 (apply/c #'values ,cps-function ,(full-ordinary-lambda-list->function-argument-list-form full-lambda-list))))
+				 ;; Call the underlying cps-function, returning the result to the caller, instead of the continuation.
+				 (without-continuation
+				   (apply/c ,cps-function ,(full-ordinary-lambda-list->function-argument-list-form full-lambda-list)))))
   `(cl:let* ((,cps-function ,cps-function-form)
 	     ;; The continuation function curried with #'values as the continuation
 	     (,ordinary-function ,ordinary-function-form))
      ;; Transform the lambda expression and register it as the CPS-function of the function
      (set-cps-function! ,ordinary-function ,cps-function)
      ;; Return an ordinary function.
-     (continue-with ,ordinary-function)))
+     ,ordinary-function))
 
-(with-continuation
-    (cps (funcall (cl:lambda (a b c) (values a b c)) :a :b :c))
-  #'list)
+
+(define-transform-cps-special-form cl:lambda (expression environment)
+  (define-destructuring (ordinary-lambda-list . body) (rest expression))
+  `(continue-with ,(lambda->cps environment ordinary-lambda-list body)))
+
+(cps (funcall (cl:lambda (a b c) (values a b c)) :a :b :c))
 (funcall (cps (cl:lambda (a b c) (values a b c))) :a :b :c)
 
 
@@ -527,32 +413,29 @@ Special cases currently exist for funcall and apply."
   (def pairs (setq-pairs expression))
   (define-unique-symbols continue-from-setq)
   (define (pairs->cps pairs)
+    
     (define (pair->cps pair rest-of-pairs last-pair?)
       (define-destructuring (name value-form) pair)
-      (cps->primary-value
-       environment
-       value-form
-       (unique-symbol (symbolicate name '-value))
-       (cl:lambda (value)
-	 `(progn
-	    (setq ,name ,value)
-	    ,(if last-pair?
-		 ;; If this is the last pair, call the continuation with the value.
-		 `(continue-to ,continue-from-setq ,value)
-		 ;; Otherwise, continue setting pairs.
-		 (pairs->cps rest-of-pairs))))))
+      (def value-name (unique-symbol (symbolicate name '-value)))
+      `(with-primary-value-continuation (,value-name ,(transform-cps environment value-form))
+	 (setq ,name ,value-name)
+	 ,(if last-pair?
+	      ;; If this is the last pair, call the continuation with the value.
+	      `(with-return-to-saved-continuation ,continue-from-setq ,(atom->cps value-name))
+	      ;; Otherwise, continue setting pairs.
+	      (pairs->cps rest-of-pairs))))
 
+    (define-destructuring (pair . rest-of-pairs) pairs)
     (cond
-      ;; Base case: 0 pairs
-      ((empty? pairs) (atom->cps nil))
-      (t
-       (define-destructuring (pair . rest-of-pairs) pairs)
-       (cond
-	 ;; Base case: 1 pair remaining
-	 ((empty? rest-of-pairs) (pair->cps pair rest-of-pairs t))
-	 (t (pair->cps pair rest-of-pairs nil))))))
+      ;; Base case: 1 pair remaining
+      ((empty? rest-of-pairs) (pair->cps pair rest-of-pairs t))
+      ;; Iteration: (setq pair pairs...)
+      (t (pair->cps pair rest-of-pairs nil))))
+
   (cond
+    ;; (setq) => nil
     ((empty? pairs) (atom->cps nil))
+    ;; (setq pair . pairs...)
     (t `(save-continuation ,continue-from-setq ,(pairs->cps pairs)))))
 
 (let (a b c)
@@ -566,81 +449,69 @@ Special cases currently exist for funcall and apply."
 
 (define-transform-cps-special-form cl:if (expression environment)
   (define-destructuring (test-form then-form &optional else-form) (rest expression))
-  (define-unique-symbols continue-from-if)
+  (define-unique-symbols continue-from-if if-test-result)
   `(save-continuation ,continue-from-if
-     ,(cps->primary-value
-       environment
-       test-form
-       (unique-symbol 'test-result)
-       (cl:lambda (test)
-	 `(with-continuation
-	      (cl:if ,test
-		     ,(transform-cps then-form)
-		     ,(transform-cps else-form))
-	      ,continue-from-if)))))
+     (with-primary-value-continuation (,if-test-result ,(transform-cps environment test-form))
+       (with-return-to-saved-continuation ,continue-from-if
+	 (cl:if ,if-test-result
+		,(transform-cps environment then-form)
+		,(transform-cps environment else-form))))))
 
 (cps (if (print nil) (print 1) (print 2)))
 
 (define-transform-cps-special-form cl:the (expression environment)
   (define-destructuring (type-form value-form) (rest expression))
   (define-unique-symbols results continue-from-the)
-  (define-values (expanded-value simple?) (expand-cps environment value-form))
-  (if simple?
-      `(the ,type-form ,expanded-value)
-      `(let ((,continue-from-the *continuation*))
-	 (with-continuation ,(transform-cps value-form)
-	   (cl:lambda (&rest ,results)
-	     (multiple-value-call ,continue-from-the (the ,type-form (values-list ,results))))))))
+  `(save-continuation ,continue-from-the
+     (with-values-continuation (,results ,(transform-cps environment value-form))
+       (with-return-to-saved-continuation ,continue-from-the
+	 (continue-with-values (the ,type-form (values-list ,results)))))))
 
-(cps (the number 1))
+(cps (the (values number &optional) 1))
 (cps (the (values number string &optional) (values 1 "string")))
 
 (define-transform-cps-special-form cl:function (expression environment)
-  (def name (second expression))
-  (define-unique-symbols continue-from-function function cps-function)
-  (if (lexical-function-name? name)
-      `(cps-lambda ,continue-from-function
-		   (let* ((,cps-function (function ,name))
-			  (,function (cl:lambda (&rest arguments) (apply ,cps-function #'values arguments))))
-		     (set-cps-function! ,function ,cps-function)
-		     (continue-to ,continue-from-function ,function)))
-      expression))
+  (def function-name (second expression))
+  (cond
+    ((lexical-function-name? function-name)
+     ;; If its a lexical function name we need to return an ordinary function, with #'function
+     ;; as an associated cps-function. This means we'll want the full lambda list associated
+     ;; with defining the function. Also, if the ordinary funciton already exists we should
+     ;; grab that.
+     ;; For now though
+     (error "TODO"))
+    ;; Otherwise it's an ordinary atom
+    (t (atom->cps expression))))
 
 (define-transform-cps-special-form cl:multiple-value-call (expression environment)
   (define-destructuring (function-form . arguments) (rest expression))
-  (define-unique-symbols continue-from-multiple-value-call)
+  (define-unique-symbols continue-from-multiple-value-call multiple-value-call-function)
 
   (def (eval-arguments->cps-form argument-forms form-proc)
     "Return a form that evalautes argument-forms from left to right in CPS,
-before evaluating (form-proc arguments)"
+before evaluating (form-proc argument-lists)"
     (let iterate ((argument-lists ())
-		  (argument-forms argument-forms))
+		  (argument-forms argument-forms)
+		  (index 0))
       (cond
 	((empty? argument-forms) (form-proc (nreverse argument-lists)))
 	(t
-	 (define-destructuring (argument . rest-argument-forms) argument-forms)
-	 (define-unique-symbols argument-list)
-	 (define-values (form simple?) (expand-cps environment argument))
-	 `(with-continuation ,(if simple?
-				  `(continue-with ,form)
-				  form)
-	    (cl:lambda (&rest ,argument-list)
-	      ,(iterate (cons argument-list argument-lists) rest-argument-forms)))))))
+	 (define-destructuring (argument-form . rest-argument-forms) argument-forms)
+	 (def argument-list (unique-symbol (format nil "MULTIPLE-VALUE-CALL-ARGUMENT-LIST-~S-" index)))
+	 `(with-values-continuation (,argument-list ,(transform-cps environment argument-form))
+	    ,(iterate (cons argument-list argument-lists) rest-argument-forms (1+ index)))))))
 
-  `(let ((,continue-from-multiple-value-call *continuation*))
+  `(save-continuation ,continue-from-multiple-value-call
      ;;  evalaute the primary value of function-form and capture it in FUNCTION
-     ,(cps->primary-value
-       environment
-       function-form
-       (unique-symbol 'function)
-       (cl:lambda (function)
-	 ;; evaluate the arguments...
-	 (eval-arguments->cps-form
-	  arguments
-	  (cl:lambda (argument-lists)
-	    ;; ...capturing the values of each argument as a list
-	    ;; Apply the function to the appended argument-lists
-	    `(apply/c ,continue-from-multiple-value-call ,function (nconc ,@argument-lists))))))))
+     (with-primary-value-continuation (,multiple-value-call-function ,(transform-cps environment function-form))
+       ;; evaluate the arguments...
+       ,(eval-arguments->cps-form
+	 arguments
+	 (cl:lambda (argument-lists)
+	   ;; ...capturing the values of each argument as a list
+	   `(with-return-to-saved-continuation ,continue-from-multiple-value-call
+	      ;; Apply the function to the appended argument-lists
+	      (apply/c ,multiple-value-call-function (append ,@argument-lists))))))))
 
 (cps (multiple-value-call #'list (values 1 2 3) (values 4 5 6)))
 
@@ -650,7 +521,7 @@ before evaluating (form-proc arguments)"
   ;; so :load-toplevel and :compile-toplevel are irrelevant.
   ;; therefore we only need to handle the :execute case.
   (cond
-    ((member :execute situations) (transform-cps `(progn ,@body)))
+    ((member :execute situations) (progn->cps environment body))
     (t `(continue-with nil))))
 
 (cps (progn
@@ -660,14 +531,13 @@ before evaluating (form-proc arguments)"
        (eval-when (:execute) (print 'hi))
        (print 'after)))
 
-
 ;; Macrolet
 (define-transform-cps-special-form cl:macrolet (expression environment)
   (define-destructuring (definitions &body body) (rest expression))
   (define-values (declarations forms) (parse-declarations body))
   `(cl:macrolet ,definitions
      ,@declarations
-     ,(transform-cps `(progn ,@body))))
+     ,(progn->cps environment body)))
 
 ;; symbol-Macrolet
 (define-transform-cps-special-form cl:symbol-macrolet (expression environment)
@@ -675,34 +545,32 @@ before evaluating (form-proc arguments)"
   (define-values (declarations forms) (parse-declarations body))
   `(cl:symbol-macrolet ,definitions
      ,@declarations
-     ,(transform-cps `(progn ,@body))))
+     ,(progn->cps environment body)))
 
 ;; locally
 (define-transform-cps-special-form cl:locally (expression environment)
   (def body (rest expression))
   (define-values (declarations forms) (parse-declarations body))
   `(cl:locally ,@declarations
-     ,(transform-cps `(progn ,@forms))))
+     ,(progn->cps environment forms)))
 
 ;; load-time-value
 ;; continuation barrier around load-time-value's form, since it is evaluated at a different time
 (define-transform-cps-special-form cl:load-time-value (expression environment)
   (define-destructuring (form &optional read-only?) (rest expression))
-  `(cl:load-time-value (with-continuation ,(transform-cps form) #'values) ,read-only?))
+  (atom->cps `(cl:load-time-value (without-continuation ,(transform-cps environment form)) ,read-only?)))
+
 
 ;; multiple-value-prog1: why is this a special form?
 (define-transform-cps-special-form cl:multiple-value-prog1 (expression environment)
   (define-destructuring (values-form . forms) (rest expression))
-  (define-unique-symbols continue-from-multiple-value-prog1 results ignored)
+  (define-unique-symbols continue-from-multiple-value-prog1 multiple-value-prog1-results)
   `(save-continuation ,continue-from-multiple-value-prog1
      ;; Evaluate the values form first, saving the results
-     (with-continuation ,(transform-cps values-form)
-	 (cl:lambda (&rest ,results)
-	   (with-continuation ,(transform-cps `(progn ,@forms))
-	       (cl:lambda (&rest ,ignored)
-		 (declare (ignore ,ignored))
-		 (continue-to ,continue-from-multiple-value-prog1 ,results)))))))
-
+     (with-values-continuation (,multiple-value-prog1-results ,(transform-cps environment values-form))
+       (with-ignored-values-continuation ,(progn->cps environment forms)
+	 (with-return-to-saved-continuation ,continue-from-multiple-value-prog1
+	   (continue-with* ,multiple-value-prog1-results))))))
 
 (define-transform-cps-special-form cl:labels (expression environment)
   (define-destructuring (definitions &body body) (rest expression))
@@ -717,7 +585,7 @@ before evaluating (form-proc arguments)"
   (with-lexical-function-names function-names
     `(cl:labels ,(map labels-binding->cps definitions)
        ,@declarations
-       ,(transform-cps `(progn ,@forms)))))
+       ,(progn->cps environment forms))))
 
 (define-transform-cps-special-form cl:flet (expression environment)
   (define-destructuring (definitions &body body) (rest expression))
@@ -732,8 +600,7 @@ before evaluating (form-proc arguments)"
   `(cl:flet ,(map flet-binding->cps definitions)
      ,@declarations
      ,(with-lexical-function-names function-names
-	(transform-cps `(progn ,@forms)))))
-
+	(progn->cps environment forms))))
 
 ;; Dynamic forms
 
@@ -755,7 +622,7 @@ with a continuation: (modify-suspended-continuation rest-of-thunk) in the re-est
   (def thunk-result (let ((*prompt-established?* t))
 		      (catch *fcontrol-tag*
 			;; Call thunk returning results as a list.
-			(funcall/c #'list thunk))))
+			(multiple-value-list (thunk)))))
   (cond
     ;; If the result is an fcontrol-signal, it means an (FCONTROL value) form was encountered.
     ((fcontrol-signal? thunk-result)
@@ -765,10 +632,11 @@ with a continuation: (modify-suspended-continuation rest-of-thunk) in the re-est
      (define rest-of-thunk (fcontrol-signal-continuation thunk-result))
      (cond
        ((eq? tag fcontrol-tag)
-	;; This is the tag we are trying to catch. Invoke the handler.
+	;; This is the tag we are trying to catch. Invoke the handler (which may or may not be in CPS).
 	;; on the signal's value and continuation
 	;; Return the results to whoever called run.
-	(funcall/c continue-from-run handler value rest-of-thunk))
+	(with-return-to-saved-continuation continue-from-run
+	  (funcall/c handler value rest-of-thunk)))
        (*prompt-established?*
 	;; If a prompt is established, then tag may be meant for an outer run.
 	;; re-throw with setting the prompt up again as part of the continuation
@@ -793,14 +661,10 @@ with a continuation: (modify-suspended-continuation rest-of-thunk) in the re-est
 (def (default-prompt-handler value _continuation) value)
 (defvar *default-prompt-tag* (unique-symbol 'default-prompt-tag))
 
-(defmacro % (expr &key (tag '*default-prompt-tag*) (handler '(function default-prompt-handler)) &environment environment)
+
+(defmacro % (expr &key (tag '*default-prompt-tag*) (handler '(function default-prompt-handler)))
   "Sets up a prompt with the given tag"
-  (multiple-value-bind (expanded-expr simple?) (expand-cps environment expr)
-    (if simple?
-	expanded-expr
-	(let ((continue-from-% (unique-symbol 'continue-from-%)))
-	  `(save-continuation ,continue-from-%
-	     (cps (run ,continue-from-% ,tag (cl:lambda () (no-cps ,expanded-expr)) ,handler)))))))
+  `(no-cps (cps (run/cc ,tag (cl:lambda () ,expr) ,handler))))
 (defmacro catch/cc ((&key (tag '*default-prompt-tag*) (handler '(function default-prompt-handler))) &body body)
   "Equivalent to (% (progn body...) :tag tag :handler handler)"
   `(% (progn ,@body) :tag ,tag :handler ,handler))
@@ -813,22 +677,22 @@ with a continuation: (modify-suspended-continuation rest-of-thunk) in the re-est
   (define arguments (rest expression))
   `(save-continuation ,continue-from-fcontrol
      ,(eval-arguments->cps-form
-       environment
-       arguments
+       environment arguments
        (lambda (argument-names)
 	 (define-destructuring (tag value) argument-names)
-	 `(progn
-	    (unless *prompt-established?*
-	      (error "Attempt to (FCONTROL ~S ~S) without an established prompt. See %, RUN." ,tag ,value))
-	    (throw *fcontrol-tag* (make-fcontrol-signal ,tag ,value ,continue-from-fcontrol)))))))
+	 `(cond
+	    (*prompt-established?*
+	     ;; Throw to the nearest established prompt, if one is established
+	     (throw *fcontrol-tag* (make-fcontrol-signal ,tag ,value ,continue-from-fcontrol)))
+	    (t (error "Attempt to (FCONTROL ~S ~S) without an established prompt. See %, RUN." ,tag ,value)))))))
 (defmacro fcontrol (tag value)
   "Evaluates tag, then value, throwing tag, value, and the current continuation
 to the dynamically nearest established RUN, aborting the current continuation.
 If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluates to VALUE."
   (declare (ignore tag value))
   `(error "Attempt to FCONTROL in a non-CPS environment."))
-(defmacro throw/cc (value &optional (tag '*default-prompt-tag*))
-  "Equivalent to (FCONTROL TAG VALUE) but with an optional default tag."
+(defmacro throw/cc (&optional value (tag '*default-prompt-tag*))
+  "Equivalent to (FCONTROL TAG VALUE)."
   `(fcontrol ,tag ,value))
 
 (define-transform-cps-special-form cl:block (expression environment)
@@ -839,53 +703,168 @@ If FCONTROL is evaluated in a non-CPS function, it issues a warning and evaluate
 		  :block-tag-alist
 		  (cut (alist-set _ name block-tag))))
   (let ((*lexical-context* lexical-context))
-    (transform-cps `(run *continuation*
-			 ',block-tag
-			 (cl:lambda () ,@forms)
-			 (cl:lambda (results k)
-			   (declare (ignore k))
-			   (values-list results))))))
+    (transform-cps environment
+		   `(run/cc ',block-tag
+			    (cl:lambda () ,@forms)
+			    (cl:lambda (results k)
+			      (declare (ignore k))
+			      (values-list results))))))
 
 
 (define-transform-cps-special-form cl:return-from (expression environment)
   (define-destructuring (name &optional values-form) (rest expression))
   (define block-tag (alist-ref (alist-ref *lexical-context* :block-tag-alist) name))
-  (define-unique-symbols results)
+  (define-unique-symbols return-from-values)
   (unless block-tag
     (error "Could not find BLOCK named ~S in the current lexical environment." name))
-  `(with-continuation ,(transform-cps values-form)
-       (cl:lambda (&rest ,results)
-	 ,(transform-cps `(fcontrol ',block-tag ,results)))))
+  `(with-values-continuation (,return-from-values ,(transform-cps environment values-form))
+     ,(transform-cps environment `(fcontrol ',block-tag ,return-from-values))))
 
 
 (define-transform-cps-special-form cl:catch (expression environment)
-  (define-destructuring (tag-form . forms) (rest expression))
-  (define-unique-symbols continue-from-catch tag)
-  `(save-continuation ,continue-from-catch
-     ,(cps->primary-value
-       environment tag-form tag
-       (cl:lambda (tag)
-	 ;; Create a prompt with the given tag.
-	 ;; TODO: put these tags in a different namespace from other prompt tags.
-	 (transform-cps
-	  `(run ,continue-from-catch
-		,tag
-		(cl:lambda () ,@forms)
-		(cl:lambda (results k)
-		  (declare (ignore k))
-		  (values-list results))))))))
+  (define-destructuring (tag . forms) (rest expression))
+  (transform-cps
+   environment
+   `(run/cc ,tag
+	    (cl:lambda () ,@forms)
+	    (cl:lambda (results k)
+	      (declare (ignore k))
+	      (values-list results)))))
 
 (define-transform-cps-special-form cl:throw (expression environment)
   (define-destructuring (tag-form results-form) (rest expression))
   (define-unique-symbols tag results)
-  (cps->primary-value
-   environment tag-form tag
-   (cl:lambda (tag)
-     `(with-continuation ,(transform-cps results-form)
-	  (cl:lambda (&rest ,results)
-	    ;; Return to the prompt
-	    ,(transform-cps `(fcontrol ,tag ,results)))))))
+  `(with-primary-value-continuation (,tag ,(transform-cps environment tag-form))
+     (with-values-continuation (,results ,(transform-cps environment results-form))
+       ;; Return results to the prompt
+       ,(transform-cps environment `(fcontrol ,tag ,results)))))
 
+;; Old unnwind-protect
+#+nil
+(define-transform-cps-special-form cl:unwind-protect (expression environment)
+  (define-destructuring (protected &body cleanup) (rest expression))
+  (define-unique-symbols results normal-exit?
+    continue-from-unwind-protect result arguments finished-cleanup?)
+  `(save-continuation ,continue-from-unwind-protect
+     (let (,normal-exit? ,results ,finished-cleanup?)
+       (unwind-protect
+	    ;; Protected form
+	    (let ((,result
+		    (catch *fcontrol-tag*
+		      ;; evaluate protected, setting results to the returned values
+		      (set! ,results (with-values-continuation (,results ,(transform-cps environment protected))
+				       ,results)))))
+	      ;; Caught an fcontrol-tag from within the protected form?
+	      (when (fcontrol-signal? ,result)
+		;; Rethrow it, but don't allow re-entry
+		(throw *fcontrol-tag*
+		  (make-fcontrol-signal
+		   (fcontrol-signal-tag ,result)
+		   (fcontrol-signal-value ,result)
+		   ;; Don't allow re-entry into the protected froms
+		   (cl:lambda (&rest ,arguments)
+		     (declare (ignore ,arguments))
+		     (error "Attempt to re-enter a protected form.")))))
+	      
+	      ;; if we made it here, we have had a normal-exit (no throw)
+	      (set! ,normal-exit? t))
+	 ;; Cleanup forms
+	 (let ((,result
+		 (catch *fcontrol-tag*
+		   (without-continuation ,(progn->cps environment cleanup)))))
+	   ;; If we caught an fcontrol-signal in the cleanup forms
+	   (when (fcontrol-signal? ,result)
+	     ;; re-throw it, with a modified continuation
+	     (throw *fcontrol-tag*
+	       (make-fcontrol-signal
+		(fcontrol-signal-tag ,result)
+		(fcontrol-signal-value ,result)
+		;; Return a continuation that calls the rest of the cleanup forms,
+		;; followed by, if we had a normal exit, the a call to the continuation from the unwind-protect. 
+		(cl:lambda (&rest ,arguments)
+		  ;; Call the rest of the cleanup-forms with the arguments
+		  (apply (fcontrol-signal-continuation ,result) ,arguments)
+		  ;; IF we had a normal-exit
+		  (when ,normal-exit?
+		    ;; then continue from unwind-protect with the protected-form's results
+		    (apply ,continue-from-unwind-protect ,results))
+		  ;; If we didn't have a normal-exit? then we are at a dead end.
+		  ))))
+	   ;; IF we made it here, we had a normal exit from the cleanup forms.
+	   (set! ,finished-cleanup? t)))
+       
+       ;; If we had a normal exit from the protected form and the cleanup forms, we need to call the continuation
+       ;; with the results of the protected form.
+       (when (and ,normal-exit? ,finished-cleanup?)
+	 (apply ,continue-from-unwind-protect ,results)))))
+
+(def (dynamic-wind continue-from-dynamic-wind before-thunk thunk after-thunk)
+  (with-ignored-values-continuation (funcall/c before-thunk)
+    (let (normal-exit? results finished-cleanup?)
+      (unwind-protect
+	   ;; Protected form
+	   (let ((result (catch *fcontrol-tag*
+			   ;; evaluate thunk, saving the returned values
+			   (set! results (multiple-value-list (thunk))))))
+	     ;; Caught an fcontrol-tag from within the protected form?
+	     (when (fcontrol-signal? result)
+	       ;; Rethrow it, but with a continuation that calls dynamic-wind
+	       (throw *fcontrol-tag*
+		 (make-fcontrol-signal
+		  (fcontrol-signal-tag result)
+		  (fcontrol-signal-value result)
+		  ;; continuation that calls dynamic-wind around rest-of-thunk
+		  (cl:lambda (&rest arguments)
+		    (dynamic-wind continue-from-dynamic-wind
+				  before-thunk
+				  ;; Rest of thunk
+				  (cl:lambda () (apply (fcontrol-signal-continuation result) arguments))
+				  after-thunk)))))
+	     
+	     ;; if we made it here, we have had a normal-exit
+	     (set! normal-exit? t))
+	
+	;; Cleanup forms
+	(let ((result (catch *fcontrol-tag* (after-thunk))))
+	  ;; If we caught an fcontrol-signal in the cleanup forms
+	  (when (fcontrol-signal? result)
+	    ;; re-throw it, with a modified continuation
+	    (throw *fcontrol-tag*
+	      (make-fcontrol-signal
+	       (fcontrol-signal-tag result)
+	       (fcontrol-signal-value result)
+	       ;; Return a continuation that calls the rest of the cleanup forms,
+	       ;; followed by, if we had a normal exit, the a call to the continuation from the unwind-protect. 
+	       (cl:lambda (&rest arguments)
+		 ;; Call the rest of the cleanup-forms with the arguments
+		 (apply (fcontrol-signal-continuation result) arguments)
+		 ;; IF we had a normal-exit
+		 (when normal-exit?
+		   ;; then continue from unwind-protect with the protected-form's results
+		   (apply continue-from-dynamic-wind results))
+		 ;; If we didn't have a normal-exit? then we are at a dead end.
+		 ))))
+	  ;; IF we made it here, we had a normal exit from the cleanup forms.
+	  (set! finished-cleanup? t)))
+      
+      ;; If we had a normal exit from the protected form and the cleanup forms, we need to call the continuation
+      ;; with the results of the protected form.
+      (when (and normal-exit? finished-cleanup?)
+	(apply continue-from-dynamic-wind results)))))
+
+(define-transform-cps-special-form cl:unwind-protect (expression environment)
+  (define-destructuring (protected &body cleanup) (rest expression))
+  (transform-cps environment `(let ((ok? t))
+				(dynamic-wind/cc
+				 (cl:lambda ()
+				   (if ok?
+				       (set! ok? nil)
+				       (error "Attempt to re-enter the protected form of an unwind-protect.")))
+				 (cl:lambda () ,protected)
+				 (cl:lambda () ,@cleanup)))))
+
+;; Old dynamic-wind
+#+nil
 (def (dynamic-wind before-thunk thunk after-thunk)
   "Executes (progn (before-thunk) (thunk) (after-thunk)) returning the results of thunk.
 AFTER-THUNK will be run after thunk even if a CONTROL is signaled.
@@ -912,87 +891,8 @@ This way, every time thunk is executed, before-thunk will be run before and afte
       (t (values-list result)))))
 
 
-;; TODO: Below
 
-(define-transform-cps-special-form cl:unwind-protect (expression environment)
-  (define-destructuring (protected &body cleanup) (rest expression))
-  (define-unique-symbols results normal-exit?
-    continue-from-unwind-protect result arguments finished-cleanup?)
-  (define-values (protected-expanded protected-simple?) (expand-cps environment protected))
-  (define-values (cleanup-expanded cleanup-simple?) (expand-cps environment `(progn ,@cleanup)))
-  `(save-continuation ,continue-from-unwind-protect
-     (no-cps
-      (let (,normal-exit? ,results ,finished-cleanup?)
-	(unwind-protect
-	     ;; Protected form
-	     (let ((,result
-		     (catch *fcontrol-tag*
-		       ;; evaluate protected, setting results to the returned values
-		       (set! ,results ,(if protected-simple?
-					   `(list ,protected-expanded)
-					   `(with-continuation ,protected-expanded #'list))))))
-	       ;; Caught an fcontrol-tag from within the protected form?
-	       (when (fcontrol-signal? ,result)
-		 ;; Rethrow it, but don't allow re-entry
-		 (throw *fcontrol-tag*
-		   (make-fcontrol-signal
-		    (fcontrol-signal-tag ,result)
-		    (fcontrol-signal-value ,result)
-		    ;; Don't allow re-entry into the protected froms
-		    (cl:lambda (&rest ,arguments)
-		      (declare (ignore ,arguments))
-		      (error "Attempt to re-enter a protected form.")))))
-	       
-	       ;; if we made it here, we have had a normal-exit (no throw)
-	       (set! ,normal-exit? t))
-	  ;; Cleanup forms
-	  (let ((,result
-		  (catch *fcontrol-tag*
-		    ,(if cleanup-simple?
-			 cleanup-expanded
-			 `(with-continuation ,cleanup-expanded #'values)))))
-	    ;; If we caught an fcontrol-signal in the cleanup forms
-	    (when (fcontrol-signal? ,result)
-	      ;; re-throw it, with a modified continuation
-	      (throw *fcontrol-tag*
-		(make-fcontrol-signal
-		 (fcontrol-signal-tag ,result)
-		 (fcontrol-signal-value ,result)
-		 ;; Return a continuation that calls the rest of the cleanup forms,
-		 ;; followed by, if we had a normal exit, the a call to the continuation from the unwind-protect. 
-		 (cl:lambda (&rest ,arguments)
-		   ;; Call the rest of the cleanup-forms with the arguments
-		   (apply (fcontrol-signal-continuation ,result) ,arguments)
-		   ;; IF we had a normal-exit
-		   (when ,normal-exit?
-		     ;; then continue from unwind-protect with the protected-form's results
-		     (apply ,continue-from-unwind-protect ,results))
-		   ;; If we didn't have a normal-exit? then we are at a dead end.
-		   ))))
-	    ;; IF we made it here, we had a normal exit from the cleanup forms.
-	    (set! ,finished-cleanup? t)))
-	
-	;; If we had a normal exit from the protected form and the cleanup forms, we need to call the continuation
-	;; with the results of the protected form.
-	(when (and ,normal-exit? ,finished-cleanup?)
-	  (apply ,continue-from-unwind-protect ,results))))))
-
-(catch/cc (:handler (cl:lambda (v k) (funcall k :resume-cleanup)))
-  (throw/cc :abort)
-  :result)
-
-(catch/cc (:handler (lambda (v k) (funcall k :resume-cleanup)))
-  (let ((result (unwind-protect (print :protected)
-		  (print (throw/cc :abort-cleanup)))))
-    (print :after)
-    result)
-  :result)
-;; Should return (:cleanup :protected)
-
-
-
-
-;; TODO: Below
+;; TODO: tagbody
 
 (defvar *tagbody-go-tag* (unique-symbol 'tagbody-go-tag))
 ;; Tagbody:
@@ -1000,12 +900,12 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; if there is no matching tag visible to go, results are undefined.
 (define-transform-cps-special-form cl:tagbody (expression environment)
   (define-destructuring (untagged-statements . tagged-forms) (parse-tagbody (rest expression)))
-  (define-unique-symbols continue-from-tagbody recurse thunk tagbody-prompt-tag results)
+  (define-unique-symbols continue-from-tagbody thunk tagbody-prompt-tag tag-thunk)
   (define tags (map first tagged-forms))
 
   (define (thunk-form statements)
     "Return a thunk that calls (progn statements...) in continuation-passing style."
-    `(cl:lambda () (funcall ,(transform-cps `(progn ,@statements)) #'values)))
+    `(cl:lambda () (without-continuation ,(progn->cps environment statements))))
   
   (define (tag-thunk-form statements next-tag)
     "Return a thunk that evaluates a tag's statements before calling the next-tag's thunk."
@@ -1050,72 +950,60 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 	      `(setq ,(tag->function-name tag) ,(last-tag-thunk-form (tag->statements tag))))
 	    (last tags))))
     
-    `(cps-lambda ,continue-from-tagbody
-		 (no-cps
-		  (let (,@function-names)
-		    ,@function-name-assignments
-		    (let ,recurse ((,thunk ,untagged-thunk-form))
-		      (let (encountered-go?)
-			(run (cl:lambda (&rest ,results)
-			       ;; If a go was encountered loop until no more go forms are encountered
-			       (if encountered-go?
-				   ;; a go was encountered, loop with the tag-thunk returned from the handler
-				   (,recurse (first ,results))
-				   ;; Otherwise, return nil from the tagbody
-				   (funcall ,continue-from-tagbody nil)))
-			     ',tagbody-prompt-tag
-			     ,thunk
-			     (lambda (tag-thunk _continue-from-go)
-			       ;; Encountered a go, we will continue looping
-			       (set! encountered-go? t)
-			       ;; return the tag-thunk to the continuation
-			       tag-thunk)))))))))
+    `(let (,@function-names)
+       ,@function-name-assignments
+       (save-continuation ,continue-from-tagbody
+	 (let run-tagbody ((,thunk ,untagged-thunk-form))
+	   (let (encountered-go?)
+	     (with-primary-value-continuation (,tag-thunk (run *continuation*
+							       ',tagbody-prompt-tag
+							       ,thunk
+							       (cl:lambda (tag-thunk _continue-from-go)
+								 (declare (ignore _continue-from-go))
+								 (set! encountered-go? t)
+								 tag-thunk)))
+	       (if encountered-go?
+		   (run-tagbody ,tag-thunk)
+		   (with-return-to-saved-continuation ,continue-from-tagbody
+		     (continue-with nil))))))))))
 
 (define-transform-cps-special-form cl:go (expression environment)
-  (define-unique-symbols continue-from-go)
   (define-destructuring (tag) (rest expression))
   (define tag-data (alist-ref (alist-ref *lexical-context* :tagbody-context-alist) tag))
   (cond
     (tag-data
      (define-destructuring (tagbody-prompt-tag function-name) tag-data)
-     `(cps-lambda ,continue-from-go
-		  (no-cps (funcall ,(transform-cps `(fcontrol ',tagbody-prompt-tag ,function-name)) ,continue-from-go))))
+     (transform-cps environment `(fcontrol ',tagbody-prompt-tag ,function-name)))
     (t (error "Could not find TAG ~S in lexical-context of GO." tag))))
 
 
 ;; progv
 ;; Progv forms can be re-entered, but the dynamic bindings will no longer be in effect.
+
+;; TODO: It might be nice if we could resume with the dynamic bindings intact.
+;; The issue is that we need to grab the current bindings right before exiting the continuation.
+;; So that we can re-establish when resuming.
+;; Since we only get the continuation after exiting the dynamic context, it's too late.
+;; we would need to modify FCONTROL within cps progv forms to grab the current dynamic bindings
+;; To do this, each fcontrol signal would need to have a list of dynamic bindings, as which
+;; prompt they came from.
+;; The alternative is to let dynamic bindings go, and instead rely on new forms that
+;; establish fluid bindings.
+;; It's hard to say which is the right default, but since I don't use progv that often anyways,
+;; I don't have a problem with just dropping them for now.
 (define-transform-cps-special-form cl:progv (expression environment)
   (define-destructuring (vars-form vals-form &body forms) (rest expression))
-  (define-unique-symbols continue-from-progv vars vals tag value ignored-continuation)
-  `(cps-lambda ,continue-from-progv
-	       ,(cps->primary-value
-		 vars-form vars
-		 (list (cps->primary-value
-			vals-form vals
-			`((run ,continue-from-progv
-			       ',tag
-			       (cl:lambda () (progv ,vars ,vals (funcall ,(transform-cps `(progn ,@forms)) #'values)))
-			       (cl:lambda (,value ,ignored-continuation)
-				 (declare (ignore ,ignored-continuation))
-				 ,value)
-			       ;; TODO: It might be nice if we could resume with the dynamic bindings intact.
-			       ;; The issue is that we need to grab the current bindings right before exiting the continuation.
-			       ;; So that we can re-establish when resuming.
-			       ;; Since we only get the continuation after exiting the dynamic context, it's too late.
-			       ;; we would need to modify FCONTROL within cps progv forms to grab the current dynamic bindings
-			       ;; To do this, each fcontrol signal would need to have a list of dynamic bindings, as which
-			       ;; prompt they came from.
-			       ;; The alternative is to let dynamic bindings go, and instead rely on new forms that
-			       ;; establish fluid bindings.
-			       ;; It's hard to say which is the right default, but since I don't use progv that often anyways,
-			       ;; I don't have a problem with just dropping them for now.
-			       )))))))
+  (define-unique-symbols continue-from-progv vars vals progv-prompt-tag)
+  `(save-continuation ,continue-from-progv
+     (with-primary-value-continuation (,vars ,(transform-cps environment vars-form))
+       (with-primary-value-continuation (,vals ,(transform-cps environment vals-form))
+	 (with-return-to-saved-continuation ,continue-from-progv
+	   ,(transform-cps
+	     environment
+	     `(run/cc ',progv-prompt-tag
+		      (cl:lambda () (no-cps (progv ,vars ,vals ,(progn->cps environment forms))))
+		      #'default-prompt-handler)))))))
 
-
-
-
-(defmacro no-cps (expr) expr)
 
 (defmacro cps-form-equal? (form)
   (let ((results (unique-symbol 'results)))
@@ -1165,7 +1053,6 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 (assert (cps-form-equal? (progn 1 2 3 4 (values 1 2 3))))
 
 
-;; TODO: it would be cool to have (define-output-to-string stream) ... just a thought
 (assert (equal? (with-output-to-string (s)
 		  (assert (equal? (multiple-value-list (cps (progn (format s "c") (format s "b") (format s "a") (values 1 2 3))))
 				  '(1 2 3))))
@@ -1283,12 +1170,11 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 ;; Lambda
 (assert (equal? (multiple-value-list (funcall (cps (cl:lambda (a b c) (values a b c))) 1 2 3))
 		'(1 2 3)))
-(assert (equal? (funcall (function->cps-function (cps (cl:lambda (a b c) (values a b c)))) #'list 1 2 3)
-		'(1 2 3)))
 (assert (cps-form-equal? (funcall (cl:lambda (a b c) (values a b c)) 1 2 3)))
-(assert (equal? (funcall/c #'list (cps (funcall (cl:lambda (f) (cl:lambda (&rest args) (apply f args)))
-						(cl:lambda (&rest args) (apply #'values args))))
-			   1 2 3)
+(assert (equal? (multiple-value-list
+		 (funcall (cps (funcall (cl:lambda (f) (cl:lambda (&rest args) (apply f args)))
+					(cl:lambda (&rest args) (apply #'values args))))
+			  1 2 3))
 		'(1 2 3)))
 
 
@@ -1309,15 +1195,14 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			(nreverse vs)))
 		'((:VALUE (1 2 3) (1 :TWO 3)) (1 2 3 :TWO 3))))
 
-(assert (equal? (cps
-		 (scm
-		   (% (funcall (cl:lambda (p1 p2 &optional (o1 (fcontrol :abort :o1)) (o2 (fcontrol :abort :o2)))
-				 (list p1 p2 o1 o2))
-			       :p1 :P2 :o1)
-		      :tag :abort
-		      :handler
-		      (cl:lambda (v k)
-			(list v (funcall k :o2) (funcall k :o2-again))))))
+(assert (equal? (scm
+		  (% (funcall (cl:lambda (p1 p2 &optional (o1 (fcontrol :abort :o1)) (o2 (fcontrol :abort :o2)))
+				(list p1 p2 o1 o2))
+			      :p1 :P2 :o1)
+		     :tag :abort
+		     :handler
+		     (cl:lambda (v k)
+		       (list v (funcall k :o2) (funcall k :o2-again)))))
 		'(:O2 (:P1 :P2 :O1 :O2) (:P1 :P2 :O1 :O2-AGAIN))))
 
 
@@ -1465,17 +1350,16 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 		'(:VALUE (1 2 3))))
 
 ;; return-from unwinds unwind-protect forms
-(assert (cps-form-equal? (cps
-			  (scm
-			    (def vs ())
-			    (def (v x) (push x vs) x)
-			    (list (block name
-				    (v :start)
-				    (unwind-protect
-					 (v (return-from name (v :returning)))
-				      (v :cleanup))
-				    (v :after))
-				  (nreverse vs))))))
+(assert (cps-form-equal? (scm
+			   (def vs ())
+			   (def (v x) (push x vs) x)
+			   (list (block name
+				   (v :start)
+				   (unwind-protect
+					(v (return-from name (v :returning)))
+				     (v :cleanup))
+				   (v :after))
+				 (nreverse vs)))))
 
 
 ;; Labels
@@ -1693,17 +1577,16 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			    (list x (boundp 'x))))))
 
 (assert (equal? (scm
-		  (cps
-		   (% (let ((x 3))
-			(list
-			 (progv '(x) '(4)
-			   (list x (symbol-value 'x)
-				 (setf (symbol-value 'x) 2)
-				 (fcontrol :abort :value)
-				 (boundp 'x)))
-			 (list x (boundp 'x))))
-		      :tag :abort
-		      :handler (lambda (v k) (list v (k :resume))))))
+		  (% (let ((x 3))
+		       (list
+			(progv '(x) '(4)
+			  (list x (symbol-value 'x)
+				(setf (symbol-value 'x) 2)
+				(fcontrol :abort :value)
+				(boundp 'x)))
+			(list x (boundp 'x))))
+		     :tag :abort
+		     :handler (lambda (v k) (list v (k :resume)))))
 		'(:VALUE ((3 4 2 :RESUME NIL) (3 NIL)))))
 
 
@@ -1749,7 +1632,6 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 
 
 
-;; Error, tried to re-eneter unwind-protect
 (assert (equal? (scm
 		  (def vs ())
 		  (def (v x) (push x vs) x)
@@ -1766,7 +1648,7 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			(k))))
 		  (nreverse vs))
 		'(:PROTECTED :CLEANUP)))
-
+;; Error, tried to re-eneter unwind-protect
 (assert (equal?
 	 ;; Conditions unwind unwind-protect
 	 (let (cleanup?)
@@ -1807,7 +1689,6 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 			     (throw :outer (values :one :two :three))
 			     (error "unreached"))
 			   (error "unreached"))))
-
 (assert (equal? (scm
 		  (% (progn
 		       (catch :tag
@@ -1905,9 +1786,9 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 (assert (eq? :zero (product 0 1 2 3 4 5)))
 
 ;; Tree matching
-(def ((make-fringe tree))
+(def (make-fringe tree)
   (cps
-   (progn
+   (lambda ()
      (let recurse ((tree tree))
        (cond
 	 ((pair? tree)
@@ -1955,100 +1836,3 @@ This way, every time thunk is executed, before-thunk will be run before and afte
 		      '((1 . 2) . ((3 . ()) . (4 . 5)))))
 (assert (not (same-fringe? '((1 2) ((3) (4 5)))
 			   '((1 2) ((3 4) (4 5))))))
-
-
-;;(cps (progn a b c))
-
-;; CURRENT State
-#;
-(FUNCALL
- (COMMON-LISP:LAMBDA (#:CONTINUE1725)
-   (FUNCALL
-    (COMMON-LISP:LAMBDA (#:CONTINUE-FROM-ATOM1729)
-      (FUNCALL #:CONTINUE-FROM-ATOM1729 A))
-    (COMMON-LISP:LAMBDA (&REST #:IGNORED1726)
-      (DECLARE (IGNORE #:IGNORED1726))
-      (FUNCALL
-       (COMMON-LISP:LAMBDA (#:CONTINUE1727)
-         (FUNCALL
-          (COMMON-LISP:LAMBDA (#:CONTINUE-FROM-ATOM1730)
-            (FUNCALL #:CONTINUE-FROM-ATOM1730 B))
-          (COMMON-LISP:LAMBDA (&REST #:IGNORED1728)
-            (DECLARE (IGNORE #:IGNORED1728))
-            (FUNCALL
-             (COMMON-LISP:LAMBDA (#:CONTINUE-FROM-ATOM1731)
-               (FUNCALL #:CONTINUE-FROM-ATOM1731 C))
-             #:CONTINUE1727))))
-       #:CONTINUE1725))))
- #'VALUES)
-;; vs: 7 funcalls vs 3, 7 lambdas vs 2, 6 bindings vs. 6
-#;
-(COMMON-LISP:LET ((#:CONTINUE-FROM-PROGN1744 *CONTINUATION*))
-  (COMMON-LISP:LET ((*CONTINUATION*
-                      (COMMON-LISP:LAMBDA (&REST #:RESULTS1743)
-			(DECLARE (IGNORE #:RESULTS1743))
-			(COMMON-LISP:LET ((*CONTINUATION*
-                                            (COMMON-LISP:LAMBDA
-						(&REST #:RESULTS1743)
-                                              (DECLARE (IGNORE #:RESULTS1743))
-                                              (COMMON-LISP:LET ((*CONTINUATION*
-								  #:CONTINUE-FROM-PROGN1744))
-						(FUNCALL *CONTINUATION*
-							 (PRINT C))))))
-                          (FUNCALL *CONTINUATION* B)))))
-    (FUNCALL *CONTINUATION* A)))
-
-
-;; GOAL:
-
-
-(let ((continue-from-progn *continuation*))
-  (with-continuation
-      (cl:lambda (&rest results)
-	(declare (ignore results))
-	(with-continuation (cl:lambda (&rest results)
-			     (declare (ignore results))
-			     (funcall continue-from-progn (print 'c)))
-	  (funcall *continuation* (print 'b))))
-    (funcall *continuation* (print 'a))))
-
-(def (reduce-atom expression)
-  `(funcall *continuation* ,expression))
-(def (reduce-progn expression)
-  (def forms (rest expression))
-  (define-unique-symbols results continue-from-progn)
-  (def (reduce-progn-forms forms)
-    (cond
-      ((empty? forms) (reduce-atom nil))
-      (t
-       (define-destructuring (form . rest-of-forms) forms)
-       (cond
-	 ((empty? rest-of-forms) `(let ((*continuation* ,continue-from-progn))
-				    ,(reduce-atom form)))
-	 (t
-	  `(with-continuation
-	       (cl:lambda (&rest ,results)
-		 (declare (ignore ,results))
-		 ,(reduce-progn-forms rest-of-forms))
-	     ,(reduce-atom form)))))))
-  `(let ((,continue-from-progn *continuation*))
-     ,(reduce-progn-forms forms)))
-
-(reduce-progn '(progn (print 'a) (print 'b) (print 'c)))
-#;
-(LET ((#:CONTINUE-FROM-PROGN1744 *CONTINUATION*))
-  (WITH-CONTINUATION (COMMON-LISP:LAMBDA (&REST #:RESULTS1743)
-                       (DECLARE (IGNORE #:RESULTS1743))
-                       (WITH-CONTINUATION (COMMON-LISP:LAMBDA
-                                              (&REST #:RESULTS1743)
-                                            (DECLARE (IGNORE #:RESULTS1743))
-                                            (LET
-                                                ((*CONTINUATION*
-                                                   #:CONTINUE-FROM-PROGN1744))
-                                              (FUNCALL *CONTINUATION*
-                                                       (PRINT 'C))))
-                         (FUNCALL *CONTINUATION* (PRINT 'B))))
-    (FUNCALL *CONTINUATION* (PRINT 'A))))
-
-;; A Cps expression would go from
-;;   (funcall cps-expr continuation) -> cps-expr
