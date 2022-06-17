@@ -4,8 +4,12 @@
   (:USE #:COMMON-LISP)
   (:EXPORT #:COMPILER-MACRO-DOCUMENTATION-SOURCE
            #:DEF
+           #:DEF-DESTRUCTURING
+           #:DEF-UNIQUE-SYMBOLS
+           #:DEF-VALUES
            #:DEFINE
            #:DEFINE-DESTRUCTURING
+           #:DEFINE-UNIQUE-SYMBOLS
            #:DEFINE-VALUES
            #:DISABLE-GUARD-CLAUSES!
            #:DOCUMENTABLE-OBJECT?
@@ -41,6 +45,7 @@
            #:MAP-ORDINARY-LAMBDA-LIST
            #:NO-COMPILE
            #:OBJECT-DOCUMENTATION-SOURCE
+           #:PARSE-DECLARATIONS
            #:PARSE-FUNCTION
            #:PARSE-LEXICAL-BODY
            #:PARSE-METADATA-FROM-FUNCTION-BODY
@@ -61,6 +66,7 @@
            #:TAKEF
            #:TRANSFORM-LEXICAL-BODY-DEFINE-DESTRUCTURING
            #:TRANSFORM-LEXICAL-BODY-DEFINE-SYMBOL-OR-PAIR
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-UNIQUE-SYMBOLS
            #:TRANSFORM-LEXICAL-BODY-DEFINE-VALUES
            #:TRANSFORM-LEXICAL-BODY2-DEFINE-SYMBOL-OR-PAIR
            #:TYPE-DOCUMENTATION-SOURCE
@@ -81,6 +87,7 @@
   (:EXPORT #:*ESCAPE-CHARS*
            #:*LEXICAL-CONTEXT*
            #:*MARKUP-RENDER-WIDTH*
+           #:*REDEFINE-DEF-ONCE*
            #:*RESOLVE-PACKAGE-DESIGNATOR*
            #:*THE-EMPTY-STREAM*
            #:ALIST
@@ -100,8 +107,6 @@
            #:ANDMAP
            #:APPEND*
            #:APPEND-MAP
-           #:BLOCK-BODY
-           #:BLOCK-NAME
            #:BLOCK-QUOTE
            #:BODY-DECLARATIONS
            #:BODY-FORMS
@@ -112,8 +117,6 @@
            #:BUNDLE-PERMISSIONS
            #:BUNDLE-PREDICATE-SYMBOL
            #:BUNDLE?
-           #:CATCH-FORMS
-           #:CATCH-TAG
            #:CHARS-STRING
            #:CODE
            #:CODE-BLOCK
@@ -126,7 +129,9 @@
            #:CUT
            #:DECLARE?
            #:DEF
+           #:DEF-ONCE
            #:DEFINE-BUNDLE-PRINT-OBJECT
+           #:DEFINE-GLOBAL-LEXICAL-VARIABLE
            #:DEFINE-PACKAGE
            #:DEFINE-PACKAGE-FORM
            #:DEFINE-STRUCT
@@ -142,8 +147,6 @@
            #:ENSURE-STRING
            #:EQ?
            #:EQUAL?
-           #:EVAL-WHEN-FORMS
-           #:EVAL-WHEN-SITUATIONS
            #:EVEN?
            #:EXTEND-PACKAGE
            #:EXTEND-PACKAGE*
@@ -153,25 +156,16 @@
            #:FILTER-PACKAGES
            #:FINDF
            #:FLATTEN
-           #:FLET-BINDINGS
-           #:FLET-BODY
-           #:FLET-BODY-DECLARATIONS
-           #:FLET-BODY-FORMS
            #:FOLDL
            #:FOLDR
            #:FOR-ALL
            #:FOR-ALL*
            #:FOR-EACH
            #:FORCE
-           #:FUNCTION-BINDING-BODY
-           #:FUNCTION-BINDING-BODY-DECLARATIONS
-           #:FUNCTION-BINDING-BODY-FORMS
-           #:FUNCTION-BINDING-NAME
-           #:FUNCTION-BINDING-PARAMETERS
            #:FUNCTION-BODY-DECLARATIONS
            #:FUNCTION-BODY-FORMS
-           #:FUNCTION-NAME
-           #:GO-TAG
+           #:GLOBAL-LEXICAL-BOUND?
+           #:GLOBAL-LEXICAL-VALUE
            #:GROUP
            #:GROUP-BY-PACKAGE
            #:HAS-SPECIFIC-ARITY?
@@ -195,9 +189,6 @@
            #:HTML-TAG-INNER-TAGS-AND-TEXTS
            #:HTML-TAG-NAME
            #:HTML-TAG?
-           #:IF-ELSE
-           #:IF-TEST
-           #:IF-THEN
            #:IGNORE-ARGS
            #:INDEPENDENT-PACKAGE?
            #:INDEPENDENT-PACKAGES
@@ -208,24 +199,8 @@
            #:INTERSPERSE
            #:ITALIC
            #:JOIN-STRINGS
-           #:LABELS-BINDINGS
-           #:LABELS-BODY
-           #:LABELS-BODY-DECLARATIONS
-           #:LABELS-BODY-FORMS
            #:LAMBDA
-           #:LAMBDA-BODY
-           #:LAMBDA-BODY-DECLARATIONS
-           #:LAMBDA-BODY-FORMS
-           #:LAMBDA-PARAMETERS
            #:LCURRY
-           #:LET*-BINDINGS
-           #:LET*-BODY
-           #:LET*-BODY-DECLARATIONS
-           #:LET*-BODY-FORMS
-           #:LET-BINDINGS
-           #:LET-BODY
-           #:LET-BODY-DECLARATIONS
-           #:LET-BODY-FORMS
            #:LETREC
            #:LINK
            #:LISP
@@ -239,16 +214,7 @@
            #:LIST-TYPE
            #:LIST-UPDATE
            #:LIST?
-           #:LOAD-TIME-VALUE-FORM
-           #:LOAD-TIME-VALUE-READ-ONLY-P
-           #:LOCALLY-BODY
-           #:LOCALLY-BODY-DECLARATIONS
-           #:LOCALLY-BODY-FORMS
            #:MACRO-FUNCTION-APPLICATION?
-           #:MACROLET-BINDINGS
-           #:MACROLET-BODY
-           #:MACROLET-BODY-DECLARATIONS
-           #:MACROLET-BODY-FORMS
            #:MAKE-BUNDLE-PREDICATE
            #:MAKE-HTML-TAG
            #:MAKE-INLINE-MARKUP
@@ -268,14 +234,11 @@
            #:MARKUP?
            #:MEMF
            #:MEMO-PROC
-           #:MULTIPLE-VALUE-CALL-ARGUMENTS
-           #:MULTIPLE-VALUE-CALL-FUNCTION
-           #:MULTIPLE-VALUE-PROG1-FORMS
-           #:MULTIPLE-VALUE-PROG1-VALUES-FORM
            #:NAND
            #:NEGATIVE?
            #:NEWLINE
            #:NICKNAME-PACKAGE
+           #:NO-SCM
            #:NOR
            #:NULL?
            #:NUMBER->STRING
@@ -312,7 +275,6 @@
            #:PAIR?
            #:PARAGRAPH
            #:PARAMETER?
-           #:PARSE-TAGBODY
            #:PARTITION
            #:POP-RENDER-PREFIX
            #:POSITIVE?
@@ -324,7 +286,6 @@
            #:PROCEDURE-ARGUMENTS-REST-ARGUMENT
            #:PROCEDURE-ARITY
            #:PROCEDURE?
-           #:PROGN-FORMS
            #:PROPER-LIST?
            #:PUSH-RENDER-PREFIX
            #:QUEUE-DELETE!
@@ -332,11 +293,11 @@
            #:QUEUE-FRONT
            #:QUEUE-INSERT!
            #:QUEUE?
-           #:QUOTE-EXPR
            #:QUOTIENT
            #:RADIANS->DEGREES
            #:RANGE
            #:RCURRY
+           #:REGISTER-TRANSFORMER
            #:REMOVE*
            #:REMQ
            #:REMQ*
@@ -354,8 +315,6 @@
            #:RENDER-PREFORMATTED-TEXT
            #:RENDER-WITHOUT-WORD-WRAP
            #:REPEAT
-           #:RETURN-FROM-NAME
-           #:RETURN-FROM-VALUE
            #:SAFE-VECTOR-REF
            #:SCM
            #:SEQ
@@ -372,7 +331,6 @@
            #:SET-SUBTRACT
            #:SET-UNION
            #:SET=?
-           #:SETQ-PAIRS
            #:SGN
            #:SORT
            #:SPLIT-AT
@@ -419,16 +377,11 @@
            #:SWAP-ARGS
            #:SYMBOL->STRING
            #:SYMBOL-IN-PACKAGE?
-           #:SYMBOL-MACROLET-BINDINGS
-           #:SYMBOL-MACROLET-BODY
-           #:SYMBOL-MACROLET-BODY-DECLARATIONS
-           #:SYMBOL-MACROLET-BODY-FORMS
            #:SYMBOL?
            #:SYMBOLICATE
            #:SYMBOLS-IN-PACKAGE
            #:SYMBOLS-INTERNED-IN-PACKAGE
            #:TABLE
-           #:TAGBODY-TAGS-AND-STATEMENTS
            #:TAKE
            #:TEXT-RENDERER
            #:TEXT-RENDERER-COPY-WITH-NEW-STREAM
@@ -441,12 +394,8 @@
            #:TEXT-RENDERER-RENDER-PREFORMATTED-TEXT
            #:TEXT-RENDERER-RENDER-WITHOUT-WORD-WRAP
            #:TEXT-RENDERER?
-           #:THE-FORM
-           #:THE-VALUE-TYPE
            #:THERE-EXISTS
            #:THERE-EXISTS*
-           #:THROW-RESULT
-           #:THROW-TAG
            #:TRANSFORM
            #:TRANSFORM-EXPRESSION
            #:TRANSFORM-IN-LEXICAL-ENVIRONMENT
@@ -460,8 +409,6 @@
            #:UNDEFINE-BUNDLE-PRINT-OBJECT
            #:UNINTERNED
            #:UNORDERED-LIST
-           #:UNWIND-PROTECT-CLEANUP
-           #:UNWIND-PROTECT-PROTECTED
            #:VECTOR->LIST
            #:VECTOR-REF
            #:VECTOR-SET!
@@ -530,6 +477,7 @@
            #:*READ-EVAL*
            #:*READ-SUPPRESS*
            #:*READTABLE*
+           #:*REDEFINE-DEF-ONCE*
            #:*RESOLVE-PACKAGE-DESIGNATOR*
            #:*STANDARD-INPUT*
            #:*STANDARD-OUTPUT*
@@ -805,6 +753,10 @@
            #:DECODE-FLOAT
            #:DECODE-UNIVERSAL-TIME
            #:DEF
+           #:DEF-DESTRUCTURING
+           #:DEF-ONCE
+           #:DEF-UNIQUE-SYMBOLS
+           #:DEF-VALUES
            #:DEFCLASS
            #:DEFCONSTANT
            #:DEFGENERIC
@@ -813,6 +765,7 @@
            #:DEFINE-COMPILER-MACRO
            #:DEFINE-CONDITION
            #:DEFINE-DESTRUCTURING
+           #:DEFINE-GLOBAL-LEXICAL-VARIABLE
            #:DEFINE-METHOD-COMBINATION
            #:DEFINE-MODIFY-MACRO
            #:DEFINE-PACKAGE
@@ -820,6 +773,7 @@
            #:DEFINE-SETF-EXPANDER
            #:DEFINE-STRUCT
            #:DEFINE-SYMBOL-MACRO
+           #:DEFINE-UNIQUE-SYMBOLS
            #:DEFINE-VALUES
            #:DEFMACRO
            #:DEFMETHOD
@@ -1013,6 +967,8 @@
            #:GET-UNIVERSAL-TIME
            #:GETF
            #:GETHASH
+           #:GLOBAL-LEXICAL-BOUND?
+           #:GLOBAL-LEXICAL-VALUE
            #:GO
            #:GO-TAG
            #:GRAPHIC-CHAR-P
@@ -1137,6 +1093,8 @@
            #:LET*-BODY
            #:LET*-BODY-DECLARATIONS
            #:LET*-BODY-FORMS
+           #:LET-BINDING-NAME
+           #:LET-BINDING-VALUE
            #:LET-BINDINGS
            #:LET-BODY
            #:LET-BODY-DECLARATIONS
@@ -1150,6 +1108,7 @@
            #:LEXICAL-BODY2-FORM
            #:LEXICALLY
            #:LINK
+           #:LISP
            #:LISP-IMPLEMENTATION-TYPE
            #:LISP-IMPLEMENTATION-VERSION
            #:LIST
@@ -1319,6 +1278,7 @@
            #:NO-APPLICABLE-METHOD
            #:NO-COMPILE
            #:NO-NEXT-METHOD
+           #:NO-SCM
            #:NOR
            #:NOT
            #:NOTANY
@@ -1399,6 +1359,7 @@
            #:PAIRLIS
            #:PARAGRAPH
            #:PARAMETER?
+           #:PARSE-DECLARATIONS
            #:PARSE-ERROR
            #:PARSE-FUNCTION
            #:PARSE-INTEGER
@@ -1512,6 +1473,7 @@
            #:REDUCE
            #:REGISTER-LEXICAL-BODY-DEFINITION
            #:REGISTER-LEXICAL-BODY2-DEFINITION
+           #:REGISTER-TRANSFORMER
            #:REGISTERED-DEFINITION-NAME-FIELD
            #:REGISTERED-GUARD-CLAUSES
            #:REINITIALIZE-INSTANCE
@@ -1808,6 +1770,7 @@
            #:TRANSFORM-IN-LEXICAL-ENVIRONMENT
            #:TRANSFORM-LEXICAL-BODY-DEFINE-DESTRUCTURING
            #:TRANSFORM-LEXICAL-BODY-DEFINE-SYMBOL-OR-PAIR
+           #:TRANSFORM-LEXICAL-BODY-DEFINE-UNIQUE-SYMBOLS
            #:TRANSFORM-LEXICAL-BODY-DEFINE-VALUES
            #:TRANSFORM-LEXICAL-BODY2-DEFINE-SYMBOL-OR-PAIR
            #:TRANSFORMER

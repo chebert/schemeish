@@ -100,194 +100,136 @@ removed."
 	(body-forms body))))
 
 ;; Special form parsers: all assume that the given expr is well-formed. 
-(export-definition
-  (define (quote-expr expr) (second expr)))
-(export-definition
-  (define (function-name expr) (second expr)))
-(export-definition
-  (define (progn-forms expr) (rest expr)))
+(define (quote-expr expr) (second expr))
+(define (function-name expr) (second expr))
+(define (progn-forms expr) (rest expr))
 
-(export-definition
-  (define (lambda-parameters expr) (second expr)))
-(export-definition
-  (define (lambda-body expr) (cddr expr)))
-(export-definition
-  (define (lambda-body-declarations expr) (body-declarations (lambda-body expr))))
-(export-definition
-  (define (lambda-body-forms expr) (body-forms (lambda-body expr))))
+(define (lambda-parameters expr) (second expr))
+(define (lambda-body expr) (cddr expr))
+(define (lambda-body-declarations expr) (body-declarations (lambda-body expr)))
+(define (lambda-body-forms expr) (body-forms (lambda-body expr)))
 
-(export-definition
-  (define (let-bindings expr) (second expr)))
-(export-definition
-  (define (let-body expr) (cddr expr)))
-(export-definition
-  (define (let-body-declarations expr) (body-declarations (let-body expr))))
-(export-definition
-  (define (let-body-forms expr) (body-forms (let-body expr))))
+(define (let-bindings expr) (second expr))
+(define (let-body expr) (cddr expr))
+(define (let-body-declarations expr) (body-declarations (let-body expr)))
+(define (let-body-forms expr) (body-forms (let-body expr)))
+(define (let-binding-name expr)
+  (if (pair? expr)
+      (first expr)
+      expr))
+(define (let-binding-value expr)
+  (if (pair? expr)
+      (second expr)
+      nil))
 
-(export-definition
-  (define (let*-bindings expr) (let-bindings expr)))
-(export-definition
-  (define (let*-body expr) (let-body expr)))
-(export-definition
-  (define (let*-body-declarations expr) (body-declarations (let*-body expr))))
-(export-definition
-  (define (let*-body-forms expr) (body-forms (let*-body expr))))
+(define (let*-bindings expr) (let-bindings expr))
+(define (let*-body expr) (let-body expr))
+(define (let*-body-declarations expr) (body-declarations (let*-body expr)))
+(define (let*-body-forms expr) (body-forms (let*-body expr)))
 
-(export-definition
-  (define (block-name expr) (second expr)))
-(export-definition
-  (define (block-body expr) (cddr expr)))
+(define (block-name expr) (second expr))
+(define (block-body expr) (cddr expr))
 
-(export-definition
-  (define (return-from-name expr) (second expr)))
-(export-definition
-  (define (return-from-value expr)
-    (or (and (= (length expr) 3) (third expr))
-	nil)))
+(define (return-from-name expr) (second expr))
+(define (return-from-value expr)
+  (or (and (= (length expr) 3) (third expr))
+      nil))
 
-(export-definition
-  (define (flet-bindings expr) (second expr)))
-(export-definition
-  (define (flet-body expr) (cddr expr)))
-(export-definition
-  (define (flet-body-declarations expr) (body-declarations (flet-body expr))))
-(export-definition
-  (define (flet-body-forms expr) (body-forms (flet-body expr))))
+(define (flet-bindings expr) (second expr))
+(define (flet-body expr) (cddr expr))
+(define (flet-body-declarations expr) (body-declarations (flet-body expr)))
+(define (flet-body-forms expr) (body-forms (flet-body expr)))
 
-(export-definition
-  (define (labels-bindings expr) (second expr)))
-(export-definition
-  (define (labels-body expr) (cddr expr)))
-(export-definition
-  (define (labels-body-declarations expr) (body-declarations (labels-body expr))))
-(export-definition
-  (define (labels-body-forms expr) (body-forms (labels-body expr))))
+(define (labels-bindings expr) (second expr))
+(define (labels-body expr) (cddr expr))
+(define (labels-body-declarations expr) (body-declarations (labels-body expr)))
+(define (labels-body-forms expr) (body-forms (labels-body expr)))
 
-(export-definition
-  (define (function-binding-name expr) (first expr)))
-(export-definition
-  (define (function-binding-parameters expr) (second expr)))
-(export-definition
-  (define (function-binding-body expr) (cddr expr)))
-(export-definition
-  (define (function-binding-body-declarations expr) (function-body-declarations (function-binding-body expr))))
-(export-definition
-  (define (function-binding-body-forms expr) (function-body-forms (function-binding-body expr))))
+(define (function-binding-name expr) (first expr))
+(define (function-binding-parameters expr) (second expr))
+(define (function-binding-body expr) (cddr expr))
+(define (function-binding-body-declarations expr) (function-body-declarations (function-binding-body expr)))
+(define (function-binding-body-forms expr) (function-body-forms (function-binding-body expr)))
 
-(export-definition
-  (define (macrolet-bindings expr) (second expr)))
-(export-definition
-  (define (macrolet-body expr) (cddr expr)))
-(export-definition
-  (define (macrolet-body-declarations expr) (body-declarations (macrolet-body expr))))
-(export-definition
-  (define (macrolet-body-forms expr) (body-forms (macrolet-body expr))))
+(define (macrolet-bindings expr) (second expr))
+(define (macrolet-body expr) (cddr expr))
+(define (macrolet-body-declarations expr) (body-declarations (macrolet-body expr)))
+(define (macrolet-body-forms expr) (body-forms (macrolet-body expr)))
 
-(export-definition
-  (define (symbol-macrolet-bindings expr) (second expr)))
-(export-definition
-  (define (symbol-macrolet-body expr) (cddr expr)))
-(export-definition
-  (define (symbol-macrolet-body-declarations expr) (body-declarations (symbol-macrolet-body expr))))
-(export-definition
-  (define (symbol-macrolet-body-forms expr) (body-forms (symbol-macrolet-body expr))))
+(define (symbol-macrolet-bindings expr) (second expr))
+(define (symbol-macrolet-body expr) (cddr expr))
+(define (symbol-macrolet-body-declarations expr) (body-declarations (symbol-macrolet-body expr)))
+(define (symbol-macrolet-body-forms expr) (body-forms (symbol-macrolet-body expr)))
 
-(export-definition
-  (define (eval-when-situations expr) (second expr)))
-(export-definition
-  (define (eval-when-forms expr) (cddr expr)))
+(define (eval-when-situations expr) (second expr))
+(define (eval-when-forms expr) (cddr expr))
 
-(export-definition
-  (define (setq-pairs expr)
-    (define (recurse expr pairs)
-      (if (empty? expr)
-	  pairs
-	  (recurse (cddr expr) (cons (list (first expr) (second expr)) pairs))))
-    (nreverse (recurse (rest expr) ()))))
+(define (setq-pairs expr)
+  (define (recurse expr pairs)
+    (if (empty? expr)
+	pairs
+	(recurse (cddr expr) (cons (list (first expr) (second expr)) pairs))))
+  (nreverse (recurse (rest expr) ())))
 
-(export-definition
-  (define (if-test expr) (second expr)))
-(export-definition
-  (define (if-then expr) (third expr)))
-(export-definition
-  (define (if-else expr) (fourth expr)))
+(define (if-test expr) (second expr))
+(define (if-then expr) (third expr))
+(define (if-else expr) (fourth expr))
 
-(export-definition
-  (define (locally-body expr) (cdr expr)))
-(export-definition
-  (define (locally-body-declarations expr) (body-declarations (locally-body expr))))
-(export-definition
-  (define (locally-body-forms expr) (body-forms (locally-body expr))))
+(define (locally-body expr) (cdr expr))
+(define (locally-body-declarations expr) (body-declarations (locally-body expr)))
+(define (locally-body-forms expr) (body-forms (locally-body expr)))
 
-(export-definition
-  (define (tagbody-tags-and-statements expr) (cdr expr)))
-(export-definition
-  (define (go-tag expr) (second expr)))
+(define (tagbody-tags-and-statements expr) (cdr expr))
+(define (go-tag expr) (second expr))
 
-(export-definition
-  (define (the-value-type expr) (second expr)))
-(export-definition
-  (define (the-form expr) (third expr)))
+(define (the-value-type expr) (second expr))
+(define (the-form expr) (third expr))
 
-(export-definition
-  (define (multiple-value-prog1-values-form expr) (second expr)))
-(export-definition
-  (define (multiple-value-prog1-forms expr) (cddr expr)))
+(define (multiple-value-prog1-values-form expr) (second expr))
+(define (multiple-value-prog1-forms expr) (cddr expr))
 
-(export-definition
-  (define (multiple-value-call-function expr) (second expr)))
-(export-definition
-  (define (multiple-value-call-arguments expr) (cddr expr)))
+(define (multiple-value-call-function expr) (second expr))
+(define (multiple-value-call-arguments expr) (cddr expr))
 
-(export-definition
-  (define (load-time-value-form expr) (second expr)))
-(export-definition
-  (define (load-time-value-read-only-p expr) (third expr)))
+(define (load-time-value-form expr) (second expr))
+(define (load-time-value-read-only-p expr) (third expr))
 
-(export-definition
-  (define (catch-tag expr) (second expr)))
-(export-definition
-  (define (catch-forms expr) (cddr expr)))
+(define (catch-tag expr) (second expr))
+(define (catch-forms expr) (cddr expr))
 
-(export-definition
-  (define (throw-tag expr) (second expr)))
-(export-definition
-  (define (throw-result expr) (third expr)))
+(define (throw-tag expr) (second expr))
+(define (throw-result expr) (third expr))
 
-(export-definition
-  (define (unwind-protect-protected expr) (second expr)))
-(export-definition
-  (define (unwind-protect-cleanup expr) (cddr expr)))
+(define (unwind-protect-protected expr) (second expr))
+(define (unwind-protect-cleanup expr) (cddr expr))
 
-(export-definition
-  (define (parse-tagbody tags-and-statements)
-    "Return (untagged-statements . (tag . statements)...)."
-    (define (tag? tag-or-statement)
-      (or (symbol? tag-or-statement)
-	  (integerp tag-or-statement)))
-    (define (statement? tag-or-statement)
-      (not (tag? tag-or-statement)))
+(define (parse-tagbody tags-and-statements)
+  "Return (untagged-statements . (tag . statements)...)."
+  (define (tag? tag-or-statement)
+    (or (symbol? tag-or-statement)
+	(integerp tag-or-statement)))
+  (define (statement? tag-or-statement)
+    (not (tag? tag-or-statement)))
 
-    (define untagged-statements (takef tags-and-statements statement?))
-    (define tagged-statements (dropf tags-and-statements statement?))
+  (define untagged-statements (takef tags-and-statements statement?))
+  (define tagged-statements (dropf tags-and-statements statement?))
 
-    (define (tagged-forms-iter tags-and-statements tagged-forms)
-      (define (parse-next-tagged-form)
-	(define tag (first tags-and-statements))
-	(define statements-and-tagged-statements (rest tags-and-statements))
-	(define statements (takef statements-and-tagged-statements statement?))
-	(define rest-tags-and-statements (dropf statements-and-tagged-statements statement?))
+  (define (tagged-forms-iter tags-and-statements tagged-forms)
+    (define (parse-next-tagged-form)
+      (define tag (first tags-and-statements))
+      (define statements-and-tagged-statements (rest tags-and-statements))
+      (define statements (takef statements-and-tagged-statements statement?))
+      (define rest-tags-and-statements (dropf statements-and-tagged-statements statement?))
 
-	(tagged-forms-iter rest-tags-and-statements (cons (cons tag statements) tagged-forms)))
-      
-      (cond
-	((empty? tags-and-statements) tagged-forms)
-	(t (parse-next-tagged-form))))
+      (tagged-forms-iter rest-tags-and-statements (cons (cons tag statements) tagged-forms)))
     
-    (define tagged-forms
-      (nreverse (tagged-forms-iter tagged-statements ())))
+    (cond
+      ((empty? tags-and-statements) tagged-forms)
+      (t (parse-next-tagged-form))))
+  
+  (define tagged-forms
+    (nreverse (tagged-forms-iter tagged-statements ())))
 
-    (cons untagged-statements tagged-forms)))
+  (cons untagged-statements tagged-forms))
 
 (uninstall-syntax!)

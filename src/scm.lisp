@@ -311,6 +311,27 @@ These lexical-body's are the lisp-1 analogue to the lisp-2 style lexical-bodies 
 		  (((nested 1) 2) 3 4 5))
 		'(1 2 3 4 5)))
 
+(for-macros
+ (defvar *global-lexical-variable-table* (make-hash-table)))
+
+(export-definition
+  (defmacro define-global-lexical-variable (name &optional initial-value)
+    `(progn
+       (setf (gethash ',name *global-lexical-variable-table*) ,initial-value)
+       (define-symbol-macro ,name (gethash ',name *global-lexical-variable-table*))
+       ',name)))
+
+(export-definition
+  (define (global-lexical-bound? symbol)
+    (def-values (_ bound?) (gethash symbol *global-lexical-variable-table*))
+    bound?))
+(export-definition
+  (define (global-lexical-value symbol)
+    (gethash symbol *global-lexical-variable-table*)))
+
+(export-definition
+  (defparameter *redefine-def-once* nil))
+
 (export-definition
   (defmacro def (name-field &body body)
     "Defines a top-level function using SCM to transform name-field and body from a lisp-1 style.
@@ -322,9 +343,20 @@ See also SCM, EXPOSE."
 	 (fmakunbound ',name)
 	 (scm
 	   (def ,name-field ,@body)
-	   (expose-functions ,name))
+	   (define-global-lexical-variable ,name ,name)
+	   (when (functionp ,name)
+	     (expose-functions ,name)))
 	 ',name))))
 
+
+(export-definition
+  (defmacro def-once (name &body body)
+    (if (and (not *redefine-def-once*)
+	     (or (fboundp name) (global-lexical-bound? name)))
+	`',name
+	`(def ,name ,@body))))
+
+(def just-a-variable '(a b c))
 (def 2+ (lcurry + 2))
 (def (((test-nested a) b) . c)
   #g((not (list? b)))

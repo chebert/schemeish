@@ -202,19 +202,28 @@ Uses DESTRUCTURING-BIND to destructure expression and creates bindings for each 
 	  (names (destructuring-lambda-list-parameter-names lambda-list))
 	  (expression (definition-value definition)))
      (transform-lexical-body-define-values `(define-values ,names (destructuring-bind ,lambda-list ,expression (values ,@names)))))))
-
+(export
+ (defun transform-lexical-body-define-unique-symbols (definition)
+   (let ((names (rest definition)))
+     (values names `(progn ,@(mapcar (cl:lambda (name)
+				       `(setq ,name (unique-symbol ',name)))
+				     names))))))
 
 ;; Register define and define-values
 ;; Lisp-1 style Lexical body definitions
 (register-lexical-body-definition 'define #'transform-lexical-body-define-symbol-or-pair)
 (register-lexical-body-definition 'define-values #'transform-lexical-body-define-values)
+(register-lexical-body-definition 'def-values #'transform-lexical-body-define-values)
 (register-lexical-body-definition 'define-destructuring #'transform-lexical-body-define-destructuring)
+(register-lexical-body-definition 'def-destructuring #'transform-lexical-body-define-destructuring)
+(register-lexical-body-definition 'define-unique-symbols #'transform-lexical-body-define-unique-symbols)
+(register-lexical-body-definition 'def-unique-symbols #'transform-lexical-body-define-unique-symbols)
 (register-lexical-body-definition 'def #'transform-lexical-body-define-symbol-or-pair)
 
 ;; Lisp-2 style lexical body definitions
 (register-lexical-body2-definition 'define #'transform-lexical-body2-define-symbol-or-pair)
 (register-lexical-body2-definition 'def #'transform-lexical-body2-define-symbol-or-pair)
-(export '(def define-values define-destructuring))
+(export '(def define-values def-values define-destructuring def-destructuring define-unique-symbols def-unique-symbols))
 
 #;
 (assert (equal (lexically
