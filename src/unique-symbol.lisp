@@ -4,7 +4,7 @@
 (export
  (defmacro with-readable-symbols (&body body)
    "Establishes a dynamic context around body where UNIQUE-SYMBOL will use INTERN instead of GENSYM."
-   `(let ((*unique-symbol* #'intern))
+   `(let ((*unique-symbol* (lambda (s) (intern (symbol-name (gensym s))))))
       ,@body)))
 (export
  (defun unique-symbol (name-or-symbol)

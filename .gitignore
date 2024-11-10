@@ -2,3 +2,4 @@
 unused/
 src/continuations-notes.lisp
 src/continuations-old.lisp
+*.~undo-tree~

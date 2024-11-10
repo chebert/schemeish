@@ -7,7 +7,7 @@ Used to annotate functions and/or variable definitions that are used in macros."
 
 (defmacro no-compile (&body body)
   "Wrap body in an (eval-when (:load-toplevel :execute)).
-Useful for example code or top-level ASSERTs.xo"
+Useful for example code or top-level ASSERTs."
   `(eval-when (:load-toplevel :execute)
      ,@body))
 

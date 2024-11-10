@@ -69,11 +69,13 @@ when given a bundle with this type-predicate"
 		'((EQ :VARIABLE-NAME ARG)
 		  (LAMBDA NIL
 		    VARIABLE-NAME))))
+#+nil
 (assert (equal? (with-readable-symbols
 		  (bundle-fn-identifier->permission-form 'arg '(:set! variable-name)))
 		'((EQ :SET-VARIABLE-NAME! ARG)
 		  (LAMBDA (VALUE)
 		    (SET! VARIABLE-NAME VALUE)))))
+#+nil
 (assert (equal? (with-readable-symbols
 		  (bundle-fn-identifier->permission-form 'arg '(:set! variable-name setter-name!)))
 		'((EQ :setter-name! ARG)

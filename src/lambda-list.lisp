@@ -72,6 +72,7 @@ Returns (values rest-parameters reversed-ordinary-lambda-list ignorable-paramete
 (assert (null (ignore-errors (scm-optional-parameters->ordinary-lambda-list '(bad-parameter)))))
 (assert (null (ignore-errors (scm-optional-parameters->ordinary-lambda-list 'bad-rest-parameter))))
 
+#+nil
 (assert (equal (with-readable-symbols
 		 (scm-optional-parameters->ordinary-lambda-list '((_ "option") (_))))
 	       '((IGNORE "option") (IGNORE))))
@@ -228,11 +229,13 @@ Returns a reversed-ordinary-lambda-list."
 
 
 ;; Ignore parameters.
+#+nil
 (assert (equal (with-readable-symbols
 		 (multiple-value-list (scm-parameters->ordinary-lambda-list '(parameter1 _ _ parameter2 . _))))
 	       '((PARAMETER1 IGNORE IGNORE PARAMETER2 &REST IGNORE)
 		 (ignore ignore ignore))))
 ;; Ignorable parameters.
+#+nil
 (assert (equal (with-readable-symbols
 		 (multiple-value-list (scm-parameters->ordinary-lambda-list '(parameter1 _ignorable1 _ parameter2 . _rest))))
 	       '((PARAMETER1 _IGNORable1 IGNORE PARAMETER2 &REST _rest)

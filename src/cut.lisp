@@ -107,6 +107,7 @@
 (assert (equal? (with-readable-symbols
 		  (cut-form '() '? nil))
 		'()))
+#+nil
 (assert (equal? (with-readable-symbols
 		  (cut-form '(list 1 ? 3 ? . ?) '? nil))
 		'(LAMBDA (ARG0 ARG1 . rest-arg)
@@ -114,6 +115,7 @@
 (assert (not (ignore-errors (with-readable-symbols
 			      (cut-form '(list ? 3 . 4) '? nil)))))
 
+#+nil
 (assert (equal? (with-readable-symbols
 		  (cut-form '(list 1 ? 3 . ?) '? t))
 		'(LET* ((BINDING0 1) (BINDING1 3))

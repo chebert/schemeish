@@ -10,8 +10,8 @@
 Values are bound sequentially. Bindings are established for body.
 Body is (declarations... forms...)"
     (let ((declare? (lambda (form) (and (pair? form) (eq? 'cl:declare (first form))))))
-      (let ((declarations (takef declare? body))
-	    (forms (dropf declare? body)))
+      (let ((declarations (takef body declare?))
+	    (forms (dropf body declare?)))
 	`(let ,(map #'first bindings)
 	   ,@declarations
 	   ,@(map (lambda (binding)
